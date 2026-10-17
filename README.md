@@ -6,6 +6,19 @@ Sassy Skills is a suite of explicit-invocation Agent Skills. It follows the Agen
 
 It covers the whole path from a rough idea to a shipped PR, and from a bug report to a verified fix — without giving up human control at the moments that matter.
 
+## Table of contents
+
+- [Why this suite](#why-this-suite)
+- [Quick start](#quick-start)
+- [Skills](#skills)
+- [Workflows](#workflows)
+  - [From idea to ship](#from-idea-to-ship)
+  - [From bug to ship](#from-bug-to-ship)
+- [Gates and controls](#gates-and-controls)
+- [Repository layout](#repository-layout)
+- [Installation](#installation)
+- [Repository maintenance](#repository-maintenance)
+
 ## Why this suite
 
 - **Lean.** Skills are indexes and workflows, not documentation dumps. Detail moves into `references/` only when it is conditionally needed.
