@@ -4,6 +4,9 @@
 
 This repo is the source of truth for the user-level pi Agent Skills under `skills/`.
 
+- Local: `~/Documents/Workspace/Sassywares/sassy-skills`
+- Remote: `sassywares/sassy-skills`
+
 `~/.agents/skills` is a symlink to `skills/`. Editing, adding, or removing a skill here is immediately visible to pi through that symlink. Do not create a second copy of a skill elsewhere.
 
 ## Layout
