@@ -2,18 +2,22 @@
 
 **Lean and mean skills for shipping fast — with full control and 100% reliability.**
 
-Sassy Skills is a suite of explicit-invocation Agent Skills for [pi](https://github.com/earendil-works/pi). It covers the whole path from a rough idea to a shipped PR, and from a bug report to a verified fix — without giving up human control at the moments that matter.
+Sassy Skills is a suite of explicit-invocation Agent Skills. It follows the Agent Skills format, so it works with pi or any other harness that can load `SKILL.md` workflows — not just one tool.
+
+It covers the whole path from a rough idea to a shipped PR, and from a bug report to a verified fix — without giving up human control at the moments that matter.
 
 ## Why this suite
 
 - **Lean.** Skills are indexes and workflows, not documentation dumps. Detail moves into `references/` only when it is conditionally needed.
-- **Explicit.** Every skill is invoked deliberately with `/skill:<name>`. No silent background behavior.
+- **Explicit.** Every skill is invoked deliberately. No silent background behavior.
 - **Controlled.** QA, code approval, and shipping review are separate, visible gates. They can be disabled deliberately when you want a pipeline run.
 - **Reliable.** Work runs through `sassy-cycle` with isolated subagents for implementation, simplification, review, validation, and fixes.
 - **Context-efficient.** Orchestrators coordinate; subagents do the heavy reading and return compact results.
 - **Never surprising.** Nothing is committed just because a step finished. Shipping is its own phase.
 
 ## Quick start
+
+The examples below use pi's `/skill:<name>` syntax. Use your harness's equivalent skill invocation.
 
 ```text
 /skill:sassy-plan Add workspace invitations
@@ -80,7 +84,7 @@ Debugging:
 
 | Skill | What it does |
 |---|---|
-| **`sassy-skill`** | Creates, retunes, or restructures Agent Skills for pi. |
+| **`sassy-skill`** | Creates, retunes, or restructures Agent Skills. |
 
 ## Workflows
 
@@ -165,13 +169,40 @@ sassy-skills/
 
 ## Installation
 
-This repo is designed to be the source of truth for user-level skills. The expected layout is a symlink:
+Sassy Skills are plain Agent Skills. Clone the repo, then symlink the whole suite or copy only the skills you want.
 
-```text
-~/.agents/skills -> /path/to/sassy-skills/skills
+### Clone
+
+```bash
+git clone https://github.com/sassywares/sassy-skills.git ~/sassy-skills
 ```
 
-Then invoke skills with `/skill:<name>` inside pi.
+### Option A — symlink the whole suite
+
+```bash
+ln -s ~/sassy-skills/skills ~/.agents/skills
+```
+
+Replace `~/.agents/skills` with your harness's skills directory if it uses a different path.
+
+### Option B — symlink individual skills
+
+```bash
+mkdir -p /path/to/your/skills
+ln -s ~/sassy-skills/skills/sassy-plan /path/to/your/skills/sassy-plan
+ln -s ~/sassy-skills/skills/sassy-work /path/to/your/skills/sassy-work
+```
+
+### Option C — copy individual skills
+
+```bash
+mkdir -p /path/to/your/skills
+cp -R ~/sassy-skills/skills/sassy-plan /path/to/your/skills/
+```
+
+Use this when you only want a few workflows and do not want to track the repo.
+
+Invoke the skills using your harness's skill syntax. The examples in this README use pi's `/skill:<name>` syntax.
 
 ## Repository maintenance
 
