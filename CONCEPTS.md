@@ -46,4 +46,6 @@ A durable document under `docs/plans/` with intent, decisions, constraints, phas
 
 ## Auto-sync
 
-A launchd job runs every 30 seconds. It repairs the directory symlink, commits skill changes, rebases on `origin/main`, and pushes. New and removed skills need no per-skill symlink work.
+A terminal-started watcher (`scripts/watch.sh`, started from `~/.zshrc`) polls for changes and runs `scripts/sync.sh`. The sync script repairs the directory symlink, commits skill changes, rebases on `origin/main`, and pushes. New and removed skills need no per-skill symlink work.
+
+A shell watcher is used instead of launchd because macOS blocks background launchd jobs from reading `~/Documents` without Full Disk Access; a process started from the terminal inherits the terminal's access.
