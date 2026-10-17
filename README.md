@@ -17,30 +17,30 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 
 ## Quick start
 
-The examples below use pi's `/skill:<name>` syntax. Use your harness's equivalent skill invocation.
+Examples use the common `/skill-name` form. In pi, use `/skill:skill-name` instead.
 
 ```text
-/skill:sassy-plan Add workspace invitations
-/skill:sassy-work docs/plans/add-workspace-invitations.md
+/skill-sassy-plan Add workspace invitations
+/skill-sassy-work docs/plans/add-workspace-invitations.md
 ```
 
 Or take the whole plan through one session:
 
 ```text
-/skill:sassy-lfg docs/plans/add-workspace-invitations.md
+/skill-sassy-lfg docs/plans/add-workspace-invitations.md
 ```
 
 For small work that does not need a plan document:
 
 ```text
-/skill:sassy-plan mode:context Add a copy-link button to the invite modal
-/skill:sassy-work mode:context
+/skill-sassy-plan mode:context Add a copy-link button to the invite modal
+/skill-sassy-work mode:context
 ```
 
 Debugging:
 
 ```text
-/skill:sassy-debug https://github.com/org/repo/issues/123
+/skill-sassy-debug https://github.com/org/repo/issues/123
 ```
 
 ## Skills
@@ -202,7 +202,7 @@ cp -R ~/sassy-skills/skills/sassy-plan /path/to/your/skills/
 
 Use this when you only want a few workflows and do not want to track the repo.
 
-Invoke the skills using your harness's skill syntax. The examples in this README use pi's `/skill:<name>` syntax.
+Invoke the skills using your harness's skill syntax. Examples use `/skill-name`; in pi the equivalent is `/skill:skill-name`.
 
 ## Repository maintenance
 
