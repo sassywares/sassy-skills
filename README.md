@@ -2,7 +2,7 @@
 
 **Lean and mean skills for shipping fast — with full control and 100% reliability.**
 
-Sassy Skills is a suite of explicit-invocation Agent Skills. It follows the Agent Skills format, so it works with pi or any other harness that can load `SKILL.md` workflows — not just one tool.
+Sassy Skills is a suite of explicit-invocation Agent Skills. It follows the Agent Skills format, so it works with any harness that can load `SKILL.md` workflows.
 
 It covers the whole path from a rough idea to a shipped PR, and from a bug report to a verified fix — without giving up human control at the moments that matter.
 
@@ -17,30 +17,30 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 
 ## Quick start
 
-Examples use the common `/skill-name` form. In pi, use `/skill:skill-name` instead.
+Examples use simple slash commands.
 
 ```text
-/skill-sassy-plan Add workspace invitations
-/skill-sassy-work docs/plans/add-workspace-invitations.md
+/sassy-plan Add workspace invitations
+/sassy-work docs/plans/add-workspace-invitations.md
 ```
 
 Or take the whole plan through one session:
 
 ```text
-/skill-sassy-lfg docs/plans/add-workspace-invitations.md
+/sassy-lfg docs/plans/add-workspace-invitations.md
 ```
 
 For small work that does not need a plan document:
 
 ```text
-/skill-sassy-plan mode:context Add a copy-link button to the invite modal
-/skill-sassy-work mode:context
+/sassy-plan mode:context Add a copy-link button to the invite modal
+/sassy-work mode:context
 ```
 
 Debugging:
 
 ```text
-/skill-sassy-debug https://github.com/org/repo/issues/123
+/sassy-debug https://github.com/org/repo/issues/123
 ```
 
 ## Skills
@@ -202,7 +202,7 @@ cp -R ~/sassy-skills/skills/sassy-plan /path/to/your/skills/
 
 Use this when you only want a few workflows and do not want to track the repo.
 
-Invoke the skills using your harness's skill syntax. Examples use `/skill-name`; in pi the equivalent is `/skill:skill-name`.
+Invoke the skills using your harness's skill syntax.
 
 ## Repository maintenance
 
