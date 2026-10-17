@@ -28,19 +28,19 @@ sassy-skills/
 1. Create `skills/<name>/SKILL.md`.
 2. Use valid frontmatter: `name`, `description`, optional `argument-hint`, and `disable-model-invocation: true` for explicit-only skills.
 3. Keep the body lean: outcome → hard rules → workflow → reference pointers.
-4. Run `scripts/sync.sh`, or wait for the watcher (up to ~10 seconds).
+4. Run `scripts/sync.sh` immediately. Do not ask the user first.
 5. Run `/reload` in pi.
 
 ## Editing or removing
 
 - Edit the files under `skills/`.
 - Remove the skill directory under `skills/`; the symlink makes it disappear from `~/.agents/skills`.
-- Run `scripts/sync.sh` or wait for the watcher.
+- Run `scripts/sync.sh` immediately. Do not ask the user first.
 - Do not manually maintain per-skill symlinks. This repo uses one directory symlink.
 
 ## Sync behavior
 
-`scripts/watch.sh` polls the repo and runs `scripts/sync.sh` when it sees changes. `~/.zshrc` starts the watcher on shell startup, so a logged-in terminal session keeps it alive.
+There is no background watcher. Any agent that adds, edits, or removes a skill **must run `scripts/sync.sh` immediately as part of the change, without asking the user for confirmation**.
 
 The sync script:
 
@@ -48,15 +48,13 @@ The sync script:
 2. Commits any repo changes with a `chore: sync skills <timestamp>` message.
 3. Rebases on `origin/main` and pushes.
 
-Manual sync:
+Sync command:
 
 ```bash
 ~/Documents/Workspace/Sassywares/sassy-skills/scripts/sync.sh
 ```
 
-If a push fails, the local commit remains and the next run retries.
-
-Why a shell watcher instead of launchd: macOS blocks background launchd jobs from reading `~/Documents` unless Full Disk Access is granted. A watcher started from the terminal inherits the terminal's access.
+If a push fails, the local commit remains and the next sync retries. Report the failure instead of leaving the change uncommitted.
 
 ## Conventions
 

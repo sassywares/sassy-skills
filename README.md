@@ -157,8 +157,7 @@ sassy-skills/
 │   ├── sassy-lfg/
 │   └── ...
 ├── scripts/
-│   ├── sync.sh
-│   └── watch.sh
+│   └── sync.sh
 ├── AGENTS.md
 ├── CONCEPTS.md
 └── README.md
@@ -176,4 +175,4 @@ Then invoke skills with `/skill:<name>` inside pi.
 
 ## Repository maintenance
 
-`scripts/sync.sh` repairs the symlink, commits skill changes, rebases on `origin/main`, and pushes. `scripts/watch.sh` polls for changes and calls the sync script. `AGENTS.md` documents the workflow for agents working on this repo.
+`scripts/sync.sh` repairs the symlink, commits skill changes, rebases on `origin/main`, and pushes. Any agent that changes a skill must run it immediately, without asking for confirmation. `AGENTS.md` documents the workflow for agents working on this repo.

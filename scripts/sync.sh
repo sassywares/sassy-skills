@@ -6,7 +6,7 @@ SKILLS_DIR="$REPO/skills"
 TARGET="${SASSY_SKILLS_LINK:-$HOME/.agents/skills}"
 LOCK_DIR="${TMPDIR:-/tmp}/sassy-skills-sync.lock"
 
-# Avoid overlapping runs when the watcher and a manual sync fire together.
+# Avoid overlapping runs when several agents sync at the same time.
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   exit 0
 fi

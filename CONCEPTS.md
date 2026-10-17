@@ -44,8 +44,6 @@ A durable document under `docs/plans/` with intent, decisions, constraints, phas
 
 `sassy-handoff` uses the `/handoff` extension to summarize the current session and continue in a fresh session. It is command-only because a skill cannot replace a session by itself.
 
-## Auto-sync
+## Sync
 
-A terminal-started watcher (`scripts/watch.sh`, started from `~/.zshrc`) polls for changes and runs `scripts/sync.sh`. The sync script repairs the directory symlink, commits skill changes, rebases on `origin/main`, and pushes. New and removed skills need no per-skill symlink work.
-
-A shell watcher is used instead of launchd because macOS blocks background launchd jobs from reading `~/Documents` without Full Disk Access; a process started from the terminal inherits the terminal's access.
+There is no background watcher. Any agent that changes a skill must run `scripts/sync.sh` immediately, without asking for confirmation. The sync script repairs the directory symlink, commits skill changes, rebases on `origin/main`, and pushes. New and removed skills need no per-skill symlink work.
