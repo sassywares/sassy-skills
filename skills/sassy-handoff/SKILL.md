@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 **Outcome:** the current session is summarized into a focused continuation prompt, and a fresh session opens with it — actively continuing in `mode:auto`.
 
-**How this works:** the `/handoff` extension (`~/.pi/agent/extensions/handoff.ts`) performs the session replacement. A skill cannot start or replace a session — that operation is command-only in pi — so this skill prepares the handoff and gives you the exact command to run. Running it is the whole action; the summarization, the fresh session, and (in `mode:auto`) the first turn are all automatic.
+**How this works:** the `/handoff` extension from `@sassywares/pi-extensions` performs the session replacement. A skill cannot start or replace a session — that operation is command-only in pi — so this skill prepares the handoff and gives you the exact command to run. Running it is the whole action; the summarization, the fresh session, and (in `mode:auto`) the first turn are all automatic.
 
 ## Steps
 
