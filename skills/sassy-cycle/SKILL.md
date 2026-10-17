@@ -1,0 +1,62 @@
+---
+name: sassy-cycle
+description: >-
+  Run one unit of work through the full quality loop using subagents: implement,
+  simplify, review, validate, fix findings, re-check. Used by sassy-lfg,
+  sassy-work, and sassy-debug. Never commits. Built for context and token
+  efficiency — the orchestrator only writes briefs and reads compact results.
+argument-hint: "<work brief> [intent reference]"
+disable-model-invocation: true
+---
+
+# Sassy Cycle
+
+**Outcome:** one unit of work taken through the full quality loop, findings fixed and re-checked, returning a compact structured result to the caller. This skill never commits, pushes, or ships.
+
+**Subagent-maximal by design.** The orchestrator (the main context) must never read source files, diffs, or the tree. Every heavy read happens inside a subagent with its own isolated context window. The orchestrator only writes briefs and reads compact structured results. This is what keeps the caller's context small across many phases.
+
+## Inputs
+
+- **Work brief** — what to build or fix, concretely.
+- **Intent reference** — how conformance is judged: a plan path + phase, or root-cause findings.
+- **Scope hint** — files or areas, optional.
+
+## Steps
+
+1. **Recon (optional).** If the work is large or its location is unclear, dispatch a `scout` first and pass its compressed findings into the work brief. Skip when the brief is already precise.
+2. **Implement.** Dispatch a `worker` with the work brief, the intent reference, and the plan path if there is one. For independent chunks, batch them as **parallel** `worker` tasks in one call (max 8). The worker reads whatever it needs itself.
+3. **Simplify.** Dispatch the `simplifier` on the changed files.
+4. **Review + validate (parallel).** Dispatch the `reviewer` and the `validator` together in one **parallel** call. Give the validator the intent reference so it can judge conformance.
+5. **Fix findings.** Collect every finding from steps 2–4. If any exist, dispatch one `worker` to fix exactly those findings.
+6. **Re-check.** Re-run the `reviewer` and `validator` in parallel once.
+7. **Return** the structured result below.
+
+## Structured result
+
+Return this to the caller, compactly:
+
+```text
+Status: done | blocked
+Files changed: <paths>
+Findings: <raised -> fixed | open>
+Validator: Conforms | Partial | Diverges | Blocked
+Reviewer: <n> critical, <n> warnings
+Notes: <anything the caller needs>
+```
+
+## Rules
+
+| Rule | Requirement |
+|------|-------------|
+| Orchestrator only | Never edit code or read source in the main context. Delegate. |
+| Parallel where independent | Independent work chunks → parallel workers. Reviewer + validator always run in parallel. |
+| One fix pass | One worker fix, one re-check. If findings remain after that → `blocked`. |
+| Never commit | This skill leaves everything uncommitted. Shipping is `sassy-ship`. |
+| Manual QA | When QA is enabled, never mark QA rows `Done`. When the plan or brief disables QA, skip QA entirely. |
+
+## Context and token discipline
+
+- Pass only the brief and the intent reference to subagents; the subagent reads the code, not the orchestrator.
+- Keep the intent reference terse — a plan path plus a phase, or a short findings list.
+- Never paste file contents or subagent transcripts through the orchestrator; summarize.
+- Prefer one worker with a good brief over a tour of the tree in the main context.
