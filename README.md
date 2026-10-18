@@ -73,7 +73,7 @@ Debugging:
 
 | Skill | What it does |
 |---|---|
-| **`sassy-review`** | Reviews a diff, branch, PR, or files, then offers to fix findings. |
+| **`sassy-review`** | Reviews a diff, branch, PR, or files for bugs, project-rule conformance, and design-system conformance, then offers to fix findings. |
 | **`sassy-simplify`** | Finds and applies simplifications to recent changes without changing behavior. |
 | **`sassy-validate`** | Checks whether work matches a plan or stated intent, then offers to close gaps. |
 
