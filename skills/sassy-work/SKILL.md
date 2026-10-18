@@ -37,7 +37,7 @@ Take a plan path from the argument, and an optional `phase:<n>`. Default to the 
 4. **Present the phase gate.** Report the phase, what changed, findings raised/resolved, the validator grade, and the reviewer summary. When QA is enabled, leave QA rows `Pending` (QA is manual); when QA is disabled, omit QA entirely. If code approval is manual, wait for the user's approval. If `code-approval:off`, report the same summary and continue without waiting.
 5. **Commit the phase.** On code approval (or immediately when `code-approval:off`), dispatch a `worker` whose task is: *read `~/.agents/skills/sassy-commit/SKILL.md` and follow it with `branch:current`*, naming that the commit must include the phase's code changes and the plan's updated Phase tracking table. It returns the hash and subject.
 
-   **Branch guard.** If the checked-out branch is the repo default branch, tell the worker to use `branch:new` for the first phase commit, so the remaining phases and `sassy-ship` land on the same feature branch. Later phases always use `branch:current`.
+   **Branch guard.** In `mode:document`, if the checked-out branch is the repo default branch, tell the worker to use `branch:new` for the first phase commit, so the remaining phases and `sassy-ship` land on the same feature branch. Later phases always use `branch:current`. In `mode:pipeline`, never create a branch: always use `branch:current`, even on the default branch. If that branch is the repo default, say so in the phase report; `sassy-ship` creates the shipping branch at close-out.
 
    Do not hand off or close out until the commit succeeds.
 6. **On commit success:**
@@ -55,7 +55,7 @@ When the caller passes `mode:pipeline`, skip the plan steps and treat the brief 
 
 1. Run one `sassy-cycle` with the in-context brief as the work brief and its decisions / done-when as the intent reference. Do not split it into multiple cycles.
 2. Present the phase gate exactly as step 4. With manual QA, include the brief's `QA checks` and leave them for the user; with `qa:off`, omit the checklist and the QA gate. If code approval is manual, wait; with `code-approval:off`, continue without waiting.
-3. On code approval, or immediately when `code-approval:off`, commit the brief's changes via the same `sassy-commit` delegation (branch guard included), then run the `sassy-ship` close-out — there is no next phase.
+3. On code approval, or immediately when `code-approval:off`, commit the brief's changes via the same `sassy-commit` delegation with `branch:current` (never `branch:new`), then run the `sassy-ship` close-out — there is no next phase.
 4. On `blocked`, stop and report. Never create or update a plan file.
 
 **Why a command:** session replacement is only available from an interactive command handler, so a skill cannot switch sessions by itself. Running `/handoff` is the single trigger; the extension does the summary, opens the fresh session, and `mode:pipeline` starts the next phase.

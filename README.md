@@ -120,7 +120,7 @@ flowchart LR
   J --> K[PR + babysit]
 ```
 
-`mode:document` produces a durable plan with phased slices and optional manual QA. `mode:pipeline` keeps the whole job as one in-context phase and writes no plan file.
+`mode:document` produces a durable plan with phased slices and optional manual QA. `mode:pipeline` keeps the whole job as one in-context phase and writes no plan file. In `mode:pipeline`, `sassy-work` and `sassy-lfg` never create a branch: they work and commit on the checked-out branch, and `sassy-ship` creates the shipping branch at close-out if that branch is the repo default.
 
 `sassy-work` handles one phase and hands off the next. `sassy-lfg` drains the whole plan in one session. Both delegate to `sassy-cycle` and stop at the code approval gate unless `code-approval:off` is set.
 

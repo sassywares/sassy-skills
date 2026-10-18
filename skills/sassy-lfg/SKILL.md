@@ -21,7 +21,7 @@ Take a sassy plan path. If none is given, run `sassy-plan` first and use the fil
 
 **Modes.** `mode:document` (default) works from a plan file. `mode:pipeline` consumes a settled in-context brief from `sassy-plan mode:pipeline` instead of a plan path.
 
-**In-context mode (`mode:pipeline`).** When the caller passes `mode:pipeline`, the argument is a settled work brief, not a plan path. It is the entire phase: run one `sassy-cycle` from the brief without splitting it, stop at the review gate, then close out via `sassy-ship` on approval. Do not run `sassy-plan` and do not create a plan file.
+**In-context mode (`mode:pipeline`).** When the caller passes `mode:pipeline`, the argument is a settled work brief, not a plan path. It is the entire phase: run one `sassy-cycle` from the brief without splitting it, stop at the review gate, then close out via `sassy-ship` on approval. Do not run `sassy-plan` and do not create a plan file. Never create a branch: work on the checked-out branch, and let `sassy-ship` handle branching at close-out.
 
 **QA setting.** Read the plan's `**QA:**` line, or the context brief's `QA:` line. `manual` keeps the QA checklist and gate; `disabled` (`qa:off`) removes both. Never toggle QA on or off on your own.
 
