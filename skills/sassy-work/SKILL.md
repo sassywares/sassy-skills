@@ -3,9 +3,9 @@ name: sassy-work
 description: >-
   Execute exactly ONE phase of a sassy plan by delegating to sassy-cycle, then
   hand off to a fresh session for the next phase (or close out via sassy-ship if
-  it was the last). Also runs a settled in-context brief with `mode:context`. The
+  it was the last). Also runs a settled in-context brief with `mode:pipeline`. The
   orchestrator only coordinates.
-argument-hint: "<plan path | in-context brief> [phase:<n>] [mode:context] [qa:off] [code-approval:off]"
+argument-hint: "<plan path | in-context brief> [phase:<n>] [mode:document|pipeline] [qa:off] [code-approval:off]"
 disable-model-invocation: true
 ---
 
@@ -19,7 +19,9 @@ disable-model-invocation: true
 
 Take a plan path from the argument, and an optional `phase:<n>`. Default to the first phase whose status is not `Done`. If the plan does not exist, run `sassy-plan` first and stop.
 
-**In-context mode (`mode:context`).** When the caller passes `mode:context`, the argument is a settled work brief from `sassy-plan mode:context`, not a plan path. The brief is the entire phase: run one cycle from it, do not split it further, and do not create or update any plan file. This is for small work that was deliberately kept in context.
+**Modes.** `mode:document` (default) works from a plan file. `mode:pipeline` consumes a settled in-context brief from `sassy-plan mode:pipeline` instead of a plan path.
+
+**In-context mode (`mode:pipeline`).** When the caller passes `mode:pipeline`, the argument is a settled work brief, not a plan path. The brief is the entire phase: run one cycle from it, do not split it further, and do not create or update any plan file. This is for small work that was deliberately kept in context.
 
 **QA setting.** Read the plan's `**QA:**` line, or the context brief's `QA:` line. `manual` keeps the QA checklist and gate; `disabled` (`qa:off`) removes both. Never toggle QA on or off on your own.
 
@@ -42,21 +44,21 @@ Take a plan path from the argument, and an optional `phase:<n>`. Default to the 
    - **A next phase exists** → hand off so it starts in a fresh session:
 
      ```text
-     /handoff mode:auto Execute phase <next> of <plan>. Run /skill:sassy-work <plan> phase:<next>
+     /handoff mode:pipeline Execute phase <next> of <plan>. Run /skill:sassy-work <plan> phase:<next>
      ```
 
    - **This was the last phase** → run the close-out: load the `sassy-ship` skill and follow it.
 
-### In-context mode (`mode:context`)
+### In-context mode (`mode:pipeline`)
 
-When the caller passes `mode:context`, skip the plan steps and treat the brief as one phase:
+When the caller passes `mode:pipeline`, skip the plan steps and treat the brief as one phase:
 
 1. Run one `sassy-cycle` with the in-context brief as the work brief and its decisions / done-when as the intent reference. Do not split it into multiple cycles.
 2. Present the phase gate exactly as step 4. With manual QA, include the brief's `QA checks` and leave them for the user; with `qa:off`, omit the checklist and the QA gate. If code approval is manual, wait; with `code-approval:off`, continue without waiting.
 3. On code approval, or immediately when `code-approval:off`, commit the brief's changes via the same `sassy-commit` delegation (branch guard included), then run the `sassy-ship` close-out — there is no next phase.
 4. On `blocked`, stop and report. Never create or update a plan file.
 
-**Why a command:** session replacement is only available from an interactive command handler, so a skill cannot switch sessions by itself. Running `/handoff` is the single trigger; the extension does the summary, opens the fresh session, and `mode:auto` starts the next phase.
+**Why a command:** session replacement is only available from an interactive command handler, so a skill cannot switch sessions by itself. Running `/handoff` is the single trigger; the extension does the summary, opens the fresh session, and `mode:pipeline` starts the next phase.
 
 ## Hard rules
 
@@ -64,7 +66,7 @@ When the caller passes `mode:context`, skip the plan steps and treat the brief a
 |------|-------------|
 | Orchestrator only | Delegate all implementation and quality work to `sassy-cycle`. |
 | One phase per run | Do exactly one phase. Never continue into the next phase in this session. |
-| No plan in `mode:context` | Use the in-context brief; never create or update a plan file. |
+| No plan in `mode:pipeline` | Use the in-context brief; never create or update a plan file. |
 | Gate before handoff | Do not hand off or close out until the user approves the code, unless `code-approval:off`. |
 | Commit per phase | After code approval (or `code-approval:off`), commit the phase and the plan update via `sassy-commit` before handoff or close-out. |
 | Manual QA | When QA is enabled, never mark QA rows `Done`. When `qa:off`, skip QA rows and gates. |

@@ -46,8 +46,8 @@ Or take the whole plan through one session:
 For small work that does not need a plan document:
 
 ```text
-/sassy-plan mode:context Add a copy-link button to the invite modal
-/sassy-work mode:context
+/sassy-plan mode:pipeline Add a copy-link button to the invite modal
+/sassy-work mode:pipeline
 ```
 
 Debugging:
@@ -62,12 +62,12 @@ Debugging:
 
 | Skill | What it does |
 |---|---|
-| **`sassy-plan`** | Brainstorms and scopes an idea. Writes a phased plan by default; `mode:context` keeps a single-phase brief in context. |
+| **`sassy-plan`** | Brainstorms and scopes an idea. Writes a phased plan by default; `mode:pipeline` keeps a single-phase brief in context. |
 | **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, then commits the approved phase before handing off. |
 | **`sassy-lfg`** | Executes an entire plan, or one in-context brief, then closes out. |
 | **`sassy-cycle`** | Runs one unit of work through implement → simplify → review → validate → fix → re-check. |
-| **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-cycle`, then ships after code approval. |
-| **`sassy-handoff`** | Summarizes the session and continues in a fresh session via `/handoff`. |
+| **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-cycle`, then ships after code approval. `mode:review` (default) keeps the ship gate; `mode:pipeline` skips it. |
+| **`sassy-handoff`** | Summarizes the session and continues in a fresh session via `/handoff`. `mode:review` (default) asks; `mode:pipeline` continues immediately. |
 
 ### Code quality
 
@@ -90,7 +90,7 @@ Debugging:
 
 | Skill | What it does |
 |---|---|
-| **`sassy-compound`** | Records a solved problem as a durable repo learning. |
+| **`sassy-compound`** | Records a solved problem as a durable repo learning. `mode:review` (default) asks before the AGENTS.md pointer edit; `mode:pipeline` is silent. |
 | **`sassy-handbook`** | Writes a plain-English team handbook with mermaid diagrams. |
 
 ### Meta
@@ -107,7 +107,7 @@ Debugging:
 flowchart LR
   A[Idea] --> B[sassy-plan]
   B -->|mode:document| C[Plan file]
-  B -->|mode:context| D[In-context brief]
+  B -->|mode:pipeline| D[In-context brief]
   C --> E[sassy-work or sassy-lfg]
   D --> E
   E --> F[sassy-cycle]
@@ -120,7 +120,7 @@ flowchart LR
   J --> K[PR + babysit]
 ```
 
-`mode:document` produces a durable plan with phased slices and optional manual QA. `mode:context` keeps the whole job as one in-context phase and writes no plan file.
+`mode:document` produces a durable plan with phased slices and optional manual QA. `mode:pipeline` keeps the whole job as one in-context phase and writes no plan file.
 
 `sassy-work` handles one phase and hands off the next. `sassy-lfg` drains the whole plan in one session. Both delegate to `sassy-cycle` and stop at the code approval gate unless `code-approval:off` is set.
 
@@ -160,7 +160,7 @@ At the fix gate you can:
 | Manual QA | `qa:manual` | `qa:off` |
 | Code approval | `code-approval:manual` | `code-approval:off` |
 | Ship review | `mode:review` | `mode:pipeline` |
-| Plan document | `mode:document` | `mode:context` |
+| Plan document | `mode:document` | `mode:pipeline` |
 
 Gates are deliberate stops. Disabling one is an explicit choice, not an automatic shortcut.
 

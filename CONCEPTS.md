@@ -31,10 +31,11 @@ A gate is a deliberate stop or pass/fail condition.
 
 ## Modes
 
-- `mode:document` — `sassy-plan` writes a phased plan file.
-- `mode:context` — `sassy-plan` keeps a single-phase brief in context and writes no plan file. Also used by work/LFG to consume that brief.
-- `mode:review` — `sassy-ship` presents the shipping summary and waits for approval.
-- `mode:pipeline` — `sassy-ship` skips approval gates and runs straight through.
+The same three tokens everywhere: `mode:review` asks, `mode:pipeline` does not, and `mode:document` selects the plan-file path.
+
+- `mode:review` (default for `sassy-handoff`, `sassy-compound`, `sassy-ship`, `sassy-debug`) — ask at the skill's gate. Handoff stops for an editable prompt; compound asks before the AGENTS.md pointer; ship and debug wait for shipping approval.
+- `mode:pipeline` — non-interactive. Handoff continues immediately, compound edits silently, ship and debug skip approval gates. In `sassy-plan`, `sassy-work`, and `sassy-lfg` it selects the settled in-context brief and writes no plan file.
+- `mode:document` (default for `sassy-plan`, `sassy-work`, `sassy-lfg`) — use a phased plan document under `docs/plans/`.
 
 ## Plan
 
