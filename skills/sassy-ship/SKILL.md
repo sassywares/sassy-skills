@@ -24,7 +24,7 @@ disable-model-invocation: true
 1. **Compound (conditional).** If the work produced a qualifying learning, dispatch a `worker` whose task is: *read `~/.agents/skills/sassy-compound/SKILL.md` and follow it* — with a compact learnings brief (the solved problems, root causes, and solutions taken from the cycle results, not from re-reading the tree). Skip cleanly when nothing qualifies.
 2. **Handbook (conditional).** If the feature is self-contained and independent enough that a teammate would benefit from a handover, dispatch a `worker` whose task is: *read `~/.agents/skills/sassy-handbook/SKILL.md` and follow it* — with the plan path and topic. The worker reads the tree itself. Skip for small or tightly-coupled changes.
 3. **Review gate (`mode:review` only).** Present a compact shipping summary: the plan or topic, the changes from the cycle results, the docs that will be committed, the branch/PR target, and any babysit options. Wait for the user's approval. With `mode:pipeline`, skip this gate.
-4. **Commit.** Dispatch a `worker` whose task is: *read `~/.agents/skills/sassy-commit/SKILL.md` and follow it with `branch:new`*, naming that the commit must include the plan, any new `docs/solutions/` docs, `CONCEPTS.md`, `AGENTS.md`, and any `docs/handbooks/` file just written. It returns the hash and subject.
+4. **Commit.** Dispatch a `worker` whose task is: *read `~/.agents/skills/sassy-commit/SKILL.md` and follow it*, naming that the commit must include the plan, any new `docs/solutions/` docs, `CONCEPTS.md`, `AGENTS.md`, and any `docs/handbooks/` file just written. Use `branch:current` so the docs land on the same branch as any per-phase commits from `sassy-work`; use `branch:new` only when the checked-out branch is the repo default branch and no phase commits exist. It returns the hash and subject; if nothing is left to commit, it reports that and the existing phase commits are shipped as-is.
 5. **Ship.** Dispatch a `worker` whose task is: *read `~/.agents/skills/sassy-commit-push-pr/SKILL.md` and follow it with `branch:current` and `babysit:off`* (step 6 owns the babysit). It returns the PR URL.
 6. **Babysit.** Dispatch a `worker` whose task is: *read `~/.agents/skills/sassy-babysit/SKILL.md` and follow it for the PR just created, one checkpoint*, forwarding any `merge:on|off` and `delete-branch:on|off` the caller supplied. It reports looks-ready or blocked. For a continuous watch, tell the user to run `sassy-babysit` in-session.
 
@@ -37,6 +37,7 @@ disable-model-invocation: true
 | Delegate everything | The orchestrator runs no git, gh, or file work itself. |
 | Conditional docs | Compound and handbook are skipped when they do not qualify. |
 | Docs in the commit | New docs and pointer lines ship in the same change. |
+| One branch | Docs are committed with `branch:current` when phase commits already exist, so the PR contains every phase. |
 | Compact I/O | Receive hashes, URLs, and one-line statuses only; never paste diffs. |
 
 ## Context and token discipline

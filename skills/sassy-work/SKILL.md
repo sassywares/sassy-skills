@@ -11,9 +11,9 @@ disable-model-invocation: true
 
 # Sassy Work
 
-**Outcome:** one phase run through `sassy-cycle`, findings fixed, the phase marked `Done`; presented for the user's approval (or continued automatically with `code-approval:off`); then a handoff that continues the **next** phase in a fresh session, or a `sassy-ship` close-out if this was the last phase.
+**Outcome:** one phase run through `sassy-cycle`, findings fixed, the phase marked `Done`; presented for the user's approval (or continued automatically with `code-approval:off`); committed via `sassy-commit`; then a handoff that continues the **next** phase in a fresh session, or a `sassy-ship` close-out if this was the last phase.
 
-**The orchestrator does not do work.** Read the plan, dispatch `sassy-cycle`, apply its result, update the plan's tracking table, and report. Never edit application code.
+**The orchestrator does not do work.** Read the plan, dispatch `sassy-cycle`, apply its result, update the plan's tracking table, dispatch `sassy-commit`, and report. Never edit application code.
 
 ## Input
 
@@ -33,7 +33,12 @@ Take a plan path from the argument, and an optional `phase:<n>`. Default to the 
    - intent reference = the plan path and phase
 3. **Close the phase.** On `Status: done` and `Validator: Conforms` with no critical review findings, set the phase `Done` in the plan's Phase tracking table. On `Status: blocked`, set it `Blocked` and stop.
 4. **Present the phase gate.** Report the phase, what changed, findings raised/resolved, the validator grade, and the reviewer summary. When QA is enabled, leave QA rows `Pending` (QA is manual); when QA is disabled, omit QA entirely. If code approval is manual, wait for the user's approval. If `code-approval:off`, report the same summary and continue without waiting.
-5. **On code approval (or immediately when `code-approval:off`):**
+5. **Commit the phase.** On code approval (or immediately when `code-approval:off`), dispatch a `worker` whose task is: *read `~/.agents/skills/sassy-commit/SKILL.md` and follow it with `branch:current`*, naming that the commit must include the phase's code changes and the plan's updated Phase tracking table. It returns the hash and subject.
+
+   **Branch guard.** If the checked-out branch is the repo default branch, tell the worker to use `branch:new` for the first phase commit, so the remaining phases and `sassy-ship` land on the same feature branch. Later phases always use `branch:current`.
+
+   Do not hand off or close out until the commit succeeds.
+6. **On commit success:**
    - **A next phase exists** → hand off so it starts in a fresh session:
 
      ```text
@@ -48,7 +53,7 @@ When the caller passes `mode:context`, skip the plan steps and treat the brief a
 
 1. Run one `sassy-cycle` with the in-context brief as the work brief and its decisions / done-when as the intent reference. Do not split it into multiple cycles.
 2. Present the phase gate exactly as step 4. With manual QA, include the brief's `QA checks` and leave them for the user; with `qa:off`, omit the checklist and the QA gate. If code approval is manual, wait; with `code-approval:off`, continue without waiting.
-3. On code approval, or immediately when `code-approval:off`, run the `sassy-ship` close-out — there is no next phase.
+3. On code approval, or immediately when `code-approval:off`, commit the brief's changes via the same `sassy-commit` delegation (branch guard included), then run the `sassy-ship` close-out — there is no next phase.
 4. On `blocked`, stop and report. Never create or update a plan file.
 
 **Why a command:** session replacement is only available from an interactive command handler, so a skill cannot switch sessions by itself. Running `/handoff` is the single trigger; the extension does the summary, opens the fresh session, and `mode:auto` starts the next phase.
@@ -61,11 +66,13 @@ When the caller passes `mode:context`, skip the plan steps and treat the brief a
 | One phase per run | Do exactly one phase. Never continue into the next phase in this session. |
 | No plan in `mode:context` | Use the in-context brief; never create or update a plan file. |
 | Gate before handoff | Do not hand off or close out until the user approves the code, unless `code-approval:off`. |
+| Commit per phase | After code approval (or `code-approval:off`), commit the phase and the plan update via `sassy-commit` before handoff or close-out. |
 | Manual QA | When QA is enabled, never mark QA rows `Done`. When `qa:off`, skip QA rows and gates. |
 | No shipping before code approval | Shipping happens only in `sassy-ship`, after code approval or when `code-approval:off`. |
 
 ## Failure handling
 
 - `sassy-cycle` returns `blocked` → mark the phase `Blocked`, stop, report the open findings and the diagnostic.
+- `sassy-commit` fails or leaves the phase changes uncommitted → stop and report; never hand off on top of uncommitted phase work.
 - The validator returns **Blocked — insufficient grounding** → treat it as a real blocker; do not advance or hand off.
 - Ambiguous or unsafe failure → stop and ask.

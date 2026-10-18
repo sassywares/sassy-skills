@@ -63,7 +63,7 @@ Debugging:
 | Skill | What it does |
 |---|---|
 | **`sassy-plan`** | Brainstorms and scopes an idea. Writes a phased plan by default; `mode:context` keeps a single-phase brief in context. |
-| **`sassy-work`** | Executes exactly one plan phase, or one in-context brief. |
+| **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, then commits the approved phase before handing off. |
 | **`sassy-lfg`** | Executes an entire plan, or one in-context brief, then closes out. |
 | **`sassy-cycle`** | Runs one unit of work through implement → simplify → review → validate → fix → re-check. |
 | **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-cycle`, then ships after code approval. |
