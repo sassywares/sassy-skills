@@ -23,7 +23,7 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 
 - **Lean.** Skills are indexes and workflows, not documentation dumps. Detail moves into `references/` only when it is conditionally needed.
 - **Explicit.** Every skill is invoked deliberately. No silent background behavior.
-- **Controlled.** Code approval, ship review, and manual QA are separate, visible gates. There is one mode token, `mode:auto`, and only `sassy-ship` and `sassy-debug` accept it.
+- **Controlled.** Code approval, ship review, and manual QA are separate, visible gates. There are two mode tokens, `mode:manual` (default) and `mode:auto`, accepted by `sassy-ship` and `sassy-compound`. `sassy-debug` takes no mode. `sassy-handoff` uses `mode:auto` only to auto-submit its continuation prompt.
 - **Reliable.** Work runs through `sassy-cycle` with isolated subagents for implementation, review, validation, and fixes.
 - **Context-efficient.** Orchestrators coordinate; subagents do the heavy reading and return compact results.
 - **Never surprising.** Nothing is committed just because a step finished. Shipping is its own phase.
@@ -81,8 +81,8 @@ Debugging:
 | **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, commits after code approval, then hands off the next phase — a brief stops before ship. |
 | **`sassy-lfg`** | Executes every phase of a plan, or one in-context brief, then closes out via `sassy-ship` after code approval. |
 | **`sassy-cycle`** | Runs one unit of work through implement → review → validate → fix → re-check. |
-| **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-cycle`, then ships after code approval. Pass `mode:auto` to skip the ship gate. |
-| **`sassy-handoff`** | Summarizes the session and continues in a fresh session via `/handoff`. |
+| **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-cycle`, then ships after code approval. Debug takes no mode and always leaves ship's review gate in place unless you invoke ship yourself with `mode:auto`. |
+| **`sassy-handoff`** | Summarizes the session and continues in a fresh session via `/handoff`. `mode:auto` submits the continuation prompt immediately instead of opening it for review. |
 
 ### Code quality
 
@@ -95,7 +95,7 @@ Debugging:
 
 | Skill | What it does |
 |---|---|
-| **`sassy-ship`** | Compound learnings, optional handbook, commit, PR, and babysit. Review gate unless the caller passed `mode:auto`. |
+| **`sassy-ship`** | Compound learnings, optional handbook, commit, PR, and babysit. Review gate in `mode:manual` (default), skipped by `mode:auto`. |
 | **`sassy-commit`** | Creates a local commit with a clear message. No push, no PR. |
 | **`sassy-commit-push-pr`** | Commits, pushes, opens or updates a PR, and babysits by default. |
 | **`sassy-babysit`** | Watches a PR until it looks merge-ready or blocked. |
@@ -104,7 +104,7 @@ Debugging:
 
 | Skill | What it does |
 |---|---|
-| **`sassy-compound`** | Records a solved problem as a durable repo learning. |
+| **`sassy-compound`** | Records a solved problem as a durable repo learning. Takes `mode:manual` or `mode:auto`; ship passes `mode:auto` after its own gate. |
 | **`sassy-handbook`** | Writes a plain-English team handbook with mermaid diagrams. |
 
 ### Meta
@@ -153,34 +153,37 @@ flowchart LR
   B --> C[Triage]
   C --> D[scout helper]
   D --> E{Fix gate}
-  E -->|fix now| F[sassy-cycle]
-  E -->|handoff| G[sassy-handoff]
-  E -->|brainstorm| H[sassy-plan]
-  F --> I{Code approval}
-  I -->|changes| F
-  I -->|approved| J[sassy-ship]
-  J --> K{Ship review}
-  K -->|approve| L[Commit + PR + babysit]
-  K -->|mode:auto| L
+  E -->|1. fix it now| F[sassy-work]
+  E -->|2. write a plan| G[sassy-plan]
+  E -->|3. hand off| H[sassy-handoff]
+  E -->|4. stop| I[Diagnosis only]
+  F --> J{Code approval}
+  J -->|changes| F
+  J -->|approved| K[sassy-ship]
+  K --> L{Ship review}
+  L -->|approve| M[Commit, PR, babysit]
 ```
 
 `sassy-debug` diagnoses inline, using the read-only `scout` as a helper to ground the failure surface; the causal reasoning stays in the main context. It then stops at the fix gate with the causal chain, proposed fix, and risks.
 
-At the fix gate you can:
+The fix gate offers four options:
 
-- **fix now** — run the fix through `sassy-cycle`
-- **handoff** — continue in a fresh session via `sassy-handoff`
-- **brainstorm** — take the problem into `sassy-plan`
+- **Fix it now** — hand the fix brief to `sassy-work`: one cycle, its own code approval gate, a commit, then a stop before ship
+- **Write a plan** — carry the diagnosis into `sassy-plan`, which ends in its own 3-option picker
+- **Hand off** — continue in a fresh session via `sassy-handoff`
+- **Stop here** — keep the diagnosis and change nothing
+
+`sassy-debug` takes no mode. Shipping keeps its own `mode:manual` gate unless you invoke `sassy-ship` yourself with `mode:auto`.
 
 ## Gates and controls
 
 | Control | When it applies |
 |---|---|
 | Code approval | Always on for `sassy-work` and `sassy-lfg`. |
-| Ship review | On unless the caller passed `mode:auto`. |
+| Ship review | On in `mode:manual` (default), skipped by `mode:auto`. |
 | Manual QA | Only when the plan document has QA tables. |
 
-The artifact decides QA: a plan document carries manual QA tables, an in-context brief does not. Gates are deliberate stops; the only way past one is the user's approval or an explicit `mode:auto` from the caller.
+The artifact decides QA: a plan document carries manual QA tables, an in-context brief does not. Gates are deliberate stops; the only way past one is the user's approval. `mode:auto` is accepted only by `sassy-ship` and `sassy-compound`, and `sassy-handoff`'s `mode:auto` only auto-submits its continuation prompt.
 
 ## Repository layout
 

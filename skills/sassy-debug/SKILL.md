@@ -5,7 +5,7 @@ description: >-
   through sassy-cycle (fix, review, validate), and finally ship it
   through sassy-ship after code approval. Never auto-commits. Use when asked to
   debug or fix a failure.
-argument-hint: "[issue reference, error message, test path, or description] [mode:auto]"
+argument-hint: "[issue reference, error message, test path, or description]"
 disable-model-invocation: true
 ---
 
@@ -13,9 +13,7 @@ disable-model-invocation: true
 
 Find the root cause of a failure, get approval for the fix, fix it through the shared quality cycle, then ship it only after code approval. **This skill never commits on its own.**
 
-**Modes.** By default every approval gate stays, including the ship review gate. When the caller passes `mode:auto`, forward it to `sassy-ship` so the ship gate is skipped. Never toggle it yourself.
-
-**Done when:** the full causal chain is stated with `file:line` evidence, the fix gate was answered, the fix has passed the quality cycle, and either the user has approved shipping or the run ended at the fix gate with a handoff or brainstorm.
+**Done when:** the full causal chain is stated with `file:line` evidence, the fix gate was answered with one of its four options, and either the fix has passed the quality cycle and shipped after code approval, or the run ended at the fix gate.
 
 **Escalate rather than persist:** 2–3 hypotheses exhausted without confirmation, or 3 failed fix attempts, means diagnose *why* instead of trying again. One hypothesis, one change at a time — never shotgun-debug.
 
@@ -39,27 +37,41 @@ Then do the diagnosis yourself:
 
 If the chain still has a gap after that, say so at the fix gate and lower the confidence rather than guessing.
 
-**Then offer the next step, exactly as before:** the fix gate below asks whether to take the fix through `sassy-cycle`, hand it off, or brainstorm it.
+**Then offer the next step, exactly as before:** the fix gate below asks whether to fix it now, write a plan, hand it off, or stop at the diagnosis.
 
 ## Phase 2 — Fix gate
 
-Stop before changing any code. Present only:
+Stop before changing any code. Present the causal chain, the proposed fix with the files and tests it touches, and the risks. Then present exactly this menu and stop until the user picks. Do not recommend one.
 
-- the causal chain
-- the fix, including the files and tests it touches
-- the risks
+```text
+Pick one:
+1. Fix it now — smallest change, regression test first, stop before ship
+2. Write a plan — take this diagnosis into sassy-plan
+3. Hand off — continue in a fresh session
+4. Stop here — diagnosis only
+```
 
-Then ask: **fix now / handoff / brainstorm**.
+This gate is mandatory even when the original request said "fix the bug". Do not edit code, dispatch `sassy-cycle`, or apply a one-line fix before the user picks.
 
-This gate is mandatory even when the original request said "fix the bug". Do not edit code, dispatch `sassy-cycle`, or apply a one-line fix until the user chooses **fix now**.
+### Option 1 — Fix it now
 
-- **fix now** → continue to Phase 3.
-- **handoff** → load `sassy-handoff` with the root-cause chain and proposed fix, then stop.
-- **brainstorm** → load `sassy-plan` with the issue and root-cause context, then stop.
+Load the `sassy-work` skill with the fix brief as the work brief and the diagnosis from Phase 1 as the intent reference. Work runs one cycle, presents its own code approval gate, commits, and stops before ship. Continue to Phase 3.
+
+### Option 2 — Write a plan
+
+Load the `sassy-plan` skill with the issue and the root-cause context. Plan runs its discussion and ends in its own three-option picker; the diagnosis carries into the plan so the discussion does not re-derive it.
+
+### Option 3 — Hand off
+
+Load the `sassy-handoff` skill with the root-cause chain and proposed fix, then stop.
+
+### Option 4 — Stop here
+
+Report the diagnosis and stop. Nothing is committed.
 
 ## Phase 3 — Fix via `sassy-cycle`
 
-Load the `sassy-cycle` skill and follow it, with:
+Runs only after the user picked **Fix it now** at the fix gate. Load the `sassy-cycle` skill and follow it, with:
 
 - work brief = "Fix the root cause: <causal chain>. Apply the smallest change; add or strengthen the regression test first."
 - intent reference = the diagnosis from Phase 1
@@ -73,9 +85,9 @@ Leave everything uncommitted. Present the result: the causal chain, the fix, the
 
 ## Phase 5 — Ship via `sassy-ship`
 
-On code approval, load the `sassy-ship` skill and follow it. Ship presents its shipping summary and waits unless the caller supplied `mode:auto`, which is forwarded as-is. It compounds any learnings, commits, opens or updates the PR, and babysits it via `sassy-babysit`. Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship`. Run only the steps the user approves.
+On code approval, load the `sassy-ship` skill and follow it, leaving ship's default `mode:manual` review gate in place. Do not pass a mode yourself. Ship presents its shipping summary and waits. It compounds any learnings, commits, opens or updates the PR, and babysits it via `sassy-babysit`. Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship`. Run only the steps the user approves.
 
-If the fix gate ended in **handoff** or **brainstorm**, this skill stops there — never commit.
+If the fix gate ended in **Write a plan**, **Hand off**, or **Stop here**, this skill stops there — never commit.
 
 ## Summary (always write first)
 

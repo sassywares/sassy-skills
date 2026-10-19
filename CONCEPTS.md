@@ -26,12 +26,17 @@ A gate is a deliberate stop or pass/fail condition.
 
 - **Fix gate** — `sassy-debug` presents the causal chain, fix, and risks before changing code.
 - **Code approval gate** — the user approves the code before committing or shipping. Always on for `sassy-work` and `sassy-lfg`.
-- **Ship review gate** — `sassy-ship` summarizes what is about to ship and waits. Skipped when the caller passed `mode:auto`.
+- **Ship review gate** — `sassy-ship` summarizes the close-out and waits in `mode:manual` (default); skipped only when the caller passed `mode:auto`.
 - **QA gate** — manual QA checklists. It exists only when the plan document has QA tables; an in-context brief has none.
 
 ## Modes
 
-There is exactly one mode token: `mode:auto`. Only `sassy-ship` and `sassy-debug` accept it, and it means pre-authorized — skip approval gates. Skills never toggle it themselves.
+Two mode tokens: `mode:manual` (default) and `mode:auto`. `mode:manual` asks at the skill's gate; `mode:auto` means pre-authorized, no review.
+
+- `sassy-ship` and `sassy-compound` accept both. Ship reviews the whole close-out in `mode:manual` and forwards `mode:auto` to compound once its own gate is answered.
+- `sassy-debug` accepts no mode. It always leaves ship's review gate in place.
+- `sassy-work` and `sassy-lfg` accept no mode.
+- `sassy-handoff` takes `mode:auto` for a different purpose: it submits the continuation prompt immediately instead of opening it for review.
 
 Everything else is decided by the artifact, not a mode:
 
