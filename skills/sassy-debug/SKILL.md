@@ -5,7 +5,7 @@ description: >-
   through sassy-cycle (fix, review, validate), and finally ship it
   through sassy-ship after code approval. Never auto-commits. Use when asked to
   debug or fix a failure.
-argument-hint: "[issue reference, error message, test path, or description] [mode:review|pipeline]"
+argument-hint: "[issue reference, error message, test path, or description] [mode:auto]"
 disable-model-invocation: true
 ---
 
@@ -13,7 +13,7 @@ disable-model-invocation: true
 
 Find the root cause of a failure, get approval for the fix, fix it through the shared quality cycle, then ship it only after code approval. **This skill never commits on its own.**
 
-**Modes.** `mode:review` (default) keeps every approval gate, including the ship review gate. `mode:pipeline` forwards to `sassy-ship` and skips its approval gates.
+**Modes.** By default every approval gate stays, including the ship review gate. When the caller passes `mode:auto`, forward it to `sassy-ship` so the ship gate is skipped. Never toggle it yourself.
 
 **Done when:** the full causal chain is stated with `file:line` evidence, the fix gate was answered, the fix has passed the quality cycle, and either the user has approved shipping or the run ended at the fix gate with a handoff or brainstorm.
 
@@ -73,7 +73,7 @@ Leave everything uncommitted. Present the result: the causal chain, the fix, the
 
 ## Phase 5 — Ship via `sassy-ship`
 
-On code approval, load the `sassy-ship` skill and follow it. Ship defaults to `mode:review`, which presents a shipping summary and waits; pass `mode:pipeline` through only when the user supplied it. Never toggle the mode yourself. It compounds any learnings, commits, opens or updates the PR, and babysits it via `sassy-babysit`. Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship`. Run only the steps the user approves.
+On code approval, load the `sassy-ship` skill and follow it. Ship presents its shipping summary and waits unless the caller supplied `mode:auto`, which is forwarded as-is. It compounds any learnings, commits, opens or updates the PR, and babysits it via `sassy-babysit`. Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship`. Run only the steps the user approves.
 
 If the fix gate ended in **handoff** or **brainstorm**, this skill stops there — never commit.
 

@@ -12,10 +12,9 @@ Read this before writing the plan file.
 
 ## QA — manual by default
 
-Do **not** ask the user to choose a QA mode. Manual QA is on unless the user passed `qa:off` (or explicitly asked to skip it).
+Manual QA is the default: each phase gets a QA table with concrete checks and `Mode: Manual` fixed. Suggest checks from the phase goal (happy path, edge, regression) but the user may edit them later.
 
-- With `qa:manual` (default), each phase gets a QA table with concrete checks and `Mode: Manual` fixed. Suggest checks from the phase goal (happy path, edge, regression) but the user may edit them later.
-- With `qa:off`, add no QA tables or checklists and no QA gate. Record `**QA:** disabled` under the plan title.
+The user may ask in plain language to omit QA tables for this plan, in which case omit the tables and the `**QA:**` line entirely.
 
 ## Plan file format
 
@@ -61,8 +60,6 @@ Omit empty layers. Do not put the next goal's work here.
 
 **Done when:** Plain-language acceptance for this phase only.
 
-<!-- Include the QA table only when QA is enabled. Omit it entirely with qa:off. -->
-
 #### QA — P1 (Manual)
 
 | ID | Check | Mode | Status | Notes |
@@ -74,4 +71,4 @@ Omit empty layers. Do not put the next goal's work here.
 …
 ```
 
-When QA is enabled, every phase has at least one QA row. Status values there are `Pending` | `Done` | `Blocked`. With `qa:off`, replace `**QA:** manual` with `**QA:** disabled` and omit every QA table and checklist. The `**QA:**` line near the title is the source of truth for executors.
+Every phase has at least one QA row. Status values there are `Pending` | `Done` | `Blocked`. The `**QA:**` line near the title is the source of truth for executors.

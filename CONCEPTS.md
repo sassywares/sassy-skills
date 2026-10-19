@@ -25,21 +25,26 @@ A skill that mostly coordinates. It reads compact results, writes briefs, and av
 A gate is a deliberate stop or pass/fail condition.
 
 - **Fix gate** — `sassy-debug` presents the causal chain, fix, and risks before changing code.
-- **QA gate** — manual QA checklists. Controlled by `qa:manual` / `qa:off`.
-- **Code approval gate** — the user approves the code before handoff or shipping. Controlled by `code-approval:manual` / `code-approval:off`.
-- **Ship review gate** — `sassy-ship` summarizes what is about to ship and waits. Controlled by `mode:review` / `mode:pipeline`.
+- **Code approval gate** — the user approves the code before committing or shipping. Always on for `sassy-work` and `sassy-lfg`.
+- **Ship review gate** — `sassy-ship` summarizes what is about to ship and waits. Skipped when the caller passed `mode:auto`.
+- **QA gate** — manual QA checklists. It exists only when the plan document has QA tables; an in-context brief has none.
 
 ## Modes
 
-The same three tokens everywhere: `mode:review` asks, `mode:pipeline` does not, and `mode:document` selects the plan-file path.
+There is exactly one mode token: `mode:auto`. Only `sassy-ship` and `sassy-debug` accept it, and it means pre-authorized — skip approval gates. Skills never toggle it themselves.
 
-- `mode:review` (default for `sassy-handoff`, `sassy-compound`, `sassy-ship`, `sassy-debug`) — ask at the skill's gate. Handoff stops for an editable prompt; compound asks before the AGENTS.md pointer; ship and debug wait for shipping approval.
-- `mode:pipeline` — non-interactive. Handoff continues immediately, compound edits silently, ship and debug skip approval gates. In `sassy-plan`, `sassy-work`, and `sassy-lfg` it selects the settled in-context brief and writes no plan file.
-- `mode:document` (default for `sassy-plan`, `sassy-work`, `sassy-lfg`) — use a phased plan document under `docs/plans/`.
+Everything else is decided by the artifact, not a mode:
+
+- A plan document under `docs/plans/` drives phased execution and carries manual QA tables.
+- An in-context brief drives one cycle and has no plan file and no QA tables.
 
 ## Plan
 
-A durable document under `docs/plans/` with intent, decisions, constraints, phase tracking, and (unless disabled) per-phase manual QA tables.
+A durable document under `docs/plans/` with intent, decisions, constraints, phase tracking, and per-phase manual QA tables.
+
+## Brief
+
+A settled in-context brief produced by `sassy-plan` when the user picks "start working now" or "take it all the way". It carries the goal, decisions, constraints, work, and done-when, but no plan file and no QA tables.
 
 ## Handoff
 

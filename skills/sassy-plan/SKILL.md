@@ -1,31 +1,19 @@
 ---
 name: sassy-plan
 description: >-
-  Brainstorm and plan in one sitting. By default, a focused discussion turns a
-  vague idea into a sophisticated, vertically-sliced, phase-by-phase
-  implementation plan written to docs/plans/. Pass mode:pipeline for small work:
-  brainstorm only, keep the settled brief in context, and write no plan file.
-  Use when asked to brainstorm, scope, plan, or create a phased plan. Manual QA
-  is on by default; pass qa:off to disable QA checklists and gates.
-argument-hint: "[feature description, requirements, or idea to scope] [mode:document|pipeline] [qa:off]"
+  Brainstorm and settle a piece of work in one discussion, then let the user
+  choose: write a plan document, start working now, or take it all the way to a
+  PR. No modes, no QA flags. Use when asked to brainstorm, scope, plan, or create
+  a phased plan.
+argument-hint: "[feature description, requirements, or idea to scope]"
 disable-model-invocation: true
 ---
 
 # Sassy Plan
 
-**Outcome:** a settled discussion, then either a plan file at `docs/plans/<slug>.md` in `mode:document` (default) or a compact in-context brief when `mode:pipeline` is passed. One skill for both brainstorming and planning.
+**Outcome:** a settled discussion, then the user's explicit choice from three options: write a plan document, start working now, or take it all the way to a PR.
 
-**Does not implement.** Planning only. Execution belongs to `sassy-lfg` or `sassy-work`.
-
-## Resolve the flags
-
-- Consume only the literal tokens `mode:document`, `mode:pipeline`, `qa:manual`, and `qa:off`; strip them before treating the rest of the argument as the feature description. If a token repeats, the last one wins. Defaults: `mode:document`, `qa:manual`.
-- `mode:document` → write the plan document.
-- `mode:pipeline` → no plan document and no phase breakdown. Treat the entire piece of work as a single phase and keep the settled brief in context. Never create or update a file under `docs/plans/`.
-- `qa:manual` (default) → manual QA checklists and gates exist.
-- `qa:off` → disable manual QA: no QA tables or checklists, and no QA gate during execution. If the user explicitly asks to skip or disable manual QA in plain language, treat it as `qa:off`.
-
-Work in two phases, in order. Do not write the plan until the discussion has settled the open questions.
+**Does not implement.** Planning never implements. Execution belongs to `sassy-work` or `sassy-lfg`, and only after the user picks.
 
 ## Phase A — Discuss (brainstorm)
 
@@ -35,58 +23,39 @@ Have one focused discussion to turn the idea into something plannable.
 - **Find the real constraints.** Existing architecture, conventions, dependencies, and anything that must not change.
 - **Surface the unknown.** Ask only questions whose answer changes the plan. Ask a few at a time, not an interrogation. Offer a recommended default with each so the user can just confirm.
 - **Recon the code.** Use `sassy-scout` to ground the area: relevant files, existing patterns, prior art. Do not read the whole repo yourself; it writes a grounding brief and returns a gist plus the brief path.
-- **Settle decisions.** As choices become firm, record them as `D1: …`, `D2: …`. These go in the plan.
+- **Settle decisions.** As choices become firm, record them as `D1: …`, `D2: …`. These go in the plan or the brief.
 
-Do not over-interview. Stop when the goal, the constraints, and the major decisions are settled enough to slice or act. In `mode:pipeline`, stop when the whole thing is clear enough to run as one phase; do not look for phase boundaries.
+Do not over-interview. Stop when the goal, the constraints, and the major decisions are settled enough to slice or act.
 
-## Phase B — Plan (default `mode:document`)
+## The picker
 
-If `mode:pipeline`, skip this phase entirely — do not read `references/plan-format.md` and do not write a file.
-
-Produce the plan. Research what you still need (`sassy-scout`, or bounded reads for facts already located). Then **read `references/plan-format.md` now** and write `docs/plans/<slug>.md` in that format. Never ask the user to choose a QA mode. With `qa:manual`, include the manual QA checklists and gates; with `qa:off`, omit QA tables and checklists. Record the setting under the plan title: `**QA:** manual` or `**QA:** disabled`.
-
-## Finish
-
-### `mode:document` (default)
-
-Report the absolute plan path. Then ask what to do next:
-
-1. Run `sassy-lfg` on the plan (all phases in one session)
-2. Run `sassy-work` on the plan (one phase per session, with handoff)
-3. Hand off to a fresh session (`sassy-handoff`) without starting work here
-4. Edit the plan further
-5. Stop here
-
-Do not implement. Do not commit.
-
-### `mode:pipeline`
-
-Do not write any file and do not produce a phase list or tracking table. Treat the entire piece of work as a single phase. Keep the result in context as a compact brief:
+When the discussion settles, present exactly these three options and stop until the user picks. Do not recommend one.
 
 ```text
-Phase: <one-line goal>
-Goal: ...
-Decisions: D1 ...; D2 ...
-Constraints: ...
-Work: ...
-Done when: ...
-QA: manual
-QA checks:
-- <happy path>
-- <edge / regression>
+Settled. Pick one:
+1. Write it to docs/plans/<slug>.md
+2. Start working now — stop before ship
+3. Take it all the way — run it, ship it, babysit the PR
 ```
 
-With `qa:manual`, keep the `QA: manual` line and the short checks list; with `qa:off`, replace both with a single `QA: disabled` line and add no checklist.
+The user must pick explicitly. There is no default and no auto-selection. If no human is present to answer (rare, e.g. a scripted invocation), take option 2 and say so.
 
-Then ask what to do next:
+### Option 1 — Write the plan
 
-1. **Start working now** — load `sassy-work` with `mode:pipeline`, passing this brief as the work brief and intent reference. The brief's QA line decides whether QA gates apply.
-2. **Run the full loop** — load `sassy-lfg` with `mode:pipeline`, passing this brief.
-3. **Hand off to a fresh session** — load `sassy-handoff` with a self-contained goal carrying this brief, since there is no plan file to point at.
-4. **Keep refining** — continue the discussion.
+Read `references/plan-format.md` and write the plan, including the per-phase manual QA tables that format defines. Then report the absolute path and STOP. No second menu, no "what next" prompt. Do not implement or commit.
 
-Do not implement, write a plan, or hand off until the user chooses.
+### Option 2 — Start working now
+
+Load the `sassy-work` skill with the settled brief as the work brief and its decisions / done-when as the intent reference. No plan file is written. It stops before ship.
+
+### Option 3 — Take it all the way
+
+Load the `sassy-lfg` skill the same way: the settled brief as the work brief, its decisions / done-when as the intent reference. No plan file is written.
+
+## QA
+
+The plan document carries manual QA tables per `references/plan-format.md`. The in-context brief does not, so there is no QA table and no QA gate on that path. Omit QA tables only when the user explicitly asks to skip QA in plain language.
 
 ## Resume
 
-If the user points at an existing sassy plan, update phases and tables in place. If they point at a raw plan from elsewhere, reshape it into this format without discarding its settled decisions. An existing plan is already the document; `mode:pipeline` applies when starting fresh without one.
+If the user points at an existing sassy plan, update phases and tables in place. If they point at a raw plan from elsewhere, reshape it into this format without discarding its settled decisions. An existing plan is already the document.

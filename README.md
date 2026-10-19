@@ -23,7 +23,7 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 
 - **Lean.** Skills are indexes and workflows, not documentation dumps. Detail moves into `references/` only when it is conditionally needed.
 - **Explicit.** Every skill is invoked deliberately. No silent background behavior.
-- **Controlled.** QA, code approval, and shipping review are separate, visible gates. They can be disabled deliberately when you want a pipeline run.
+- **Controlled.** Code approval, ship review, and manual QA are separate, visible gates. There is one mode token, `mode:auto`, and only `sassy-ship` and `sassy-debug` accept it.
 - **Reliable.** Work runs through `sassy-cycle` with isolated subagents for implementation, review, validation, and fixes.
 - **Context-efficient.** Orchestrators coordinate; subagents do the heavy reading and return compact results.
 - **Never surprising.** Nothing is committed just because a step finished. Shipping is its own phase.
@@ -34,6 +34,20 @@ Examples use simple slash commands.
 
 ```text
 /sassy-plan Add workspace invitations
+```
+
+That discussion settles the work, then offers a pick:
+
+```text
+Settled. Pick one:
+1. Write it to docs/plans/<slug>.md
+2. Start working now — stop before ship
+3. Take it all the way — run it, ship it, babysit the PR
+```
+
+Pick 1 to get a plan file, then run one phase at a time:
+
+```text
 /sassy-work docs/plans/add-workspace-invitations.md
 ```
 
@@ -43,11 +57,11 @@ Or take the whole plan through one session:
 /sassy-lfg docs/plans/add-workspace-invitations.md
 ```
 
-For small work that does not need a plan document:
+For small work that does not need a plan document, choose 2 or 3 at the picker, or invoke the executor directly with the brief:
 
 ```text
-/sassy-plan mode:pipeline Add a copy-link button to the invite modal
-/sassy-work mode:pipeline
+/sassy-work "Add a copy-link button to the invite modal"
+/sassy-lfg "Add a copy-link button to the invite modal"
 ```
 
 Debugging:
@@ -62,13 +76,13 @@ Debugging:
 
 | Skill | What it does |
 |---|---|
-| **`sassy-plan`** | Brainstorms and scopes an idea. Writes a phased plan by default; `mode:pipeline` keeps a single-phase brief in context. |
+| **`sassy-plan`** | Brainstorms and settles the work in one discussion, then offers three choices: write the plan, start working now, or take it all the way to a PR. |
 | **`sassy-scout`** | Grounds an area on demand and writes the shared grounding brief other agents read instead of re-exploring. |
-| **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, then commits the approved phase before handing off. |
-| **`sassy-lfg`** | Executes an entire plan, or one in-context brief, then closes out. |
+| **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, commits after code approval, then hands off the next phase — a brief stops before ship. |
+| **`sassy-lfg`** | Executes every phase of a plan, or one in-context brief, then closes out via `sassy-ship` after code approval. |
 | **`sassy-cycle`** | Runs one unit of work through implement → review → validate → fix → re-check. |
-| **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-cycle`, then ships after code approval. `mode:review` (default) keeps the ship gate; `mode:pipeline` skips it. |
-| **`sassy-handoff`** | Summarizes the session and continues in a fresh session via `/handoff`. `mode:review` (default) asks; `mode:pipeline` continues immediately. |
+| **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-cycle`, then ships after code approval. Pass `mode:auto` to skip the ship gate. |
+| **`sassy-handoff`** | Summarizes the session and continues in a fresh session via `/handoff`. |
 
 ### Code quality
 
@@ -81,7 +95,7 @@ Debugging:
 
 | Skill | What it does |
 |---|---|
-| **`sassy-ship`** | Compound learnings, optional handbook, commit, PR, and babysit. Review gate by default; `mode:pipeline` skips approvals. |
+| **`sassy-ship`** | Compound learnings, optional handbook, commit, PR, and babysit. Review gate unless the caller passed `mode:auto`. |
 | **`sassy-commit`** | Creates a local commit with a clear message. No push, no PR. |
 | **`sassy-commit-push-pr`** | Commits, pushes, opens or updates a PR, and babysits by default. |
 | **`sassy-babysit`** | Watches a PR until it looks merge-ready or blocked. |
@@ -90,7 +104,7 @@ Debugging:
 
 | Skill | What it does |
 |---|---|
-| **`sassy-compound`** | Records a solved problem as a durable repo learning. `mode:review` (default) asks before the AGENTS.md pointer edit; `mode:pipeline` is silent. |
+| **`sassy-compound`** | Records a solved problem as a durable repo learning. |
 | **`sassy-handbook`** | Writes a plain-English team handbook with mermaid diagrams. |
 
 ### Meta
@@ -106,25 +120,30 @@ Debugging:
 ```mermaid
 flowchart LR
   A[Idea] --> B[sassy-plan]
-  B -->|mode:document| C[Plan file]
-  B -->|mode:pipeline| D[In-context brief]
-  C --> E[sassy-work or sassy-lfg]
-  D --> E
-  E --> F[sassy-cycle]
-  F --> G{Code approval}
-  G -->|changes| F
-  G -->|approved| H[sassy-ship]
-  H --> I{Ship review}
-  I -->|approve| J[Commit]
-  I -->|mode:pipeline| J
-  J --> K[PR + babysit]
+  B --> C[Discussion]
+  C --> D{3-option picker}
+  D -->|1. plan document| E[docs/plans/slug.md]
+  D -->|2. start working| F[sassy-work]
+  D -->|3. take it all the way| G[sassy-lfg]
+  E --> F
+  E --> G
+  F --> H[sassy-cycle]
+  G --> H
+  H --> I{Code approval}
+  I -->|changes| H
+  I -->|approved, via sassy-work| J[Commit on current branch and stop]
+  I -->|approved, via sassy-lfg| K[sassy-ship]
+  K --> L{Ship review}
+  L -->|approve or mode:auto| M[Commit, PR, babysit]
 ```
 
-`mode:document` produces a durable plan with phased slices and optional manual QA. `mode:pipeline` keeps the whole job as one in-context phase and writes no plan file. In `mode:pipeline`, `sassy-work` and `sassy-lfg` never create a branch: they work and commit on the checked-out branch, and `sassy-ship` creates the shipping branch at close-out if that branch is the repo default.
+Option 1 produces a durable plan with phased slices and manual QA tables. Options 2 and 3 keep the whole job as one settled in-context brief and write no plan file.
 
-`sassy-work` handles one phase and hands off the next. `sassy-lfg` drains the whole plan in one session. Both delegate to `sassy-cycle` and stop at the code approval gate unless `code-approval:off` is set.
+`sassy-work` handles one phase and hands off the next. `sassy-lfg` drains the whole plan in one session. Both delegate to `sassy-cycle` and stop at the code approval gate before committing.
 
-`sassy-ship` is the close-out. In `mode:review` it summarizes what is about to ship and waits. `mode:pipeline` skips that gate and runs straight through.
+Work always commits to the current branch; `sassy-ship` creates the shipping branch at close-out when the checked-out branch is the repo default.
+
+`sassy-ship` is the close-out. It summarizes what is about to ship and waits, unless the caller passed `mode:auto`.
 
 ### From bug to ship
 
@@ -142,7 +161,7 @@ flowchart LR
   I -->|approved| J[sassy-ship]
   J --> K{Ship review}
   K -->|approve| L[Commit + PR + babysit]
-  K -->|mode:pipeline| L
+  K -->|mode:auto| L
 ```
 
 `sassy-debug` diagnoses inline, using the read-only `scout` as a helper to ground the failure surface; the causal reasoning stays in the main context. It then stops at the fix gate with the causal chain, proposed fix, and risks.
@@ -155,14 +174,13 @@ At the fix gate you can:
 
 ## Gates and controls
 
-| Control | Default | Opt-out |
-|---|---|---|
-| Manual QA | `qa:manual` | `qa:off` |
-| Code approval | `code-approval:manual` | `code-approval:off` |
-| Ship review | `mode:review` | `mode:pipeline` |
-| Plan document | `mode:document` | `mode:pipeline` |
+| Control | When it applies |
+|---|---|
+| Code approval | Always on for `sassy-work` and `sassy-lfg`. |
+| Ship review | On unless the caller passed `mode:auto`. |
+| Manual QA | Only when the plan document has QA tables. |
 
-Gates are deliberate stops. Disabling one is an explicit choice, not an automatic shortcut.
+The artifact decides QA: a plan document carries manual QA tables, an in-context brief does not. Gates are deliberate stops; the only way past one is the user's approval or an explicit `mode:auto` from the caller.
 
 ## Repository layout
 
