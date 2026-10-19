@@ -36,7 +36,6 @@ Two mode tokens: `mode:manual` (default) and `mode:auto`. `mode:manual` asks at 
 - `sassy-ship` and `sassy-compound` accept both. Ship reviews the whole close-out in `mode:manual` and forwards `mode:auto` to compound once its own gate is answered.
 - `sassy-debug` accepts no mode. It always leaves ship's review gate in place.
 - `sassy-work` and `sassy-lfg` accept no mode.
-- `sassy-handoff` takes `mode:auto` for a different purpose: it submits the continuation prompt immediately instead of opening it for review.
 
 Everything else is decided by the artifact, not a mode:
 

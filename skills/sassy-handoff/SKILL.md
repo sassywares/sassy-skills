@@ -4,17 +4,15 @@ description: >-
   Create a continuity handoff and continue the work in a fresh session, using the
   /handoff extension. Use at a phase boundary, when context is getting long, or
   when the user asks to hand off. Interactive TUI only.
-argument-hint: "[goal for the next session] [mode:auto]"
+argument-hint: "[goal for the next session]"
 disable-model-invocation: true
 ---
 
 # Sassy Handoff
 
-**Outcome:** the current session is summarized into a focused continuation prompt, and a fresh session opens with it — reviewed and submitted by the user by default, or actively continued with `mode:auto`.
+**Outcome:** the current session is summarized into a focused continuation prompt, and a fresh session opens with it seeded in the editor for the user to submit.
 
-**Modes.** By default the generated prompt opens in the editor for review and submission. With `mode:auto` the prompt is sent immediately as the new session's first turn.
-
-**How this works:** the `/handoff` extension from `@sassywares/pi-extensions` performs the session replacement. A skill cannot start or replace a session — that operation is command-only in pi — so this skill prepares the handoff and gives you the exact command to run. Running it is the whole action; the summarization, the fresh session, and (with `mode:auto`) the first turn are all automatic.
+**How this works:** the `/handoff` extension from `@sassywares/pi-extensions` performs the session replacement. A skill cannot start or replace a session — that operation is command-only in pi — so this skill prepares the handoff and gives you the exact command to run. Running it is the whole action; the summarization, the fresh session, and the seeded prompt are all automatic, and the user submits it.
 
 ## Steps
 
@@ -32,22 +30,22 @@ disable-model-invocation: true
 3. **Emit the exact command.** One fenced, copyable block:
 
    ```text
-   /handoff [mode:auto] <goal>
+   /handoff <goal>
    ```
 
    For a plan phase, make it self-contained:
 
    ```text
-   /handoff mode:auto Execute phase <next> of <plan>. Run /skill:sassy-work <plan> phase:<next>
+   /handoff Execute phase <next> of <plan>. Run /skill:sassy-work <plan> phase:<next>
    ```
 
-4. **Say what will happen.** With `mode:auto` the fresh session starts the work immediately. By default the generated prompt is placed in the new session's editor for you to review and submit.
+4. **Say what will happen.** The generated prompt is placed in the new session's editor for you to review and submit.
 
 ## Rules
 
 - **Pointer-first.** Name the plan path, phase, key files, and decisions rather than reproducing them. The plan is the source of truth; the handoff points at it.
 - **No duplicate doc.** The extension carries the context into the new session; do not also write a handoff markdown unless the user asks for one.
-- **No plan file.** When `sassy-plan` kept the work as an in-context brief instead of writing a plan, the fresh session cannot see this conversation or point at a plan. Include the compact brief in the handoff goal.
+- **No plan file.** When `sassy-plan` kept the work as an in-context brief instead of writing a plan, the fresh session cannot see this conversation or point at a plan, so include the compact brief in the handoff goal.
 - **Do not invent a continuation.** If the next step is a real fork with mutually exclusive options, present them; do not silently pick.
 - **The skill does not switch sessions.** Never claim it did; the user runs `/handoff`.
 

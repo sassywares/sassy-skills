@@ -23,7 +23,7 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 
 - **Lean.** Skills are indexes and workflows, not documentation dumps. Detail moves into `references/` only when it is conditionally needed.
 - **Explicit.** Every skill is invoked deliberately. No silent background behavior.
-- **Controlled.** Code approval, ship review, and manual QA are separate, visible gates. There are two mode tokens, `mode:manual` (default) and `mode:auto`, accepted by `sassy-ship` and `sassy-compound`. `sassy-debug` takes no mode. `sassy-handoff` uses `mode:auto` only to auto-submit its continuation prompt.
+- **Controlled.** Code approval, ship review, and manual QA are separate, visible gates. There are two mode tokens, `mode:manual` (default) and `mode:auto`, accepted by `sassy-ship` and `sassy-compound` only; every other skill takes no mode.
 - **Reliable.** Work runs through `sassy-cycle` with isolated subagents for implementation, review, validation, and fixes.
 - **Context-efficient.** Orchestrators coordinate; subagents do the heavy reading and return compact results.
 - **Never surprising.** Nothing is committed just because a step finished. Shipping is its own phase.
@@ -82,7 +82,7 @@ Debugging:
 | **`sassy-lfg`** | Executes every phase of a plan, or one in-context brief, then closes out via `sassy-ship` after code approval. |
 | **`sassy-cycle`** | Runs one unit of work through implement → review → validate → fix → re-check. |
 | **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-cycle`, then ships after code approval. Debug takes no mode and always leaves ship's review gate in place unless you invoke ship yourself with `mode:auto`. |
-| **`sassy-handoff`** | Summarizes the session and continues in a fresh session via `/handoff`. `mode:auto` submits the continuation prompt immediately instead of opening it for review. |
+| **`sassy-handoff`** | Summarizes the session and opens a fresh one via `/handoff`, with the continuation prompt seeded in the editor for you to submit. |
 
 ### Code quality
 
@@ -183,7 +183,7 @@ The fix gate offers four options:
 | Ship review | On in `mode:manual` (default), skipped by `mode:auto`. |
 | Manual QA | Only when the plan document has QA tables. |
 
-The artifact decides QA: a plan document carries manual QA tables, an in-context brief does not. Gates are deliberate stops; the only way past one is the user's approval. `mode:auto` is accepted only by `sassy-ship` and `sassy-compound`, and `sassy-handoff`'s `mode:auto` only auto-submits its continuation prompt.
+The artifact decides QA: a plan document carries manual QA tables, an in-context brief does not. Gates are deliberate stops; the only way past one is the user's approval. `mode:auto` is accepted only by `sassy-ship` and `sassy-compound`.
 
 ## Repository layout
 

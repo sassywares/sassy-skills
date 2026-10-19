@@ -51,10 +51,10 @@ Always gate before committing. One worker fixes findings, one re-check, then pre
    - **A next phase exists** → hand off so it starts in a fresh session:
 
      ```text
-     /handoff mode:auto Execute phase <next> of <plan>. Run /skill:sassy-work <plan> phase:<next>
+     /handoff Execute phase <next> of <plan>. Run /skill:sassy-work <plan> phase:<next>
      ```
 
-     `mode:auto` here means submit the prompt immediately; it says nothing about gates.
+     The user submits the seeded prompt once, and the next phase starts in the fresh session.
 
    - **This was the last phase** → run the close-out: load the `sassy-ship` skill and follow it.
 
