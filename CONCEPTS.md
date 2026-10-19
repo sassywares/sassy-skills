@@ -10,7 +10,7 @@ A directory containing `SKILL.md`, discovered by pi from `~/.agents/skills`. Ski
 
 ## Agent
 
-A specialized subagent defined under `~/.pi/agent/agents/`. Skills delegate bounded work to agents such as `scout`, `diagnoser`, `worker`, `reviewer`, `validator`, and `simplifier`.
+A specialized subagent defined under `~/.pi/agent/agents/`. Skills delegate bounded work to agents such as `scout`, `worker`, `reviewer`, and `validator`.
 
 ## Orchestrator
 
@@ -18,7 +18,7 @@ A skill that mostly coordinates. It reads compact results, writes briefs, and av
 
 ## Cycle
 
-`sassy-cycle` runs one unit of work through implement → simplify → review → validate → fix → re-check. It never commits. Work, LFG, and debug all use it.
+`sassy-cycle` runs one unit of work through implement → review → validate → fix → re-check. It never commits. Work, LFG, and debug all use it.
 
 ## Gates
 

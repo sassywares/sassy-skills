@@ -42,7 +42,7 @@ No dates in the filename. Keep the existing filename when updating an existing h
 
 ## Workflow
 
-1. **Gather.** The plan or brief the user named, plus a light tree check of the paths and types the handbook will claim. Open the real files; do not invent. Delegate heavy reading to a `scout` if the change is large.
+1. **Gather.** The plan or brief the user named, plus a light tree check of the paths and types the handbook will claim. Open the real files; do not invent. Delegate heavy reading to `sassy-scout` if the change is large.
 2. **Create or update.** No handbook for this topic → create `<topic>-handbook.md`. Existing and stale → update in place and refresh **As of**. User pointed at a path → edit that file.
 3. **Write the handbook.** Read `references/handbook-format.md` now and write it in that shape, with mermaid diagrams where they clarify.
 4. **Voice scrub.** Follow the voice rules in that reference: remove skill names, phase IDs, gate tables, and jargon piles.

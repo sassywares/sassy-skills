@@ -2,7 +2,7 @@
 name: sassy-cycle
 description: >-
   Run one unit of work through the full quality loop using subagents: implement,
-  simplify, review, validate, fix findings, re-check. Used by sassy-lfg,
+  review, validate, fix findings, re-check. Used by sassy-lfg,
   sassy-work, and sassy-debug. Never commits. Built for context and token
   efficiency — the orchestrator only writes briefs and reads compact results.
 argument-hint: "<work brief> [intent reference]"
@@ -23,13 +23,12 @@ disable-model-invocation: true
 
 ## Steps
 
-1. **Recon (optional).** If the work is large or its location is unclear, dispatch a `scout` first and pass its compressed findings into the work brief. Skip when the brief is already precise.
+1. **Recon (optional).** If the work is large or its location is unclear, run `sassy-scout` first and pass the grounding brief path into the work brief. Skip when the brief is already precise.
 2. **Implement.** Dispatch a `worker` with the work brief, the intent reference, and the plan path if there is one. For independent chunks, batch them as **parallel** `worker` tasks in one call (max 8). The worker reads whatever it needs itself.
-3. **Simplify.** Dispatch the `simplifier` on the changed files.
-4. **Review + validate (parallel).** Dispatch the `reviewer` and the `validator` together in one **parallel** call. Give the validator the intent reference so it can judge conformance.
-5. **Fix findings.** Collect every finding from steps 2–4. If any exist, dispatch one `worker` to fix exactly those findings.
-6. **Re-check.** Re-run the `reviewer` and `validator` in parallel once.
-7. **Return** the structured result below.
+3. **Review + validate (parallel).** Dispatch the `reviewer` and the `validator` together in one **parallel** call. Give the validator the intent reference so it can judge conformance. Simplification opportunities belong in the reviewer's Suggestions, not a separate pass.
+4. **Fix findings.** Collect every finding from steps 2–3. If any exist, dispatch one `worker` to fix exactly those findings.
+5. **Re-check.** Re-run the `reviewer` and `validator` in parallel once.
+6. **Return** the structured result below.
 
 ## Structured result
 

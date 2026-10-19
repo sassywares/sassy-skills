@@ -24,7 +24,7 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 - **Lean.** Skills are indexes and workflows, not documentation dumps. Detail moves into `references/` only when it is conditionally needed.
 - **Explicit.** Every skill is invoked deliberately. No silent background behavior.
 - **Controlled.** QA, code approval, and shipping review are separate, visible gates. They can be disabled deliberately when you want a pipeline run.
-- **Reliable.** Work runs through `sassy-cycle` with isolated subagents for implementation, simplification, review, validation, and fixes.
+- **Reliable.** Work runs through `sassy-cycle` with isolated subagents for implementation, review, validation, and fixes.
 - **Context-efficient.** Orchestrators coordinate; subagents do the heavy reading and return compact results.
 - **Never surprising.** Nothing is committed just because a step finished. Shipping is its own phase.
 
@@ -63,9 +63,10 @@ Debugging:
 | Skill | What it does |
 |---|---|
 | **`sassy-plan`** | Brainstorms and scopes an idea. Writes a phased plan by default; `mode:pipeline` keeps a single-phase brief in context. |
+| **`sassy-scout`** | Grounds an area on demand and writes the shared grounding brief other agents read instead of re-exploring. |
 | **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, then commits the approved phase before handing off. |
 | **`sassy-lfg`** | Executes an entire plan, or one in-context brief, then closes out. |
-| **`sassy-cycle`** | Runs one unit of work through implement → simplify → review → validate → fix → re-check. |
+| **`sassy-cycle`** | Runs one unit of work through implement → review → validate → fix → re-check. |
 | **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-cycle`, then ships after code approval. `mode:review` (default) keeps the ship gate; `mode:pipeline` skips it. |
 | **`sassy-handoff`** | Summarizes the session and continues in a fresh session via `/handoff`. `mode:review` (default) asks; `mode:pipeline` continues immediately. |
 
@@ -74,7 +75,6 @@ Debugging:
 | Skill | What it does |
 |---|---|
 | **`sassy-review`** | Reviews a diff, branch, PR, or files for bugs, project-rule conformance, and design-system conformance, then offers to fix findings. |
-| **`sassy-simplify`** | Finds and applies simplifications to recent changes without changing behavior. |
 | **`sassy-validate`** | Checks whether work matches a plan or stated intent, then offers to close gaps. |
 
 ### Shipping
@@ -132,7 +132,7 @@ flowchart LR
 flowchart LR
   A[Bug or issue] --> B[sassy-debug]
   B --> C[Triage]
-  C --> D[diagnoser]
+  C --> D[scout helper]
   D --> E{Fix gate}
   E -->|fix now| F[sassy-cycle]
   E -->|handoff| G[sassy-handoff]
@@ -145,7 +145,7 @@ flowchart LR
   K -->|mode:pipeline| L
 ```
 
-`sassy-debug` reproduces and diagnoses through the read-only `diagnoser` subagent. It then stops at the fix gate with the causal chain, proposed fix, and risks.
+`sassy-debug` diagnoses inline, using the read-only `scout` as a helper to ground the failure surface; the causal reasoning stays in the main context. It then stops at the fix gate with the causal chain, proposed fix, and risks.
 
 At the fix gate you can:
 

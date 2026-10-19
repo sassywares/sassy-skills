@@ -2,7 +2,7 @@
 name: sassy-debug
 description: >-
   Diagnose a bug to root cause, get approval for the proposed fix, then fix it
-  through sassy-cycle (fix, simplify, review, validate), and finally ship it
+  through sassy-cycle (fix, review, validate), and finally ship it
   through sassy-ship after code approval. Never auto-commits. Use when asked to
   debug or fix a failure.
 argument-hint: "[issue reference, error message, test path, or description] [mode:review|pipeline]"
@@ -23,13 +23,23 @@ Find the root cause of a failure, get approval for the fix, fix it through the s
 
 Establish the exact input, the observed symptom, the expected behavior, and how to reproduce it. If an issue/ticket is given, carry its identifier and URL through to the end. If only a stack trace or description is given, there is no issue of record — that is fine; never manufacture one.
 
-Trivial bugs whose cause is readable from the input may skip the diagnoser, but still state the causal chain and pass the fix gate before changing code, then run the fix through `sassy-cycle`.
+Trivial bugs whose cause is readable from the input may skip the scout, but still state the causal chain and pass the fix gate before changing code, then run the fix through `sassy-cycle`.
 
-## Phase 1 — Diagnose
+## Phase 1 — Diagnose inline, with `scout` as a helper
 
-Dispatch the `diagnoser` subagent with the triage brief: exact input, symptom, expected behavior, reproduction, and any issue reference. It is read-only and returns the reproduction, full causal chain, root cause, proposed fix, files/tests, risks, and confidence.
+You own the diagnosis. The causal reasoning happens here, in the main context, because that is where the full picture lives and where the fix gate is presented.
 
-Use its evidence as the diagnosis. If the chain has a gap, send one targeted follow-up to the same agent; do not redo the investigation in the main context. The main context owns the final judgment and presents it at the fix gate.
+Dispatch `scout` as a **helper**, not as the diagnostician, with the triage brief: exact input, symptom, expected behavior, reproduction, any issue reference, and the files or areas you suspect. It grounds the area and returns a gist plus the path to its grounding brief.
+
+Then do the diagnosis yourself:
+
+- Read the gist and the brief. Reproduce the failure before explaining it.
+- Form one hypothesis at a time and confirm it with a targeted read, a targeted `scout` follow-up, or a failing test. State the chain trigger → symptom with `file:line` evidence.
+- Send at most one scoped follow-up per gap. Never hand the whole investigation back to a subagent, and never re-scout the repo.
+
+If the chain still has a gap after that, say so at the fix gate and lower the confidence rather than guessing.
+
+**Then offer the next step, exactly as before:** the fix gate below asks whether to take the fix through `sassy-cycle`, hand it off, or brainstorm it.
 
 ## Phase 2 — Fix gate
 
@@ -55,7 +65,7 @@ Load the `sassy-cycle` skill and follow it, with:
 - intent reference = the diagnosis from Phase 1
 - scope hint = the files the fix touches
 
-This runs fix → simplify → review → validate → fix findings, all in subagents. Do **not** commit.
+This runs fix → review → validate → fix findings, all in subagents. Do **not** commit.
 
 ## Phase 4 — Code approval gate
 

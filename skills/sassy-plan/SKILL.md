@@ -34,7 +34,7 @@ Have one focused discussion to turn the idea into something plannable.
 - **Establish the goal.** What is being built and why. One or two sentences.
 - **Find the real constraints.** Existing architecture, conventions, dependencies, and anything that must not change.
 - **Surface the unknown.** Ask only questions whose answer changes the plan. Ask a few at a time, not an interrogation. Offer a recommended default with each so the user can just confirm.
-- **Recon the code.** Use `scout` subagents to find relevant files, existing patterns, and prior art. Do not read the whole repo yourself; get compressed context back.
+- **Recon the code.** Use `sassy-scout` to ground the area: relevant files, existing patterns, prior art. Do not read the whole repo yourself; it writes a grounding brief and returns a gist plus the brief path.
 - **Settle decisions.** As choices become firm, record them as `D1: …`, `D2: …`. These go in the plan.
 
 Do not over-interview. Stop when the goal, the constraints, and the major decisions are settled enough to slice or act. In `mode:pipeline`, stop when the whole thing is clear enough to run as one phase; do not look for phase boundaries.
@@ -43,7 +43,7 @@ Do not over-interview. Stop when the goal, the constraints, and the major decisi
 
 If `mode:pipeline`, skip this phase entirely — do not read `references/plan-format.md` and do not write a file.
 
-Produce the plan. Research what you still need (scout, or bounded reads for facts already located). Then **read `references/plan-format.md` now** and write `docs/plans/<slug>.md` in that format. Never ask the user to choose a QA mode. With `qa:manual`, include the manual QA checklists and gates; with `qa:off`, omit QA tables and checklists. Record the setting under the plan title: `**QA:** manual` or `**QA:** disabled`.
+Produce the plan. Research what you still need (`sassy-scout`, or bounded reads for facts already located). Then **read `references/plan-format.md` now** and write `docs/plans/<slug>.md` in that format. Never ask the user to choose a QA mode. With `qa:manual`, include the manual QA checklists and gates; with `qa:off`, omit QA tables and checklists. Record the setting under the plan title: `**QA:** manual` or `**QA:** disabled`.
 
 ## Finish
 
