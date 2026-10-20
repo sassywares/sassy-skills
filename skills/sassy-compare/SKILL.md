@@ -5,25 +5,33 @@ description: >-
   their final output, code changes, timing, tokens, and errors, then tear the
   worktrees down and report. Use when choosing between two models for a task or
   checking whether one model is faster or more reliable.
-argument-hint: "model-a:<model> model-b:<model> [--base <ref>] [--timeout <sec>] [--keep] <prompt>"
+argument-hint: "model-a:<model> [thinking-a:<level>] model-b:<model> [thinking-b:<level>] [--base <ref>] [--timeout <sec>] [--keep] <prompt>"
 disable-model-invocation: true
 ---
 
 # Sassy Compare
 
-**Outcome:** one prompt run against two models in isolated worktrees, a report comparing output, code changes, wall time, model time, tool time, turns, tokens, cost, and errors, and the worktrees removed unless `--keep` was passed.
+**Outcome:** one prompt run against two models in isolated worktrees, with optional per-side thinking levels, a report comparing output, code changes, wall time, model time, tool time, turns, tokens, cost, and errors, and the worktrees removed unless `--keep` was passed.
 
 **The main worktree is never touched.** Compare runs in disposable worktrees created from `HEAD` (or `--base`).
 
 ## Input
 
-Parse the request into three parts:
+Parse the request into these parts:
 
 - `model-a:<model-identifier>` — first model.
 - `model-b:<model-identifier>` — second model.
+- `thinking-a:<level>` — optional thinking level for model-a.
+- `thinking-b:<level>` — optional thinking level for model-b.
 - The prompt — everything else, verbatim.
 
-Model identifiers are passed straight to `pi --model`; `provider/model` and an optional `:thinking` suffix are allowed, for example `deepseek/deepseek-flash:high`.
+Model identifiers are passed straight to `pi --model`; `provider/model` and an optional `:thinking` suffix are allowed, for example `deepseek/deepseek-flash:high`. Thinking levels are `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. An explicit `thinking-a`/`thinking-b` wins over a `:level` suffix.
+
+Use the thinking tokens to compare the same model at different effort levels, or two different agents/models with different effort:
+
+```text
+/sassy-compare model-a:deepseek/deepseek-flash thinking-a:low model-b:deepseek/deepseek-flash thinking-b:high "Implement the pagination helper"
+```
 
 If a model or the prompt is missing, ask one short question for the missing part. Do not guess a model.
 
@@ -37,10 +45,15 @@ If a model or the prompt is missing, ask one short question for the missing part
      --model-a "<model-a>" \
      --model-b "<model-b>" \
      --prompt "<prompt>"
+
+   # Add only when the request supplied them:
+   #   --thinking-a "<level>" --thinking-b "<level>"
    ```
 
    Useful options:
 
+   - `--thinking-a <level>` — thinking level for model-a; omit to use the model's default.
+   - `--thinking-b <level>` — thinking level for model-b; omit to use the model's default.
    - `--base <ref>` — branch both worktrees from a ref other than `HEAD`.
    - `--timeout <seconds>` — per-model timeout, default 1800.
    - `--keep` — keep the worktrees after the run. Use only when the user asks to inspect them.
@@ -58,7 +71,7 @@ If a model or the prompt is missing, ask one short question for the missing part
 ## What the script does
 
 - Creates `model-a` and `model-b` worktrees from the chosen base commit.
-- Runs each model sequentially with `pi --mode json --no-session --model <model>`, so timing is not polluted by the two runs competing for resources.
+- Runs each model sequentially with `pi --mode json --no-session --model <model>` and the requested `--thinking` level, so timing is not polluted by the two runs competing for resources.
 - Captures the final assistant text, the full diff against the base (committed and uncommitted), file lists, stderr, turns, model time, tool time, token usage, cost, retries, and error turns.
 - Writes the report and artifacts under `~/.pi/compare/<run-id>/`.
 - Removes both worktrees and prunes git worktree metadata, unless `--keep` is set.

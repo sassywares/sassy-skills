@@ -136,10 +136,21 @@ def parse_events(path: Path) -> dict:
     return out
 
 
-def run_model(label: str, model: str, worktree: Path, out_dir: Path, prompt: str, args) -> dict:
+def run_model(
+    label: str,
+    model: str,
+    thinking: str | None,
+    worktree: Path,
+    out_dir: Path,
+    prompt: str,
+    args,
+) -> dict:
     events_path = out_dir / "events.jsonl"
     stderr_path = out_dir / "stderr.txt"
-    cmd = [args.pi_bin, "--mode", "json", "--no-session", "--model", model, "--", prompt]
+    cmd = [args.pi_bin, "--mode", "json", "--no-session"]
+    if thinking:
+        cmd += ["--thinking", thinking]
+    cmd += ["--model", model, "--", prompt]
 
     started = time.time()
     timed_out = False
@@ -200,6 +211,7 @@ def run_model(label: str, model: str, worktree: Path, out_dir: Path, prompt: str
         {
             "label": label,
             "requested_model": model,
+            "thinking": thinking,
             "wall_ms": wall_ms,
             "exit_code": exit_code,
             "timed_out": timed_out,
@@ -215,6 +227,8 @@ def write_report(
     run_root: Path,
     model_a: str,
     model_b: str,
+    thinking_a: str | None,
+    thinking_b: str | None,
     prompt: str,
     base: str,
     worktree_a: Path,
@@ -227,8 +241,8 @@ def write_report(
     lines.append("# sassy-compare report")
     lines.append("")
     lines.append(f"- Base: `{base}`")
-    lines.append(f"- model-a: `{model_a}`")
-    lines.append(f"- model-b: `{model_b}`")
+    lines.append(f"- model-a: `{model_a}` (thinking: `{thinking_a or 'model default'}`)")
+    lines.append(f"- model-b: `{model_b}` (thinking: `{thinking_b or 'model default'}`)")
     lines.append(f"- Prompt: {prompt.strip()[:2000]}")
     lines.append("")
 
@@ -238,6 +252,7 @@ def write_report(
 
     header = ["Metric", f"model-a ({model_a})", f"model-b ({model_b})"]
     rows = [
+        ("Thinking level", thinking_a or "model default", thinking_b or "model default"),
         ("Wall time", fmt_ms(summary_a.get("wall_ms", 0)), fmt_ms(summary_b.get("wall_ms", 0))),
         ("Exit code", str(summary_a.get("exit_code")), str(summary_b.get("exit_code"))),
         ("Timed out", "yes" if summary_a.get("timed_out") else "no", "yes" if summary_b.get("timed_out") else "no"),
@@ -334,6 +349,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Compare two models on the same prompt in isolated worktrees.")
     parser.add_argument("--model-a", required=True, help="Model for the first worktree.")
     parser.add_argument("--model-b", required=True, help="Model for the second worktree.")
+    parser.add_argument(
+        "--thinking-a",
+        choices=["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+        help="Thinking level for model-a. Overrides a :level suffix on the model name.",
+    )
+    parser.add_argument(
+        "--thinking-b",
+        choices=["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+        help="Thinking level for model-b. Overrides a :level suffix on the model name.",
+    )
     parser.add_argument("--prompt", help="Prompt to run in both worktrees.")
     parser.add_argument("--prompt-file", help="Read the prompt from this file instead.")
     parser.add_argument("--base", default="HEAD", help="Git ref to branch both worktrees from (default: HEAD).")
@@ -400,20 +425,26 @@ def main() -> int:
         if args.dry_run:
             summary_a = {"wall_ms": 0, "exit_code": 0, "timed_out": False, "turns": 0, "model_ms": 0,
                          "tool_ms": 0, "output_tokens": 0, "cost": 0.0, "errors": 0, "retries": 0,
-                         "aborted": False, "stderr_tail": ""}
-            summary_b = dict(summary_a)
+                         "aborted": False, "stderr_tail": "", "thinking": args.thinking_a}
+            summary_b = {**summary_a, "thinking": args.thinking_b}
             (artifacts / "model-a" / "output.txt").write_text("")
             (artifacts / "model-b" / "output.txt").write_text("")
             (artifacts / "model-a" / "files.txt").write_text("")
             (artifacts / "model-b" / "files.txt").write_text("")
         else:
-            summary_a = run_model("model-a", args.model_a, worktree_a, artifacts / "model-a", args.prompt, args)
-            summary_b = run_model("model-b", args.model_b, worktree_b, artifacts / "model-b", args.prompt, args)
+            summary_a = run_model(
+                "model-a", args.model_a, args.thinking_a, worktree_a, artifacts / "model-a", args.prompt, args
+            )
+            summary_b = run_model(
+                "model-b", args.model_b, args.thinking_b, worktree_b, artifacts / "model-b", args.prompt, args
+            )
 
         report = write_report(
             run_root,
             args.model_a,
             args.model_b,
+            args.thinking_a,
+            args.thinking_b,
             args.prompt,
             args.base,
             worktree_a,
