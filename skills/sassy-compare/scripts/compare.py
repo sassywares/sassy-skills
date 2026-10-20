@@ -284,6 +284,7 @@ def write_report(
             tofile="model-b/output.txt",
         )
     )
+    (run_root / "output.diff").write_text(output_diff)
     lines.append("## Final output diff")
     lines.append("")
     if output_diff:
@@ -300,6 +301,7 @@ def write_report(
         capture_output=True,
         check=False,
     )
+    (run_root / "code.diff").write_text(code_diff.stdout)
     lines.append("## Code diff")
     lines.append("")
     if code_diff.stdout.strip():
@@ -319,6 +321,8 @@ def write_report(
     lines.append(f"- model-a changes: `{run_root / 'artifacts' / 'model-a' / 'changes.diff'}`")
     lines.append(f"- model-b output: `{run_root / 'artifacts' / 'model-b' / 'output.txt'}`")
     lines.append(f"- model-b changes: `{run_root / 'artifacts' / 'model-b' / 'changes.diff'}`")
+    lines.append(f"- Full output diff: `{run_root / 'output.diff'}`")
+    lines.append(f"- Full code diff: `{run_root / 'code.diff'}`")
     lines.append("")
 
     report_path = run_root / "report.md"
