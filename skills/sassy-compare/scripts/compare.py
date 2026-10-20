@@ -268,6 +268,7 @@ def write_report(
         ("Model time", fmt_ms(summary_a.get("model_ms", 0)), fmt_ms(summary_b.get("model_ms", 0))),
         ("Tool time", fmt_ms(summary_a.get("tool_ms", 0)), fmt_ms(summary_b.get("tool_ms", 0))),
         ("Output tokens", str(summary_a.get("output_tokens", 0)), str(summary_b.get("output_tokens", 0))),
+        ("Reasoning tokens", str(summary_a.get("reasoning_tokens", 0)), str(summary_b.get("reasoning_tokens", 0))),
         ("Cost", f"${summary_a.get('cost', 0):.4f}", f"${summary_b.get('cost', 0):.4f}"),
         ("Error turns", str(summary_a.get("errors", 0)), str(summary_b.get("errors", 0))),
         ("Retries", str(summary_a.get("retries", 0)), str(summary_b.get("retries", 0))),
