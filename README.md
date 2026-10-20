@@ -23,7 +23,7 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 
 - **Lean.** Skills are indexes and workflows, not documentation dumps. Detail moves into `references/` only when it is conditionally needed.
 - **Explicit.** Every skill is invoked deliberately. No silent background behavior.
-- **Controlled.** Code approval, ship review, and manual QA are separate, visible gates. There are two mode tokens, `mode:manual` (default) and `mode:auto`, accepted by `sassy-ship` and `sassy-compound` only; every other skill takes no mode.
+- **Controlled.** Code approval, manual QA, and ship review are visible gates that all run in sequence. There are two mode tokens, `mode:manual` (default) and `mode:auto`, accepted by `sassy-ship` and `sassy-compound` only; every other skill takes no mode.
 - **Reliable.** Work runs through `sassy-cycle` with isolated subagents for implementation, review, validation, and fixes.
 - **Context-efficient.** Orchestrators coordinate; subagents do the heavy reading and return compact results.
 - **Never surprising.** Nothing is committed just because a step finished. Shipping is its own phase.
@@ -131,15 +131,17 @@ flowchart LR
   G --> H
   H --> I{Code approval}
   I -->|changes| H
-  I -->|approved, via sassy-work| J[Commit on current branch and stop]
-  I -->|approved, via sassy-lfg| K[sassy-ship]
+  I --> Q{Manual QA}
+  Q -->|fails| H
+  Q -->|passes, via sassy-work| J[Commit on current branch and stop]
+  Q -->|passes, via sassy-lfg| K[sassy-ship]
   K --> L{Ship review}
   L -->|approve or mode:auto| M[Commit, PR, babysit]
 ```
 
 Option 1 produces a durable plan with phased slices and manual QA tables. Options 2 and 3 keep the whole job as one settled in-context brief and write no plan file.
 
-`sassy-work` handles one phase and hands off the next. `sassy-lfg` drains the whole plan in one session. Both delegate to `sassy-cycle` and stop at the code approval gate before committing.
+`sassy-work` handles one phase and hands off the next. `sassy-lfg` drains the whole plan in one session. Both delegate to `sassy-cycle` and stop at one gate carrying code approval plus the manual QA checklist; nothing is `Done`, committed, or shipped until both pass. With an in-context brief there are no QA rows, so the gate is code approval alone.
 
 Work always commits to the current branch; `sassy-ship` creates the shipping branch at close-out when the checked-out branch is the repo default.
 
@@ -180,10 +182,10 @@ The fix gate offers four options:
 | Control | When it applies |
 |---|---|
 | Code approval | Always on for `sassy-work` and `sassy-lfg`. |
+| Manual QA | Part of the same gate, and only when the plan document has QA tables. The user runs the rows; a phase is `Done` only when both pass. |
 | Ship review | On in `mode:manual` (default), skipped by `mode:auto`. |
-| Manual QA | Only when the plan document has QA tables. |
 
-The artifact decides QA: a plan document carries manual QA tables, an in-context brief does not. Gates are deliberate stops; the only way past one is the user's approval. `mode:auto` is accepted only by `sassy-ship` and `sassy-compound`.
+The artifact decides QA: a plan document carries manual QA tables that gate phase completion, an in-context brief does not. Gates are deliberate stops; the only way past one is the user's approval. `mode:auto` is accepted only by `sassy-ship` and `sassy-compound`.
 
 ## Repository layout
 

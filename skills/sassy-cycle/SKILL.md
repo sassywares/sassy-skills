@@ -51,7 +51,7 @@ Notes: <anything the caller needs>
 | Parallel where independent | Independent work chunks → parallel workers. Reviewer + validator always run in parallel. |
 | One fix pass | One worker fix, one re-check. If findings remain after that → `blocked`. |
 | Never commit | This skill leaves everything uncommitted. Shipping is `sassy-ship`. |
-| Manual QA | When QA is enabled, never mark QA rows `Done`. When the plan or brief disables QA, skip QA entirely. |
+| Manual QA | Never mark QA rows `Done`. QA is confirmed by the user at the caller's gate; failing rows come back as findings. |
 
 ## Context and token discipline
 

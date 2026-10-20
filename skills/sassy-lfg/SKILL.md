@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 # Sassy LFG
 
-**Outcome:** every phase in the plan run through `sassy-cycle`, the whole change approved by the user at one code approval gate, then `sassy-ship` closes it out (compound, handbook, commit, PR, babysit). A brief runs one cycle through the same gate, then ships.
+**Outcome:** every phase in the plan run through `sassy-cycle`, then one gate that carries the code approval and every phase's manual QA checklist, phases marked `Done` only when both pass, then `sassy-ship` closes it out (compound, handbook, commit, PR, babysit). A brief runs one cycle through the same gate, then ships.
 
 **The orchestrator does not do work.** Read the plan, dispatch `sassy-cycle` per phase, then `sassy-ship`. Never edit application code. Keep the main context small — all heavy work happens in subagents.
 
@@ -23,19 +23,29 @@ Detect the shape from the argument:
 
 If nothing is passed and no plan exists, run `sassy-plan` first and use what the user picks there.
 
-## QA
+## QA gate
 
-Read the plan's `**QA:**` line and its per-phase QA table. Manual QA is the default, and the rows stay `Pending`: never mark them `Done`. A brief has none, so there is no QA checklist and no QA gate on the brief path. Never invent, enable, or disable QA.
+Read the plan's `**QA:**` line and its per-phase QA tables. QA is manual and part of the completion gate: LFG builds every phase first, then presents one gate carrying code approval plus every phase's QA checklist. No phase turns `Done`, and nothing is committed or shipped, until both pass.
+
+- The user runs the checks. The agent never ticks a row it did not hear confirmed: a row becomes `Done` only on the user's explicit confirmation, with their note recorded.
+- A failed row is a finding. Route it through one more `sassy-cycle` on its phase and present the gate again; a row that still fails is `Blocked` with the reason and stops the run.
+- Rows nobody has reported on stay `Pending` and hold their phase `In progress`.
+
+A brief has no QA table, so its gate is code approval alone. Never invent, enable, or disable QA.
 
 ## Steps
 
-1. **Load the plan.** Read the plan and its Phase tracking table.
+1. **Load the plan.** Read the plan and its Phase tracking table. If phases are already `In progress` from an interrupted run, ask once whether to resume at the gate or rerun those cycles, then continue from the answer.
 2. **Run every phase, in order.** For each phase not `Done`:
-   - Load the `sassy-cycle` skill and follow it, with work brief = the phase's goal/work/"Done when", and intent reference = the plan path and phase.
-   - On `Status: done` and `Validator: Conforms`, mark the phase `Done`.
+   - Set the phase `In progress`, then load the `sassy-cycle` skill and follow it, with work brief = the phase's goal/work/"Done when", and intent reference = the plan path and phase.
+   - On `Status: done` and `Validator: Conforms`, leave the phase `In progress` — its QA rows are still owed, and only the gate closes them.
    - On `Status: blocked`, mark it `Blocked` and stop the run.
-3. **Code approval gate.** After the last phase, report: the plan path, each phase's final status, what changed per phase, whether manual QA applies, and that the change is uncommitted. Wait for the user's approval. Do not commit.
-4. **Close-out.** On code approval, load the `sassy-ship` skill and follow it. Do only the close-out steps the user approves. Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship` to `sassy-babysit`.
+3. **The gate.** After the last phase, report: the plan path, each phase's status, what changed per phase, and the validator/reviewer summaries. Then give every phase's QA checklist verbatim — row ID, check, how to run it, what passing looks like — with unreported rows `Pending`. Ask for both decisions: code approval and the QA result per row. Wait. Do not commit.
+4. **Resolve the gate.** Three outcomes:
+   - **Code approved and every QA row passes** → mark the rows `Done` with the user's notes, mark the phases `Done`, then run the close-out below.
+   - **Code approved, QA still pending** → tick nothing, mark nothing `Done`, commit nothing, ship nothing. Report which rows are outstanding and how to resume (`/skill:sassy-lfg <plan>`), and stop.
+   - **Any QA row fails** → run one more `sassy-cycle` on that phase with the failing rows as the intent reference, then present the gate again. A row that still fails is `Blocked` with the reason and stops the run.
+5. **Close-out.** On both gates passing, load the `sassy-ship` skill and follow it. Do only the close-out steps the user approves. Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship` to `sassy-babysit`.
 
 Work commits to the current branch. `sassy-ship` creates the shipping branch at close-out when the checked-out branch is the repo default.
 
@@ -53,12 +63,15 @@ When the argument is not a plan path, the brief is the one phase:
 |------|-------------|
 | Orchestrator only | Delegate every phase to `sassy-cycle`. Never read source or edit code. |
 | Phases in plan order | Phases run one after another, in plan order. |
-| Code approval before shipping | The change stays uncommitted until the user approves the code. Shipping is `sassy-ship`. |
+| Done needs both gates | Mark a phase `Done` only when the user approves the code and every QA row for it is `Done`. |
+| QA rows follow the user | Tick a QA row `Done` only from the user's explicit confirmation; keep unreported rows `Pending`; log a failed row as a finding for one more cycle. |
+| Gates before shipping | Nothing is committed or shipped until the code is approved and every QA row passes. Shipping is `sassy-ship`. |
 | No plan on the brief path | Use the in-context brief; never create or update a plan file. |
 | Compact context | Only pass briefs to subagents and keep only their summaries. |
 
 ## Failure handling
 
 - A phase returns `blocked` → stop the run, report the open findings and diagnostic.
+- QA rows stay pending or keep failing after the one allowed pass → stop, commit nothing, ship nothing, report the outstanding rows.
 - The validator returns **Blocked — insufficient grounding** → stop; do not advance.
 - Ambiguous or unsafe failure → stop and ask rather than guessing.

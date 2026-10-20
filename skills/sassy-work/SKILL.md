@@ -11,7 +11,7 @@ disable-model-invocation: true
 
 # Sassy Work
 
-**Outcome:** one phase run through `sassy-cycle`, findings fixed, presented for the user's approval, marked `Done` only after approval, then committed via `sassy-commit`; then a handoff that continues the **next** phase in a fresh session, or a `sassy-ship` close-out if this was the last phase.
+**Outcome:** one phase run through `sassy-cycle`, findings fixed, then a single gate that carries both the code approval and the phase's manual QA checklist, marked `Done` only when both pass, committed via `sassy-commit`; then a handoff that continues the **next** phase in a fresh session, or a `sassy-ship` close-out if this was the last phase.
 
 **Brief input** runs one cycle, presents the code approval gate, commits, and **stops before shipping**.
 
@@ -26,28 +26,40 @@ Detect the shape from the argument:
 
 If a plan path is given but the file does not exist, run `sassy-plan` first and stop.
 
-## QA
+## QA gate
 
-Read the plan's `**QA:**` line and its per-phase QA table. Manual QA is the default, and the rows stay `Pending`: never mark them `Done`. A brief has none, so there is no QA gate on the brief path. Never invent, enable, or disable QA.
+Read the plan's `**QA:**` line and its per-phase QA table. QA is manual and it is part of the phase gate, not a separate track: a phase turns `Done` only when the code is approved **and** every QA row for that phase has passed.
 
-## Code approval
+- The user runs the checks. The agent never ticks a row it did not hear confirmed: a row becomes `Done` only on the user's explicit confirmation in this conversation, with their note recorded.
+- A row the user reports failing is a finding. Route it through the same fix-and-recheck loop and present the gate again; a row that cannot pass after that is `Blocked` with the reason.
+- Rows nobody has reported on stay `Pending`, and they keep the phase `In progress`. Never infer, batch-assume, or self-certify a pass.
 
-Always gate before committing. One worker fixes findings, one re-check, then present the phase gate and wait for the user.
+A brief has no QA table, so its gate is code approval alone. Never invent, enable, or disable QA.
+
+## Phase gate
+
+Always gate before committing. One worker fixes findings, one re-check, then present the combined gate — code approval plus the QA checklist — and wait for the user.
 
 ## Steps
 
 1. **Load the phase.** Read the plan and only the selected phase's section. If it is already `Done`, stop and report.
-2. **Run the cycle.** Load the `sassy-cycle` skill and follow it, with:
+
+   If the phase is `In progress`, an earlier run was interrupted before both gates passed. Ask one question — resume at the gate, or re-run the cycle from scratch — and take the answer. Resuming skips straight to step 4 and does not rebuild the phase.
+2. **Run the cycle.** Set the phase `In progress` in the Phase tracking table, then load the `sassy-cycle` skill and follow it, with:
    - work brief = the phase's goal, work items, and "Done when" criteria
    - intent reference = the plan path and phase
-3. **Evaluate the phase.** On `Status: done` with `Validator: Conforms` and no critical review findings, note that the phase is ready to close but leave its status unchanged — the plan's Phase tracking table is only updated after approval. On `Status: blocked`, set it `Blocked` in the plan's Phase tracking table and stop; a blocked phase is a real outcome and needs no approval.
-4. **Present the phase gate.** Report the phase, what changed, findings raised/resolved, the validator grade, and the reviewer summary. Leave QA rows `Pending` (QA is manual). Wait for the user's approval.
-5. **Commit the phase.** On code approval, first mark the phase `Done` in the plan's Phase tracking table, then dispatch a `worker` whose task is: *read `~/.agents/skills/sassy-commit/SKILL.md` and follow it with `branch:current`*, naming that the commit must include both the phase's code changes and the now-updated Phase tracking table. It returns the hash and subject.
+3. **Evaluate the phase.** On `Status: done` with `Validator: Conforms` and no critical review findings, note that the code is ready but leave the phase `In progress` — both gates must pass before it closes. On `Status: blocked`, set it `Blocked` in the Phase tracking table and stop; a blocked phase is a real outcome and needs no approval.
+4. **Present the phase gate.** Report the phase, what changed, findings raised/resolved, the validator grade, and the reviewer summary. Then give the QA checklist verbatim: each row's ID, check, how to run it, and what passing looks like, with unreported rows `Pending`. Ask for both decisions — code approval and the QA result per row. Wait.
+5. **Resolve the gate.** Three outcomes, nothing in between:
+   - **Code approved and every QA row passes** → go to step 6.
+   - **Code approved, QA still pending** → record that code is approved but leave the phase `In progress`, tick nothing, commit nothing, hand off nothing, and report that the phase is waiting on manual QA plus the command that resumes it.
+   - **Any QA row fails** → run `sassy-cycle` once more on the same phase, with the failing rows as the intent reference and a work brief that fixes exactly those failures. Then present the gate again. If a row still fails after that one pass, mark it `Blocked` with the reason and stop.
+6. **Commit the phase.** On both gates passing, first mark the phase's QA rows `Done` with the user's notes and the phase `Done` in the Phase tracking table, then dispatch a `worker` whose task is: *read `~/.agents/skills/sassy-commit/SKILL.md` and follow it with `branch:current`*, naming that the commit must include the phase's code changes, the QA table results, and the now-updated Phase tracking table. It returns the hash and subject.
 
    Work always commits to the current branch. `sassy-ship` creates the shipping branch at close-out when the checked-out branch is the repo default.
 
    Do not hand off or close out until the commit succeeds.
-6. **On commit success:**
+7. **On commit success:**
    - **A next phase exists** → hand off so it starts in a fresh session:
 
      ```text
@@ -75,15 +87,16 @@ When the argument is not a plan path, it is one settled brief:
 |------|-------------|
 | Orchestrator only | Delegate all implementation and quality work to `sassy-cycle`. |
 | One phase per run | Do exactly one phase. Never continue into the next phase in this session. |
-| Gate before commit and handoff | Do not commit, hand off, or close out until the user approves the code. |
-| Commit per phase | Commit the phase and the plan update via `sassy-commit` before handoff or close-out. |
-| Plan status follows approval | Mark a phase `Done` only after the user approves it, never before. |
-| Manual QA rows stay `Pending` | Never mark QA rows `Done`. |
+| Gate before commit and handoff | Do not commit, hand off, or close out until the user approves the code and the phase QA rows pass. |
+| Commit per phase | Commit the phase, its QA results, and the plan update via `sassy-commit` before handoff or close-out. |
+| Done needs both gates | Mark a phase `Done` only when the user approves the code and every QA row for that phase is `Done`, never before. |
+| QA rows follow the user | Tick a QA row `Done` only from the user's explicit confirmation; keep unreported rows `Pending`; log a failed row as a finding to fix. |
 | No shipping on the brief path | The brief path commits and stops. Shipping is `sassy-ship` or `sassy-lfg`. |
 
 ## Failure handling
 
 - `sassy-cycle` returns `blocked` → mark the phase `Blocked`, stop, report the open findings and the diagnostic.
+- QA stays pending or keeps failing across the one allowed fix pass → keep the phase `In progress` (or `Blocked` with the reason), commit nothing, hand off nothing, and report.
 - `sassy-commit` fails or leaves the phase changes uncommitted → stop and report; never hand off on top of uncommitted phase work.
 - The validator returns **Blocked — insufficient grounding** → treat it as a real blocker; do not advance or hand off.
 - Ambiguous or unsafe failure → stop and ask.

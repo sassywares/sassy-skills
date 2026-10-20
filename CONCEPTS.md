@@ -27,7 +27,7 @@ A gate is a deliberate stop or pass/fail condition.
 - **Fix gate** — `sassy-debug` presents the causal chain, fix, and risks before changing code.
 - **Code approval gate** — the user approves the code before committing or shipping. Always on for `sassy-work` and `sassy-lfg`.
 - **Ship review gate** — `sassy-ship` summarizes the close-out and waits in `mode:manual` (default); skipped only when the caller passed `mode:auto`.
-- **QA gate** — manual QA checklists. It exists only when the plan document has QA tables; an in-context brief has none.
+- **QA gate** — manual QA checklists, part of phase completion rather than a separate track: a phase turns `Done` only when the code is approved and every QA row passed. The user runs the rows; no agent ticks its own. It exists only when the plan document has QA tables; an in-context brief has none.
 
 ## Modes
 

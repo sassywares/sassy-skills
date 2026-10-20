@@ -54,7 +54,7 @@ Load the `sassy-lfg` skill the same way: the settled brief as the work brief, it
 
 ## QA
 
-The plan document carries manual QA tables per `references/plan-format.md`. The in-context brief does not, so there is no QA table and no QA gate on that path. Omit QA tables only when the user explicitly asks to skip QA in plain language.
+The plan document carries manual QA tables per `references/plan-format.md`. Those rows gate phase completion: a phase is `Done` only when the code is approved and every row passed, with the user running the checks. The in-context brief has no QA table, so its gate is code approval alone. Omit QA tables only when the user explicitly asks to skip QA in plain language.
 
 ## Resume
 

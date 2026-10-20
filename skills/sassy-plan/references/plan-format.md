@@ -10,9 +10,11 @@ Read this before writing the plan file.
 4. **Readable.** 3–8 phases for a typical feature. Merge only when a split leaves a phase with no meaningful thing to verify.
 5. **No dump sections.** Anything executable lives under a phase. No giant task list outside the phases.
 
-## QA — manual by default
+## QA — manual, and part of the gate
 
-Manual QA is the default: each phase gets a QA table with concrete checks and `Mode: Manual` fixed. Suggest checks from the phase goal (happy path, edge, regression) but the user may edit them later.
+Manual QA is the default: each phase gets a QA table with `Mode: Manual` fixed. Write each row so a person can run it without reading code — say what to set up, what to do, and what passing looks like. Suggest checks from the phase goal (happy path, edge, regression) but the user may edit them later.
+
+QA is a completion gate, not a separate track: a phase turns `Done` only when the code is approved and every QA row for that phase passes. The user runs the rows and the agent records them; an agent never ticks its own row.
 
 The user may ask in plain language to omit QA tables for this plan, in which case omit the tables and the `**QA:**` line entirely.
 
@@ -41,6 +43,8 @@ Anything that must not change, non-goals, and risks. (Omit if none.)
 | P2 | … | Pending |
 
 Status values: `Pending` | `In progress` | `Blocked` | `Done`
+
+`Done` on a phase means its code was approved and every QA row for it is `Done`.
 
 ## Phases
 
@@ -71,4 +75,4 @@ Omit empty layers. Do not put the next goal's work here.
 …
 ```
 
-Every phase has at least one QA row. Status values there are `Pending` | `Done` | `Blocked`. The `**QA:**` line near the title is the source of truth for executors.
+Every phase has at least one QA row. Status values there are `Pending` | `Done` | `Blocked`: `Done` means the user ran that check and confirmed it passed, `Blocked` carries a note saying what failed, and anything unreported stays `Pending`. The `**QA:**` line near the title is the source of truth for executors.
