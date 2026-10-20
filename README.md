@@ -112,6 +112,7 @@ Debugging:
 | Skill | What it does |
 |---|---|
 | **`sassy-skill`** | Creates, retunes, or restructures Agent Skills. |
+| **`sassy-compare`** | Runs one prompt against two models in isolated worktrees and compares output, code changes, timing, tokens, and errors. |
 
 ## Workflows
 

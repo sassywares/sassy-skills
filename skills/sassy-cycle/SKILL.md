@@ -24,7 +24,12 @@ disable-model-invocation: true
 ## Steps
 
 1. **Recon (optional).** If the work is large or its location is unclear, run `sassy-scout` first and pass the grounding brief path into the work brief. Skip when the brief is already precise.
-2. **Implement.** Dispatch a `worker` with the work brief, the intent reference, and the plan path if there is one. For independent chunks, batch them as **parallel** `worker` tasks in one call (max 8). The worker reads whatever it needs itself.
+2. **Implement.** Dispatch a `worker` with the work brief, the intent reference, and the plan path if there is one. Every worker brief must also carry these constraints:
+   - Tests only for the files the worker changed and the existing tests that directly regress them. The full suite runs once at the final gate.
+   - A hard timeout around long-running commands, for example `timeout 300 bunx vitest run path/to/file.test.ts`; a hung command is killed and reported.
+   - Stop and report a blocker to the orchestrator after one failed retry, with the exact command and error, instead of looping on the same failure.
+
+   For independent chunks, batch them as **parallel** `worker` tasks in one call (max 8). The worker reads whatever it needs itself.
 3. **Review + validate (parallel).** Dispatch the `reviewer` and the `validator` together in one **parallel** call. Give the validator the intent reference so it can judge conformance. Simplification opportunities belong in the reviewer's Suggestions, not a separate pass.
 4. **Fix findings.** Collect every finding from steps 2–3. If any exist, dispatch one `worker` to fix exactly those findings.
 5. **Re-check.** Re-run the `reviewer` and `validator` in parallel once.

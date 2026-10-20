@@ -49,6 +49,14 @@ A brief has no QA table, so its gate is code approval alone. Never invent, enabl
 
 Work commits to the current branch. `sassy-ship` creates the shipping branch at close-out when the checked-out branch is the repo default.
 
+## Brief constraints
+
+Every worker brief this run dispatches must include:
+
+- Tests only for the files the worker changed and the existing tests that directly regress them. The full suite runs once at the final gate.
+- A hard timeout around long-running commands, for example `timeout 300 bunx vitest run path/to/file.test.ts`; a hung command is killed and reported.
+- The instruction to stop and report a blocker to the orchestrator after one failed retry, with the exact command and error, instead of looping on the same failure.
+
 ## Brief input
 
 When the argument is not a plan path, the brief is the one phase:
