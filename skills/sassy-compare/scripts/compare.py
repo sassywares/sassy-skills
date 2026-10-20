@@ -16,6 +16,7 @@ from pathlib import Path
 
 REPORT_DIFF_LINES = 400
 REPORT_DIFF_CHARS = 60_000
+THINKING_LEVELS = ("off", "minimal", "low", "medium", "high", "xhigh", "max")
 
 
 def git(args: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -38,6 +39,13 @@ def truncate(text: str, lines: int = REPORT_DIFF_LINES, chars: int = REPORT_DIFF
         out.append(line)
         used += len(line) + 1
     return "\n".join(out)
+
+
+def thinking_from_model(model: str) -> str | None:
+    if ":" not in model:
+        return None
+    suffix = model.rsplit(":", 1)[1]
+    return suffix if suffix in THINKING_LEVELS else None
 
 
 def fmt_ms(ms: int) -> str:
@@ -351,12 +359,12 @@ def main() -> int:
     parser.add_argument("--model-b", required=True, help="Model for the second worktree.")
     parser.add_argument(
         "--thinking-a",
-        choices=["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+        choices=list(THINKING_LEVELS),
         help="Thinking level for model-a. Overrides a :level suffix on the model name.",
     )
     parser.add_argument(
         "--thinking-b",
-        choices=["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+        choices=list(THINKING_LEVELS),
         help="Thinking level for model-b. Overrides a :level suffix on the model name.",
     )
     parser.add_argument("--prompt", help="Prompt to run in both worktrees.")
@@ -443,8 +451,8 @@ def main() -> int:
             run_root,
             args.model_a,
             args.model_b,
-            args.thinking_a,
-            args.thinking_b,
+            args.thinking_a or thinking_from_model(args.model_a),
+            args.thinking_b or thinking_from_model(args.model_b),
             args.prompt,
             args.base,
             worktree_a,
