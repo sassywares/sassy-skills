@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-The repo's `skills/` directory is the only copy of the skills. It ships as the npm package `@sassywares/skills`, so consumers pin a version rather than linking a directory; the sync service handles git commit and push.
+The repo's `skills/` directory is the only copy of the skills. Consumers install from it with `npx skills add sassywares/sassy-skills`, which vendors the files into their project and pins content hashes in `skills-lock.json`; the sync service handles git commit and push.
 
 ## Skill
 

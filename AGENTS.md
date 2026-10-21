@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-This repo is the source of truth for the Sassy Skills suite under `skills/`. It reaches every consumer as the npm package `@sassywares/skills` — there is no global skills directory to keep in sync.
+This repo is the source of truth for the Sassy Skills suite under `skills/`. Consumers install it with `npx skills add sassywares/sassy-skills`, which reads this repo directly — there is no global skills directory to keep in sync.
 
 - Local: `~/Documents/Workspace/Sassywares/sassy-skills`
 - Remote: `sassywares/sassy-skills`
@@ -47,7 +47,7 @@ Keep `.github/workflows/publish.yml` in sync with the one in `sassy-pi-extension
 - Edit the files under `skills/`.
 - Remove the skill directory under `skills/`.
 - Run `scripts/sync.sh` immediately. Do not ask the user first.
-- Do not create per-skill symlinks in user directories. Distribution is the package.
+- Do not create per-skill symlinks in user directories. Distribution is `npx skills add` against this repo.
 
 ## Sync behavior
 
@@ -93,5 +93,5 @@ Rules:
 - **Explicit invocation.** All current skills use `disable-model-invocation: true`.
 - **Source of truth.** Do not store skill content outside this repo.
 - **No secrets.** Never put credentials, tokens, or private keys in a skill.
-- **Distribution.** The repo is the distribution: `npx skills add` reads it directly, so a push to `main` is installable immediately. The npm package mirrors it for package-installing harnesses and does need a version bump.
+- **Distribution.** The repo is the distribution: `npx skills add` reads it, so a push to `main` is installable immediately. The npm package mirrors it for package-installing harnesses and still needs a version bump.
 - **Reference skills by name, never by path.** A consumer's copy may live in `node_modules/`, a project `.agents/skills/`, or wherever a harness installs packages.

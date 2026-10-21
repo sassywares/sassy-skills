@@ -2,11 +2,10 @@
 # Commit and push this repo. Skills reach harnesses as the published package
 # `@sassywares/skills`, so there is no global link to maintain here.
 #
-# Consumers pin a version:
-#   project  bun add -d @sassywares/skills@x.y.z
-#   pi user  pi install npm:@sassywares/skills@x.y.z
-# While editing, point a consumer at this checkout with `bun link @sassywares/skills`
-# (or add `.pi/settings.json` with `skills: ["./skills"]` when working in this repo).
+# Consumers install from this repo:
+#   npx skills add sassywares/sassy-skills     # vendor into .agents/skills + skills-lock.json
+#   npx skills update                          # pull the latest after a push
+# Working in this repo, `.pi/settings.json` already loads `./skills`.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -2,8 +2,8 @@
 name: sassy-setup
 description: >-
   Detect a project's topology and wire it for the Sassy Skills suite: write
-  .sassywares/config.yaml, pin the skills as an npm dependency, link them where
-  harnesses look, and install the snapshot tooling in a multi-repo workspace.
+  .sassywares/config.yaml, vendor the skills from upstream with the open
+  `skills` CLI, and install the snapshot tooling in a multi-repo workspace.
   Use when asked to set up, configure, or verify a project.
 argument-hint: "[path] [--check]"
 disable-model-invocation: true
@@ -11,7 +11,7 @@ disable-model-invocation: true
 
 # Sassy Setup
 
-**Outcome:** `.sassywares/config.yaml` at the project root matching the tree it describes, the skills wired as a pinned dependency and visible to the harness, and — in `workspace` mode — the snapshot tooling installed.
+**Outcome:** `.sassywares/config.yaml` at the project root matching the tree it describes, the skills vendored and pinned in `skills-lock.json` and visible to the harness, and — in `workspace` mode — the snapshot tooling installed.
 
 **Read `references/config.md` first.** It is the schema and the resolution rules; this skill only decides and writes.
 
@@ -41,8 +41,8 @@ disable-model-invocation: true
 
 6. **Install the snapshot, `workspace` only.** Read `references/workspace.md` and follow it.
 
-7. **Verify.** Run `scripts/detect.sh --root <path> --check`, then `sassy-skills check` for the links. Report every `drift:` line it prints — including an outdated `snapshot` version — or that the config matches the tree.
-8. **Report.** The config path, the topology, the resolved artifact and knowledge paths, the skills version pinned and that `/reload` is needed, and in `workspace` mode what was installed. **Commit nothing.**
+7. **Verify.** Run `scripts/detect.sh --root <path> --check`. Report every `drift:` line it prints — including an outdated `snapshot` version — or that the config matches the tree, plus that `skills-lock.json` is tracked and matches the vendored skills.
+8. **Report.** The config path, the topology, the resolved artifact and knowledge paths, that the vendored skills and lock are committed and `/reload` is needed, and in `workspace` mode what was installed. **Commit nothing.**
 
 ## Hard rules
 

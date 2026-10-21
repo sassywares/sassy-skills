@@ -35,13 +35,13 @@ Ask which one, unless the request already made it obvious. The answer changes th
 
 | Location | Path | Who gets it | Extra work |
 |---|---|---|---|
-| **Internal** — part of this suite | `skills/<name>/` in the sassy-skills repo | Everyone, after a release | Name it `sassy-<name>`, bump `package.json`, run `scripts/sync.sh`, then tag to publish |
+| **Internal** — part of this suite | `skills/<name>/` in the sassy-skills repo | Everyone, once pushed to `main` | Name it `sassy-<name>`, run `scripts/sync.sh`; the npm package follows the next tag |
 | **Project** — team workflow | `<repo>/.agents/skills/<name>/` | Everyone who clones that repo | Commit it; prefix the project (`tap2-…`) so it can't collide with a suite skill or a harness built-in |
 | **User** — personal workflow | `~/.agents/skills/<name>/` | Only this person, every repo on this machine | None — but nothing gates it either; never put something a teammate needs here |
 
 Recommend by audience: the team needs it → **project**; only the requester → **user**; it belongs to every project using this suite → **internal**.
 
-Internal is the only one that implies a release. Never choose it silently: from the moment it lands, consumers see it only when they bump their pin. Say that out loud when you do.
+Internal is the only one that ships to everyone. Never choose it silently: once it lands on `main`, every consumer gets it on their next `npx skills update`. Say that out loud when you do.
 
 Paths in the table are the defaults. Harnesses also read `skills` arrays in settings and installed packages, so a skill may live elsewhere — write down where it actually went.
 

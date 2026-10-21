@@ -302,12 +302,12 @@ npx skills remove                 # take the suite out again
 `@sassywares/skills` is on npm for harnesses that install packages rather than skill directories:
 
 ```bash
-pi install npm:@sassywares/skills@0.4.0
+pi install npm:@sassywares/skills
 ```
 
 ## Repository maintenance
 
-`scripts/sync.sh` commits skill changes, rebases on `origin/main`, and pushes. Any agent that changes a skill must run it immediately, without asking for confirmation. It installs nothing anywhere — a change reaches consumers when a version is released and they bump their pin. `AGENTS.md` documents the workflow for agents working on this repo.
+`scripts/sync.sh` commits skill changes, rebases on `origin/main`, and pushes. Any agent that changes a skill must run it immediately, without asking for confirmation. It installs nothing anywhere — consumers get a change when they run `npx skills update` after a push. `AGENTS.md` documents the workflow for agents working on this repo.
 
 ### Releases
 
