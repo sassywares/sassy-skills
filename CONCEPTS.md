@@ -56,4 +56,4 @@ A settled in-context brief produced by `sassy-plan` when the user picks "start w
 
 ## Sync
 
-There is no background watcher. Any agent that changes a skill must run `scripts/sync.sh` immediately, without asking for confirmation. The sync script repairs the directory symlink, commits skill changes, rebases on `origin/main`, and pushes. New and removed skills need no per-skill symlink work.
+There is no background watcher. Any agent that changes a skill must run `scripts/sync.sh` immediately, without asking for confirmation. The sync script commits the change, rebases on `origin/main`, and pushes. It installs nothing: a changed skill reaches consumers only when a new version is released and a consumer bumps its pin.
