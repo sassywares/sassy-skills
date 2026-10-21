@@ -206,7 +206,9 @@ directly.
 ### Contract
 
 - **Resolution**: `<repo>/.agents/skills/<name>/SKILL.md`, nearest walking up.
-- **Names**: project-prefixed, and never one of our own skills.
+- **Names**: a skill the project owns, never one of ours. A `tap2-`/`knit-`
+  prefix is the convention when the name could be confused with a general
+  workflow; `version` is fine when it is plainly the project's.
 - **Order**: declared order, one worker each, sequential.
 - **Brief**: plan path, changed files, artifact paths, base, branch, commit hash,
   and the PR URL where one exists.
