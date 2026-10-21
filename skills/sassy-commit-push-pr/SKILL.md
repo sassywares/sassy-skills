@@ -4,7 +4,7 @@ description: >-
   Commit, push, and open a PR, then babysit it by default. Use when asked to
   ship/open a PR, or for a PR-description-only flow (writing, rewriting, or
   describing a PR body).
-argument-hint: "[PR ref] [branch:new|current] [babysit:on|off] [checkpoint] [merge:on|off] [delete-branch:on|off]"
+argument-hint: "[PR ref] [branch:new|current] [base:<branch>] [babysit:on|off] [checkpoint] [merge:on|off] [delete-branch:on|off]"
 disable-model-invocation: true
 ---
 
@@ -36,7 +36,7 @@ Only an exit-0 empty list means "no open PR". A non-zero exit means **unknown** 
 
 **Branch policy.** Default: if on the base branch or detached HEAD, create a feature branch named from the work and say so. `branch:current` or a plain request keeps the checked-out branch (that run pushes and skips the PR). Never ask whether to branch. Forward the resolved choice to `sassy-commit`: `branch:new <name>` when this run creates a branch, else `branch:current`.
 
-**Base branch.** `<base>` is `repos[<repo dir>]` from a workspace config, else `git.default_branch`, else the probed remote HEAD. **Never use `defaultBranchRef` as the PR base when the config names one** — a repo whose PRs target `staging` or `dev` must not get a PR aimed at `main`. Pass it explicitly: `gh pr create --base <base>`.
+**Base branch.** `<base>` is `repos[<repo dir>]` from a workspace config, else `git.default_branch`, else the probed remote HEAD. An explicit `base:<branch>` token wins over all of them — use it when this PR targets something other than the day-to-day base, such as a release PR aimed at `main` while work lands on `staging`. **Never use `defaultBranchRef` as the PR base when the config names one.** Pass it explicitly: `gh pr create --base <base>`.
 
 **Refused topologies.** From a `workspace` root there is no single PR to open — refuse in one line and point at `sassy-ship`, which owns the per-repo fan-out. With `git.repo: none`, refuse and say why. Neither ever pushes directly to a base branch.
 
