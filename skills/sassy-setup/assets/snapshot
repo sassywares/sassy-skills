@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
+# snapshot-version: 1
+#
 # Snapshot workspace glue into a side git mirror, without making this folder a
 # git repository.
 #
-# Clones/updates a mirror under .sassywares/mirror (local-only), syncs the
-# workspace into it, commits, and pushes.
+# Clones/updates a mirror under .sassywares/workspace/mirror (local-only), syncs
+# the workspace into it, commits, and pushes.
 #
-# Usage: .sassywares/bin/snapshot [-m MSG] [--dry-run] [--no-push]
+# Usage: .sassywares/workspace/snapshot [-m MSG] [--dry-run] [--no-push] [--version]
 set -euo pipefail
+
+SNAPSHOT_VERSION="1"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG="$ROOT/.sassywares/config.yaml"
-EXCLUDES_FILE="$ROOT/.sassywares/snapshot-exclude"
-MIRROR="$ROOT/.sassywares/mirror"
+WS_DIR="$ROOT/.sassywares/workspace"
+EXCLUDES_FILE="$WS_DIR/.gitignore"
+MIRROR="$WS_DIR/mirror"
 
 MSG=""
 DRY_RUN=0
@@ -29,7 +34,7 @@ need() {
 
 usage() {
   cat <<EOF
-Usage: .sassywares/bin/snapshot [-m MSG] [--dry-run] [--no-push]
+Usage: .sassywares/workspace/snapshot [-m MSG] [--dry-run] [--no-push] [--version]
 
 Copy workspace glue into a side git mirror and push it. The workspace folder
 itself stays non-git — no .git is created at the root.
@@ -37,12 +42,15 @@ itself stays non-git — no .git is created at the root.
   -m, --message MSG   commit message (default: timestamped snapshot)
   --dry-run           sync + show status/diff, do not commit or push
   --no-push           commit in the mirror only (no push)
+  -V, --version       print this script's version and exit
 
 Env (override the config):
   SASSY_WORKSPACE_REMOTE   mirror remote
   SASSY_WORKSPACE_BRANCH   mirror branch
 
-Mirror: .sassywares/mirror
+Mirror:    .sassywares/workspace/mirror
+Excludes:  .sassywares/workspace/.gitignore (one pattern per line)
+Version:   $SNAPSHOT_VERSION
 EOF
 }
 
@@ -52,6 +60,7 @@ while (( $# )); do
     -m=*|--message=*) MSG="${1#*=}" ;;
     --dry-run)      DRY_RUN=1 ;;
     --no-push)      NO_PUSH=1 ;;
+    -V|--version)   printf '%s\n' "$SNAPSHOT_VERSION"; exit 0 ;;
     -h|--help)      usage; exit 0 ;;
     *)              die "unknown argument: $1" ;;
   esac
@@ -142,7 +151,7 @@ ensure_remote_repo() {
 }
 
 ensure_mirror() {
-  mkdir -p "$ROOT/.sassywares"
+  mkdir -p "$WS_DIR"
   if [[ -d "$MIRROR/.git" ]]; then
     ok "mirror ready ($MIRROR)"
     return 0
@@ -164,7 +173,7 @@ ensure_mirror() {
 sync_into_mirror() {
   local -a args=(-a --delete)
   args+=(
-    --exclude '/.sassywares/mirror/'
+    --exclude '/.sassywares/workspace/mirror/'
     --exclude '/.git/'
     --exclude '/node_modules/'
     --exclude '/.DS_Store'

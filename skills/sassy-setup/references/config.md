@@ -84,6 +84,32 @@ omitted (the repo name is `git.repo`) and `default_branch` is the repo's base.
 In a workspace config, both describe **the snapshot mirror**: where it pushes,
 and its branch.
 
+### Workspace layout
+
+Fixed, so nothing has to be guessed:
+
+```text
+.sassywares/
+├── config.yaml
+└── workspace/
+    ├── snapshot      the script; its header carries the version
+    ├── .gitignore    exclude patterns, one per line
+    └── mirror/       the side clone, untracked
+```
+
+The root `.gitignore` carries `/.sassywares/workspace/mirror/`. That line is
+load-bearing: without it the mirror sits inside its own sync source.
+
+`.sassywares/workspace/.gitignore` is a pattern list for the snapshot, not a git
+rule for the workspace — but it is synced into the mirror, where git **does**
+read it for paths under `.sassywares/workspace/`. Anchor patterns with a leading
+`/` so an unanchored one cannot exclude `snapshot` from the mirror itself.
+
+The script's header carries `# snapshot-version: N`. Bump `N` whenever the asset
+changes; `sassy-setup --check` compares the installed copy against the skill's
+and reports a stale one as drift. Setup never overwrites an existing script
+without asking, so the version line is how staleness surfaces.
+
 ### What each topology does
 
 | Step | remote | `workspace` | `none` |

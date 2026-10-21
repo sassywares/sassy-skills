@@ -26,6 +26,9 @@ done
 START="${ROOT_ARG:-$PWD}"
 [[ -d "$START" ]] || { echo "not a directory: $START" >&2; exit 2; }
 
+SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ASSET_SNAPSHOT="$SKILL_DIR/assets/snapshot"
+
 # The nearest config wins, walking up. Report where it is if one exists.
 CONFIG=""
 probe="$START"
@@ -154,7 +157,20 @@ if (( CHECK )); then
 
   if [[ "$TOPOLOGY" == "workspace" ]]; then
     [[ -n "$MIRROR_REMOTE" ]] || bad "git.remote is required when git.repo is workspace"
-    [[ -x "$ROOT/.sassywares/bin/snapshot" ]] || bad "missing .sassywares/bin/snapshot"
+    installed="$ROOT/.sassywares/workspace/snapshot"
+    if [[ -x "$installed" ]]; then
+      installed_v="$(sed -n 's/^# snapshot-version: //p' "$installed" | head -n 1)"
+      asset_v="$(sed -n 's/^# snapshot-version: //p' "$ASSET_SNAPSHOT" | head -n 1)"
+      if [[ -z "$installed_v" ]]; then
+        bad "installed .sassywares/workspace/snapshot has no version line"
+      elif [[ "$installed_v" != "$asset_v" ]]; then
+        bad "installed snapshot is v${installed_v}, this skill ships v${asset_v} — re-run setup"
+      else
+        note "  snapshot v${installed_v}"
+      fi
+    else
+      bad "missing .sassywares/workspace/snapshot"
+    fi
     while IFS= read -r name; do
       [[ -n "$name" ]] || continue
       base="$(detect_base "$ROOT/$name")"
