@@ -319,7 +319,7 @@ Get the skills however they arrive — package, link, or vendored copy — and i
 
 ## Repository maintenance
 
-`scripts/sync.sh` repairs the symlink, commits skill changes, rebases on `origin/main`, and pushes. Any agent that changes a skill must run it immediately, without asking for confirmation. `AGENTS.md` documents the workflow for agents working on this repo.
+`scripts/sync.sh` commits skill changes, rebases on `origin/main`, and pushes. Any agent that changes a skill must run it immediately, without asking for confirmation. It installs nothing anywhere — a change reaches consumers when a version is released and they bump their pin. `AGENTS.md` documents the workflow for agents working on this repo.
 
 ### Releases
 
