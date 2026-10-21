@@ -14,12 +14,16 @@ Keep an open PR moving toward merge by reacting to three streams as each arrives
 
 **Done when:** a true stop condition is reached and a final report is written. Looks-ready is **not** authorization to merge — unless `merge:on`.
 
-## Options
+**Options.**
 
-Two key/value switches, both **off by default** (`merge:off`, `delete-branch:off`). Set one only when the user asks for it. They act only once a true stop is otherwise reached; neither overrides a blocked or `needs-human` state.
+- **`merge:on|off`** — default from `pr.merge`, else `off`. When on and the run reaches **Looks ready**, merge the PR instead of stopping to hand it back. Pick the repo's established method by inspecting the base branch's recent merge commits (one parent = squash/rebase, two = merge commit). Re-snapshot after merging: a successful merge is now the **Terminal** stop. If the merge is rejected (branch protection, conflict, stale SHA), report the failure and stop — do not retry blindly.
+- **`delete-branch:on|off`** — default from `pr.delete_branch`, else `off`. When on, delete the PR's head branch, but only after the PR is **merged** (whether this run merged it or it was already merged when the run started). Never delete without a merged state, and never delete after a failed or rejected merge. Use `gh pr merge --delete-branch` when this run performs the merge, or `gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<branch>` for an already-merged PR. Leave fork / cross-repository PR branches alone.
 
-- **`merge:on|off`** — default `off`. When `merge:on` and the run reaches **Looks ready**, merge the PR instead of stopping to hand it back. Pick the repo's established method by inspecting the base branch's recent merge commits (one parent = squash/rebase, two = merge commit). Re-snapshot after merging: a successful merge is now the **Terminal** stop. If the merge is rejected (branch protection, conflict, stale SHA), report the failure and stop — do not retry blindly.
-- **`delete-branch:on|off`** — default `off`. When `delete-branch:on`, delete the PR's head branch, but only after the PR is **merged** (whether this run merged it or it was already merged when the run started). Never delete without a merged state, and never delete after a failed or rejected merge. Use `gh pr merge --delete-branch` when this run performs the merge, or `gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<branch>` for an already-merged PR. Leave fork / cross-repository PR branches alone.
+An explicit token always beats the config.
+
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per `~/.agents/skills/sassy-setup/references/config.md`. Precedence: explicit token > session instruction > config > skill default.
+
+**One PR per run.** This skill watches the PR resolved from the argument or the current branch. A workspace fan-out is N runs, one per PR, and `pr.merge` never merges a fan-out — that needs an explicit say-so per PR.
 
 ## Step 1 — Resolve and arm
 

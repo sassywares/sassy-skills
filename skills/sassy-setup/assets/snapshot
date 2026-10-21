@@ -1,0 +1,234 @@
+#!/usr/bin/env bash
+# Snapshot workspace glue into a side git mirror, without making this folder a
+# git repository.
+#
+# Clones/updates a mirror under .sassywares/mirror (local-only), syncs the
+# workspace into it, commits, and pushes.
+#
+# Usage: .sassywares/bin/snapshot [-m MSG] [--dry-run] [--no-push]
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CONFIG="$ROOT/.sassywares/config.yaml"
+EXCLUDES_FILE="$ROOT/.sassywares/snapshot-exclude"
+MIRROR="$ROOT/.sassywares/mirror"
+
+MSG=""
+DRY_RUN=0
+NO_PUSH=0
+
+log()  { printf '%s\n' "$*"; }
+ok()   { printf '  ✓ %s\n' "$*"; }
+warn() { printf '  ! %s\n' "$*" >&2; }
+die()  { printf '  ✗ %s\n' "$*" >&2; exit 1; }
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
+}
+
+usage() {
+  cat <<EOF
+Usage: .sassywares/bin/snapshot [-m MSG] [--dry-run] [--no-push]
+
+Copy workspace glue into a side git mirror and push it. The workspace folder
+itself stays non-git — no .git is created at the root.
+
+  -m, --message MSG   commit message (default: timestamped snapshot)
+  --dry-run           sync + show status/diff, do not commit or push
+  --no-push           commit in the mirror only (no push)
+
+Env (override the config):
+  SASSY_WORKSPACE_REMOTE   mirror remote
+  SASSY_WORKSPACE_BRANCH   mirror branch
+
+Mirror: .sassywares/mirror
+EOF
+}
+
+while (( $# )); do
+  case "$1" in
+    -m|--message)   shift; [[ $# -ge 1 ]] || die "missing message after -m/--message"; MSG="$1" ;;
+    -m=*|--message=*) MSG="${1#*=}" ;;
+    --dry-run)      DRY_RUN=1 ;;
+    --no-push)      NO_PUSH=1 ;;
+    -h|--help)      usage; exit 0 ;;
+    *)              die "unknown argument: $1" ;;
+  esac
+  shift
+done
+
+need git
+need rsync
+
+[[ ! -e "$ROOT/.git" ]] || die "refusing to run while $ROOT/.git exists — remove it first (a workspace must stay non-git)"
+[[ -f "$CONFIG" ]] || die "no config at $CONFIG — run sassy-setup first"
+
+# Read a top-level scalar from the config. Deliberately shallow: this reads the
+# one key it needs, it is not a YAML parser.
+config_value() {
+  local key="$1"
+  [[ -f "$CONFIG" ]] || return 1
+  sed -n "s/^[[:space:]]*${key}:[[:space:]]*//p" "$CONFIG" \
+    | head -n 1 \
+    | sed -E 's/[[:space:]]+#.*$//; s/^["'\'']//; s/["'\'']$//' \
+    | grep -v '^$' || return 1
+}
+
+resolve_remote() {
+  if [[ -n "${SASSY_WORKSPACE_REMOTE:-}" ]]; then
+    REMOTE="$SASSY_WORKSPACE_REMOTE"
+    return 0
+  fi
+  if [[ -d "$MIRROR/.git" ]]; then
+    local existing
+    existing="$(git -C "$MIRROR" remote get-url origin 2>/dev/null || true)"
+    if [[ -n "$existing" ]]; then
+      REMOTE="$existing"
+      return 0
+    fi
+  fi
+  local configured
+  configured="$(config_value remote || true)"
+  if [[ -n "$configured" ]]; then
+    REMOTE="$configured"
+    return 0
+  fi
+  die "no mirror remote: set git.remote in $CONFIG, or pass SASSY_WORKSPACE_REMOTE"
+}
+
+resolve_branch() {
+  if [[ -n "${SASSY_WORKSPACE_BRANCH:-}" ]]; then
+    BRANCH="$SASSY_WORKSPACE_BRANCH"
+    return 0
+  fi
+  if [[ -d "$MIRROR/.git" ]]; then
+    local head
+    head="$(git -C "$MIRROR" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)"
+    if [[ -n "$head" ]]; then
+      BRANCH="$head"
+      return 0
+    fi
+  fi
+  local configured
+  configured="$(config_value default_branch || true)"
+  BRANCH="${configured:-main}"
+}
+
+ensure_remote_repo() {
+  # Best-effort: create the mirror repo if gh is available and it is missing.
+  # Only GitHub-shaped remotes are eligible; a local path or another host is
+  # never turned into a repo behind the user's back.
+  command -v gh >/dev/null 2>&1 || return 0
+  local trim slug rest slashes
+  trim="${REMOTE%.git}"
+  case "$trim" in
+    https://github.com/*) slug="${trim#https://github.com/}" ;;
+    git@github.com:*)     slug="${trim#git@github.com:}" ;;
+    /*|.*|*://*|*@*)       return 0 ;;
+    */*)                  slug="$trim" ;;
+    *)                    return 0 ;;
+  esac
+  rest="${slug#*/}"
+  slashes="$(printf '%s' "$rest" | tr -cd '/' | wc -c | tr -d ' ')"
+  [[ "$slashes" == "0" && "$slug" == */* ]] || return 0
+  gh repo view "$slug" >/dev/null 2>&1 && return 0
+  log "Creating GitHub repo $slug (private)"
+  if gh repo create "$slug" --private --description "Workspace glue snapshot" >/dev/null; then
+    ok "created $slug"
+  else
+    warn "could not create $slug via gh — clone will try $REMOTE anyway"
+  fi
+}
+
+ensure_mirror() {
+  mkdir -p "$ROOT/.sassywares"
+  if [[ -d "$MIRROR/.git" ]]; then
+    ok "mirror ready ($MIRROR)"
+    return 0
+  fi
+  if [[ -e "$MIRROR" ]]; then
+    warn "replacing incomplete mirror at $MIRROR"
+    mv "$MIRROR" "${MIRROR}.incomplete-$(date +%s)"
+  fi
+  ensure_remote_repo
+  log "Cloning $REMOTE → $MIRROR"
+  if ! git clone --branch "$BRANCH" --single-branch "$REMOTE" "$MIRROR" 2>/dev/null; then
+    # A brand-new remote may have no branches yet.
+    git clone "$REMOTE" "$MIRROR"
+    git -C "$MIRROR" checkout -B "$BRANCH"
+  fi
+  ok "cloned mirror"
+}
+
+sync_into_mirror() {
+  local -a args=(-a --delete)
+  args+=(
+    --exclude '/.sassywares/mirror/'
+    --exclude '/.git/'
+    --exclude '/node_modules/'
+    --exclude '/.DS_Store'
+  )
+  # Every immediate child that is its own repo is a package checkout, not glue.
+  local child
+  for child in "$ROOT"/*/; do
+    [[ -d "$child/.git" ]] || continue
+    args+=(--exclude "/$(basename "$child")/")
+  done
+  # Extra excludes, one pattern per line, .gitignore style.
+  if [[ -f "$EXCLUDES_FILE" ]]; then
+    local line
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      case "$line" in ""|"#"*) continue ;; esac
+      args+=(--exclude "$line")
+    done < "$EXCLUDES_FILE"
+  fi
+  rsync "${args[@]}" "$ROOT/" "$MIRROR/"
+  # --exclude does not purge already-tracked junk; strip it without
+  # --delete-excluded (which would wipe mirror/.git).
+  find "$MIRROR" -name .DS_Store -type f -delete 2>/dev/null || true
+  ok "synced workspace → mirror"
+}
+
+commit_and_push() {
+  git -C "$MIRROR" checkout "$BRANCH" >/dev/null 2>&1 || \
+    git -C "$MIRROR" checkout -B "$BRANCH"
+  git -C "$MIRROR" fetch --prune origin 2>/dev/null || true
+  if git -C "$MIRROR" rev-parse --verify "origin/$BRANCH" >/dev/null 2>&1; then
+    git -C "$MIRROR" merge --ff-only "origin/$BRANCH" >/dev/null 2>&1 || true
+  fi
+
+  git -C "$MIRROR" add -A
+  if [[ -z "$(git -C "$MIRROR" status --porcelain)" ]]; then
+    ok "nothing to snapshot — mirror already matches remote"
+    return 0
+  fi
+
+  log "Changes:"
+  git -C "$MIRROR" status --short | sed 's/^/  /'
+
+  if (( DRY_RUN )); then
+    log "Diffstat (dry-run, not committing):"
+    git -C "$MIRROR" diff --cached --stat | sed 's/^/  /' || true
+    ok "dry-run done"
+    return 0
+  fi
+
+  [[ -n "$MSG" ]] || MSG="Workspace snapshot $(date '+%Y-%m-%d %H:%M')"
+  git -C "$MIRROR" commit -m "$MSG"
+  ok "committed: $MSG"
+
+  if (( NO_PUSH )); then
+    warn "skipped push (--no-push)"
+    return 0
+  fi
+
+  git -C "$MIRROR" push -u origin "HEAD:$BRANCH"
+  ok "pushed → origin/$BRANCH ($REMOTE)"
+}
+
+resolve_remote
+resolve_branch
+ensure_mirror
+sync_into_mirror
+commit_and_push

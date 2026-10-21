@@ -11,6 +11,7 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 - [Why this suite](#why-this-suite)
 - [Quick start](#quick-start)
 - [Skills](#skills)
+- [Project config](#project-config)
 - [Workflows](#workflows)
   - [From idea to ship](#from-idea-to-ship)
   - [From bug to ship](#from-bug-to-ship)
@@ -112,7 +113,36 @@ Debugging:
 | Skill | What it does |
 |---|---|
 | **`sassy-skill`** | Creates, retunes, or restructures Agent Skills. |
+| **`sassy-setup`** | Detects the project topology and writes `.sassywares/config.yaml`; installs the snapshot tooling for a multi-repo workspace. |
 | **`sassy-compare`** | Runs one prompt against two models in isolated worktrees, with optional per-side thinking levels, and compares output, code changes, timing, tokens, and errors. |
+
+## Project config
+
+Every skill resolves one file, `.sassywares/config.yaml`, found by walking up from where you are. It is optional — no file means the documented defaults.
+
+```yaml
+artifacts:                       # where plans, learnings, handbooks, and the glossary live
+  plans: docs/plans
+  solutions: docs/solutions
+  handbooks: docs/handbooks
+  concepts: CONCEPTS.md
+knowledge:
+  read: [docs/solutions, CONCEPTS.md]   # searched for prior learnings
+  write: true                           # false = this project takes no learnings
+git:
+  repo: origin                   # a remote name | workspace (repos below, none here) | none (no git)
+  default_branch: main           # what branches are cut from and PRs target
+repos:                           # workspace only: each nested repo -> the base its PRs target
+  fe: dev
+commit:
+  branch: current
+pr:
+  babysit: true
+  merge: false                   # true authorizes merging every babysat PR here
+  delete_branch: false
+```
+
+Precedence is always explicit token > session instruction > config > skill default. `sassy-setup` writes the file from the tree it detects and keeps `pr.merge` off unless you say otherwise. The full schema, resolution chains, and the three topologies are in [`skills/sassy-setup/references/config.md`](skills/sassy-setup/references/config.md).
 
 ## Workflows
 

@@ -17,7 +17,7 @@ disable-model-invocation: true
 
 ## When to use
 
-- Before planning a change, to ground files, patterns, and prior art.
+- Before planning a change, to ground files, patterns, prior art, and any prior learning already written about the area.
 - Before a fix, to ground the failure surface once instead of twice.
 - Before a review of unfamiliar code, when the diff alone is not enough.
 - Whenever more than one agent is about to explore the same area.
@@ -25,7 +25,7 @@ disable-model-invocation: true
 ## Workflow
 
 1. **Scope.** Reduce the request to one question the brief will answer, in one line. If it is really two questions, use two dispatches.
-2. **Dispatch `scout`** with that scope, what the caller intends to do with it, and the paths or areas you already suspect.
+2. **Dispatch `scout`** with that scope, what the caller intends to do with it, and the paths or areas you already suspect. The brief also carries matching docs from the project's knowledge paths (`knowledge.read` in `.sassywares/config.yaml`, nearest walking up) — pass that section on to the caller rather than dropping it.
 3. **Keep the gist.** Read the returned gist; do not pull the brief's bulk into this context.
 4. **Report the brief path** to the caller, so downstream agents read it instead of scouting again.
 
@@ -49,4 +49,5 @@ It is fresh only while its `head` and `dirty` lines match the working tree. Afte
 | One question | A brief answers one scoped question. Split, do not sprawl. |
 | Gist only | Return the gist and the brief path. Never paste the brief. |
 | No edits | Scouting is read-only. It never changes code or commits. |
+| Learnings are listed, not judged | Prior learnings come back as path and title. The consumer decides whether one applies; scout never ranks or recommends them. |
 | Fresh or re-scout | A stale brief is worse than none. Check the header before reusing it. |

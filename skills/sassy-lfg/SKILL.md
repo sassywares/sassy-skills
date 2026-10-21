@@ -14,11 +14,13 @@ disable-model-invocation: true
 
 **The orchestrator does not do work.** Read the plan, dispatch `sassy-cycle` per phase, then `sassy-ship`. Never edit application code. Keep the main context small — all heavy work happens in subagents.
 
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per `~/.agents/skills/sassy-setup/references/config.md`. Precedence: explicit token > session instruction > config > skill default. Plans live under `artifacts.plans`; `git.repo` decides how the close-out persists.
+
 ## Input
 
 Detect the shape from the argument:
 
-- **Plan input** — a path to an existing `.md` file under `docs/plans/`.
+- **Plan input** — a path to an existing `.md` file under `artifacts.plans`.
 - **Brief input** — anything else. Treat the whole argument as the settled brief from `sassy-plan`.
 
 If nothing is passed and no plan exists, run `sassy-plan` first and use what the user picks there.

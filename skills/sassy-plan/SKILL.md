@@ -15,6 +15,8 @@ disable-model-invocation: true
 
 **Does not implement.** Planning never implements. Execution belongs to `sassy-work` or `sassy-lfg`, and only after the user picks.
 
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per `~/.agents/skills/sassy-setup/references/config.md`. Precedence: explicit token > session instruction > config > skill default. Plans land in `artifacts.plans`.
+
 ## Phase A — Discuss (brainstorm)
 
 Have one focused discussion to turn the idea into something plannable.
@@ -22,7 +24,8 @@ Have one focused discussion to turn the idea into something plannable.
 - **Establish the goal.** What is being built and why. One or two sentences.
 - **Find the real constraints.** Existing architecture, conventions, dependencies, and anything that must not change.
 - **Surface the unknown.** Ask only questions whose answer changes the plan. Ask a few at a time, not an interrogation. Offer a recommended default with each so the user can just confirm.
-- **Recon the code.** Use `sassy-scout` to ground the area: relevant files, existing patterns, prior art. Do not read the whole repo yourself; it writes a grounding brief and returns a gist plus the brief path.
+- **Recon the code.** Use `sassy-scout` to ground the area: relevant files, existing patterns, prior art, and any prior learning written about it. Do not read the whole repo yourself; it writes a grounding brief and returns a gist plus the brief path.
+- **Use the learnings.** When the brief lists prior learnings, treat a relevant one as a constraint on the design and record it as a decision (`D3: …`) so the plan cites it. A learning that contradicts the plan is worth naming at the picker, not discovering mid-phase.
 - **Settle decisions.** As choices become firm, record them as `D1: …`, `D2: …`. These go in the plan or the brief.
 
 Do not over-interview. Stop when the goal, the constraints, and the major decisions are settled enough to slice or act.
@@ -33,7 +36,7 @@ When the discussion settles, present exactly these three options and stop until 
 
 ```text
 Settled. Pick one:
-1. Write it to docs/plans/<slug>.md
+1. Write it to <artifacts.plans>/<slug>.md
 2. Start working now — stop before ship
 3. Take it all the way — run it, ship it, babysit the PR
 ```

@@ -15,13 +15,15 @@ Find the root cause of a failure, get approval for the fix, fix it through the s
 
 **Done when:** the full causal chain is stated with `file:line` evidence, the fix gate was answered with one of its four options, and either the fix has passed the quality cycle and shipped after code approval, or the run ended at the fix gate.
 
-**Escalate rather than persist:** 2–3 hypotheses exhausted without confirmation, or 3 failed fix attempts, means diagnose *why* instead of trying again. One hypothesis, one change at a time — never shotgun-debug.
+**Escalate rather than persist:** 2–3 hypotheses exhausted without confirmation, or 3 failed fix attempts, means diagnose *why* instead of trying again. One hypothesis, one change at a time — never shotgun-debug. Before escalating, re-search the prior learnings with the keywords of what you just ruled out: an exhausted hypothesis list is often a documented trap.
 
 ## Phase 0 — Triage
 
 Establish the exact input, the observed symptom, the expected behavior, and how to reproduce it. If an issue/ticket is given, carry its identifier and URL through to the end. If only a stack trace or description is given, there is no issue of record — that is fine; never manufacture one.
 
 Trivial bugs whose cause is readable from the input may skip the scout, but still state the causal chain and pass the fix gate before changing code, then run the fix through `sassy-cycle`.
+
+**Search prior learnings first.** Resolve `.sassywares/config.yaml` (nearest, walking up) per `~/.agents/skills/sassy-setup/references/config.md`. For every existing path in `knowledge.read`, search the docs for the symptom's keywords, the module, and the failure type. A matching doc **seeds or confirms** a hypothesis — it never replaces the causal chain or the reproduction. Name the docs you consulted, and say plainly when none matched: no match is not evidence that nothing similar has happened.
 
 ## Phase 1 — Diagnose inline, with `scout` as a helper
 

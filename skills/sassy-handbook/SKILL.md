@@ -2,7 +2,7 @@
 name: sassy-handbook
 description: >-
   Write a plain-English, self-contained developer handbook for handing a new
-  feature off to the team, stored at docs/handbooks. Hyperfocused, key
+  feature off to the team, stored in the project's handbooks folder. Hyperfocused, key
   information only, with mermaid diagrams. Use when asked for a handbook,
   handover notes, a team reference, or to turn a plan into a readable guide.
 argument-hint: "[plan path, topic, or brief context]"
@@ -11,9 +11,11 @@ disable-model-invocation: true
 
 # Sassy Handbook
 
-**Outcome:** one team-readable handbook at `docs/handbooks/<topic>-handbook.md` that any teammate can follow without knowing which agent, skill, or setup produced the work.
+**Outcome:** one team-readable handbook under the configured handbooks path that any teammate can follow without knowing which agent, skill, or setup produced the work.
 
 **Not this skill:** durable gotcha learnings (`sassy-compound`), implementation plans, or shipping code.
+
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per `~/.agents/skills/sassy-setup/references/config.md`. Handbooks land in `artifacts.handbooks`.
 
 ## When to run
 
@@ -30,12 +32,12 @@ disable-model-invocation: true
 | No fake completion | Distinguish **done**, **in progress**, and **still to do**. Never write as if unfinished work shipped. |
 | Grounded | Paths, types, and behaviors match the tree you can read now. Soften or drop claims you cannot verify. |
 | One per topic | Update an existing handbook rather than spawning near-duplicates. |
-| Write boundary | Only `docs/handbooks/` (create it if missing). Do not rewrite the source plan. |
+| Write boundary | Only the configured handbooks path (create it if missing). Do not rewrite the source plan. |
 
 ## Location
 
 ```text
-docs/handbooks/<kebab-topic>-handbook.md
+<artifacts.handbooks>/<kebab-topic>-handbook.md
 ```
 
 No dates in the filename. Keep the existing filename when updating an existing handbook.
