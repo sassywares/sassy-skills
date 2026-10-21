@@ -168,9 +168,9 @@ first commit, then passed to every repo. Multi-repo runs pass
 Cut from the base, then verify:
 
 ```
-git fetch origin <base>
-git checkout -b <name> origin/<base>
-git merge-base HEAD origin/<base>   # must be origin/<base>
+git fetch <remote> <base>
+git checkout -b <name> <remote>/<base>
+git merge-base HEAD <remote>/<base>   # must be <remote>/<base>
 ```
 
 An ancestry check that fails means the branch was cut from the wrong base —

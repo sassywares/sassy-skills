@@ -276,33 +276,26 @@ The suite ships as the npm package **`@sassywares/skills`**. Pin it, don't symli
 ### As a project dependency (recommended for teams)
 
 ```bash
-bun add -d @sassywares/skills
+bun add --dev --exact @sassywares/skills@0.3.2
 ```
 
-Nothing scans `node_modules` on its own, so give your harness the directory it does read:
+Nothing scans `node_modules` on its own, so link it where harnesses look — the package does that itself:
 
 ```bash
-mkdir -p .agents/skills
-for d in node_modules/@sassywares/skills/skills/*/; do
-  ln -sfn "../../$d" ".agents/skills/$(basename "$d")"
-done
+bunx sassy-skills sync
 ```
 
-`.agents/skills/` is read by Cursor and pi. Claude Code reads `.claude/skills/` only, so add one directory symlink:
+That writes `.agents/skills/sassy-*` (read by pi and Cursor) and the `.claude/skills` link Claude Code needs. Add it as `"postinstall": "sassy-skills sync"` and teammates need nothing beyond `bun install`.
 
-```bash
-mkdir -p .claude && ln -sfn ../.agents/skills .claude/skills
-```
-
-Ignore both: they're derived from the lockfile, like any build output. A `postinstall` that runs the loop gives teammates zero setup beyond `bun install`; a preflight in the skills tells anyone who skipped it what to run.
+Ignore both paths — they're derived from the lockfile, like any build output. `sassy-setup` does all of this for you, including the gitignore lines and the pinned version.
 
 ### As a pi package
 
 pi resolves packages directly, so no links are needed:
 
 ```bash
-pi install npm:@sassywares/skills@0.1.0            # user-level, all projects
-pi install npm:@sassywares/skills@0.1.0 --local     # project-level → commit .pi/settings.json
+pi install npm:@sassywares/skills@0.3.2            # user-level, all projects
+pi install npm:@sassywares/skills@0.3.2 --local     # project-level → commit .pi/settings.json
 ```
 
 ### While editing the suite

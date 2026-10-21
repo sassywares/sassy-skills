@@ -19,7 +19,7 @@ disable-model-invocation: true
 
 **Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `git.repo` decides what the phase commit does, `artifacts.plans` decides where the plan lives.
 
-**Update nudge.** Once per run, if `node_modules/.bin/sassy-skills` exists, run `sassy-skills outdated`. It is throttled to once a day per machine and silently does nothing offline. Pass any newer version on in one line; never block, retry, or fail on it.
+**Update nudge.** Once per run, if `node_modules/.bin/sassy-skills` exists, run `node_modules/.bin/sassy-skills outdated`. It is throttled to once a day per machine and silently does nothing offline. Pass any newer version on in one line; never block, retry, or fail on it.
 
 ## Input
 

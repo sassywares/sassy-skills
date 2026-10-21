@@ -13,7 +13,7 @@ disable-model-invocation: true
 
 **Outcome:** a grounded conformance judgment against an intent; the approved gaps closed; everything left uncommitted.
 
-**Update nudge.** Once per run, if `node_modules/.bin/sassy-skills` exists, run `sassy-skills outdated`. It is throttled to once a day per machine and silently does nothing offline. Pass any newer version on in one line; never block, retry, or fail on it.
+**Update nudge.** Once per run, if `node_modules/.bin/sassy-skills` exists, run `node_modules/.bin/sassy-skills outdated`. It is throttled to once a day per machine and silently does nothing offline. Pass any newer version on in one line; never block, retry, or fail on it.
 
 **Orchestrator only.** Never edit code yourself. The `validator` finds gaps; the `worker` closes them.
 

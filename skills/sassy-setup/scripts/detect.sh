@@ -25,6 +25,8 @@ done
 
 START="${ROOT_ARG:-$PWD}"
 [[ -d "$START" ]] || { echo "not a directory: $START" >&2; exit 2; }
+# Absolute, or the walk-up loop below re-reads "." forever.
+START="$(cd "$START" && pwd -P)"
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ASSET_SNAPSHOT="$SKILL_DIR/assets/snapshot"
@@ -38,8 +40,24 @@ while :; do
   probe="$(dirname "$probe")"
 done
 
+# A --check run validates the config against the tree the CONFIG describes, which
+# is not the git toplevel when you are standing inside one of its nested repos.
+if [[ -n "$CONFIG" ]]; then
+  ROOT="${CONFIG%/.sassywares/config.yaml}"
+  if git -C "$ROOT" rev-parse --show-toplevel >/dev/null 2>&1; then
+    TOPOLOGY="repo"
+  else
+    TOPOLOGY="workspace"
+    shopt -s nullglob
+    NESTED_FOUND=0
+    for child in "$ROOT"/*/; do
+      [[ -d "$child/.git" ]] && { NESTED_FOUND=1; break; }
+    done
+    shopt -u nullglob
+    [[ "$NESTED_FOUND" -eq 1 ]] || TOPOLOGY="none"
+  fi
 # Topology root: the git toplevel when inside a work tree, else the start dir.
-if TOPLEVEL="$(git -C "$START" rev-parse --show-toplevel 2>/dev/null)"; then
+elif TOPLEVEL="$(git -C "$START" rev-parse --show-toplevel 2>/dev/null)"; then
   ROOT="$TOPLEVEL"
   TOPOLOGY="repo"
 else
@@ -96,8 +114,10 @@ detect_base() {
 }
 
 remote_name() {
-  local dir="$1"
-  git -C "$dir" remote 2>/dev/null | head -n 1
+  local dir="$1" remotes
+  remotes="$(git -C "$dir" remote 2>/dev/null)"
+  if printf '%s\n' "$remotes" | grep -qx origin; then printf 'origin'; return 0; fi
+  printf '%s\n' "$remotes" | head -n 1
 }
 
 nested_repos() {
@@ -131,7 +151,8 @@ case "$TOPOLOGY" in
   repo)
     REPO_NAME="$(remote_name "$ROOT")"
     REPO_NAME="${REPO_NAME:-origin}"
-    DEFAULT_BRANCH="$(detect_base "$ROOT")"
+    # A check run reads the base from the config; probing costs a network call.
+    (( CHECK )) || DEFAULT_BRANCH="$(detect_base "$ROOT")"
     ;;
   workspace)
     MIRROR_REMOTE="$(config_value remote 2>/dev/null || true)"
@@ -174,14 +195,13 @@ if (( CHECK )); then
 
   if [[ "$TOPOLOGY" == "repo" ]]; then
     configured_base="$(config_value default_branch 2>/dev/null || true)"
+    [[ -n "$configured_base" ]] || DEFAULT_BRANCH="$(detect_base "$ROOT")"
     if [[ -z "$configured_base" ]]; then
       bad "git.default_branch is unset — name the branch new work is cut from"
     elif [[ -n "$DEFAULT_BRANCH" && "$configured_base" != "$DEFAULT_BRANCH" ]]; then
       # A team base is a policy choice: staging, dev, or the release branch can
       # all differ from the remote default. Report it, do not call it drift.
       note "  default_branch '$configured_base' overrides the remote default '$DEFAULT_BRANCH' — expected when PRs target a team base"
-    elif [[ -z "$DEFAULT_BRANCH" ]]; then
-      note "  remote default undetectable — '$configured_base' taken as declared"
     fi
     configured_remote="$(config_value remote 2>/dev/null || true)"
     [[ -z "$configured_remote" ]] || bad "git.remote is set but git.repo is not workspace"

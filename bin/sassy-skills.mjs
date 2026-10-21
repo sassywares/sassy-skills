@@ -8,9 +8,10 @@
 //   sassy-skills sync            link skills into .agents/skills (and .claude/skills)
 //   sassy-skills check           exit 1 if the wiring is missing or stale
 //   sassy-skills update          bump to the latest published version, then sync
+//   sassy-skills outdated        one-line nudge when a newer version is published
 //
-// Options: --root <dir>  --quiet  --help
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+// Options: --root <dir>  --quiet  --force  --help
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
@@ -27,7 +28,17 @@ const args = process.argv.slice(2);
 const quiet = args.includes("--quiet");
 const rootFlag = args.indexOf("--root");
 const rootValueIndex = rootFlag >= 0 ? rootFlag + 1 : -1;
-const ROOT = rootFlag >= 0 ? resolve(args[rootFlag + 1] ?? ".") : process.cwd();
+const rootArg = rootFlag >= 0 ? args[rootFlag + 1] : undefined;
+if (rootFlag >= 0 && (!rootArg || rootArg.startsWith("-"))) {
+  console.error("  ✗ --root needs a directory");
+  process.exit(2);
+}
+const ROOT = rootArg ? resolve(rootArg) : process.cwd();
+if (rootFlag >= 0) {
+  let ok = false;
+  try { ok = statSync(ROOT).isDirectory(); } catch { ok = false; }
+  if (!ok) { console.error(`  ✗ --root ${ROOT} is not an existing directory`); process.exit(2); }
+}
 if (args.includes("--help") || args.includes("-h")) {
   console.log(`sassy-skills@${VERSION}\n\n  sync     link skills into .agents/skills and .claude/skills\n  check    exit 1 when the wiring is missing or stale\n  update   bump ${NAME} to the latest version, then sync\n  outdated print a one-line nudge when a newer version is published (throttled, offline-safe)\n\nOptions: --root <dir>  --quiet  --force`);
   process.exit(0);
@@ -50,13 +61,22 @@ function linkedSkills() {
     .sort();
 }
 
+// Returns "linked", "kept", or "blocked". A blocked path is a real directory the
+// user owns: never replaced, and always a failure, because the wiring is then
+// incomplete and nothing the tool can do will fix it.
 function makeLink(target, linkPath) {
   try {
-    if (lstatSync(linkPath).isSymbolicLink()) rmSync(linkPath);
-    else { warn(`${linkPath} exists and is not a symlink — leaving it alone`); return false; }
+    const st = lstatSync(linkPath);
+    if (st.isSymbolicLink()) {
+      if (resolve(dirname(linkPath), readlinkSync(linkPath)) === target) return "kept";
+      rmSync(linkPath);
+    } else {
+      warn(`${linkPath} is a real directory, not a link — move it aside; nothing was replaced`);
+      return "blocked";
+    }
   } catch { /* does not exist */ }
   symlinkSync(target, linkPath, IS_WIN ? "junction" : "dir");
-  return true;
+  return "linked";
 }
 
 function sync() {
@@ -64,12 +84,21 @@ function sync() {
   const agents = join(ROOT, ".agents", "skills");
   mkdirSync(agents, { recursive: true });
 
-  let made = 0;
+  let linked = 0;
+  let blocked = 0;
   for (const name of skills) {
     const target = resolve(SKILLS_DIR, name);
-    if (makeLink(target, join(agents, name))) made++;
+    const result = makeLink(target, join(agents, name));
+    if (result === "linked") linked++;
+    else if (result === "blocked") blocked++;
   }
-  ok(`${skills.length} skills linked into .agents/skills (${NAME}@${VERSION})`);
+  if (blocked) {
+    console.error(`  ✗ ${blocked} of ${skills.length} skills could not be linked — see above`);
+    return 1;
+  }
+  ok(linked
+    ? `${skills.length} skills linked into .agents/skills (${NAME}@${VERSION})`
+    : `${skills.length} skills already linked (${NAME}@${VERSION})`);
 
   // Claude Code reads .claude/skills only. A directory symlink is enough, and it
   // is the least invasive form when the directory does not already exist.
@@ -77,7 +106,13 @@ function sync() {
   try {
     const st = lstatSync(claude);
     if (!st.isSymbolicLink()) {
-      warn(".claude/skills exists and is not a symlink — Claude Code will not see the project skills unless you link them yourself");
+      warn(".claude/skills is a real directory — Claude Code will not see the project skills until you link them");
+      return 1;
+    }
+    const points = resolve(dirname(claude), readlinkSync(claude));
+    if (points !== resolve(agents)) {
+      warn(`.claude/skills points at ${points}, not .agents/skills — relink it`);
+      return 1;
     }
   } catch {
     mkdirSync(dirname(claude), { recursive: true });
@@ -85,7 +120,7 @@ function sync() {
     ok("linked .claude/skills → .agents/skills");
   }
 
-  if (made) log(`\nRestart or /reload your harness to pick up the new skills.`);
+  if (linked) log(`\nRestart or /reload your harness to pick up the new skills.`);
   return 0;
 }
 
@@ -107,7 +142,14 @@ function check() {
       problems++;
     }
   }
-  if (!existsSync(join(ROOT, ".claude", "skills"))) warn(".claude/skills missing (Claude Code only)");
+  const claude = join(ROOT, ".claude", "skills");
+  try {
+    const st = lstatSync(claude);
+    if (!st.isSymbolicLink()) { warn(".claude/skills is a real directory, so Claude Code sees none of these"); problems++; }
+    else if (resolve(dirname(claude), readlinkSync(claude)) !== resolve(agents)) {
+      warn(".claude/skills points somewhere else"); problems++;
+    }
+  } catch { warn(".claude/skills missing (Claude Code only)"); }
   if (problems) { console.error(`  ✗ ${problems} skill link(s) need attention — run: sassy-skills sync`); return 1; }
   ok(`${skills.length} skills correctly linked (${NAME}@${VERSION})`);
   return 0;
@@ -132,7 +174,22 @@ function update() {
     yarn: ["yarn", ["add", "--dev", "--exact", spec]],
   }[pm];
   log(`Updating ${NAME} with ${pm}…`);
-  execFileSync(cmd[0], cmd[1], { cwd: ROOT, stdio: "inherit" });
+  try {
+    execFileSync(cmd[0], cmd[1], { cwd: ROOT, stdio: "inherit" });
+  } catch {
+    die(`${pm} could not update ${NAME} — nothing was relinked`);
+  }
+  // The running copy is the old version; its skills directory may be gone. Hand
+  // over to the freshly installed binary so the linker matches the new package.
+  const fresh = join(ROOT, "node_modules", ".bin", "sassy-skills");
+  if (existsSync(fresh)) {
+    try {
+      execFileSync(fresh, ["sync", "--root", ROOT], { stdio: "inherit" });
+    } catch {
+      die("updated, but the new binary could not relink — run: sassy-skills sync");
+    }
+    return 0;
+  }
   return sync();
 }
 

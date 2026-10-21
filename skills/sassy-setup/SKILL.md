@@ -20,7 +20,7 @@ disable-model-invocation: true
 ## Steps
 
 1. **Resolve the start.** The argument's path, else the working directory. If a `.sassywares/config.yaml` is already found walking up, this is a **verify run**: run the checks in step 7 and report, without rewriting anything.
-2. **Detect.** Run `scripts/detect.sh --root <path>`. It prints a proposed config: topology (`repo`, `workspace`, `none`), the remote name, a probed base branch, nested repos with their bases, and which artifact paths exist.
+2. **Detect.** Run `scripts/detect.sh --root <path>`. It prints a proposed config: topology (`repo`, `workspace`, `none`), the remote name, a probed base branch, and nested repos with their bases.
 3. **Ask only what detection cannot answer.** Never re-ask what the tree already said.
    - **`workspace`** — the snapshot mirror: create a **private** GitHub repo, or connect an existing one? Creating it needs explicit approval and a named slug first.
    - **`none`** — confirm the intent: this folder is deliberately outside git, so commit, PR, and babysit refuse here.
@@ -37,7 +37,7 @@ disable-model-invocation: true
    - **Add the dependency pinned exactly** — `bun add --dev --exact @sassywares/skills@<version>`, `npm install --save-dev --save-exact …`, `pnpm add --save-dev --save-exact …`, `yarn add --dev --exact …`. Exact, because one pinned version for every teammate and every harness is the entire point.
    - **Scripts**, adding only what is missing: `"skills:sync": "sassy-skills sync"`, `"skills:update": "sassy-skills update"`, and `"postinstall": "sassy-skills sync"`. **Never overwrite an existing `postinstall`** — if one is there, leave it alone and tell the user to chain `&& sassy-skills sync`, so setup cannot erase someone's install steps.
    - **Run `sassy-skills sync`.** The package's CLI is now in `node_modules/.bin`; it links `.agents/skills/sassy-*` and creates `.claude/skills → ../.agents/skills`. The linking rules travel with the lockfile, so they upgrade with the suite instead of drifting in the repo.
-   - **Ignore the derived links.** Add `/.agents/skills/sassy-*` and `/.claude/skills` to `.gitignore` when missing. Create `.gitignore` only when there is none.
+   - **Ignore the derived links — `repo` topology only.** Add `/.agents/skills/sassy-*` and `/.claude/skills` to `.gitignore` when missing, creating it only when there is none. In `workspace` topology never touch the project's root `.gitignore`; the snapshot's own ignore file covers that case.
    - **Write `.sassywares/README.md`** from `assets/sassywares-readme.md` when absent. Never overwrite it — it may carry project notes.
    - **Tell the user to `/reload`.** The links are invisible to the harness until it rescans.
 
@@ -57,7 +57,7 @@ disable-model-invocation: true
 | Never commit | Setup writes files and stops. Committing is `sassy-commit`. |
 | Skills are a dependency | Pin `@sassywares/skills`; never copy skill files into a project or maintain hand-made links. |
 | Scripts are shared | Adding a missing script is fine; rewriting an existing `postinstall` or `skills:*` entry is not. |
-| Write boundary | Only `.sassywares/`, the `package.json` scripts and devDependency, the lockfile, and two `.gitignore` lines. Never skill content. |
+| Write boundary | Only `.sassywares/`, the `package.json` scripts and devDependency, the lockfile, and — in `repo` topology — two `.gitignore` lines. Never skill content, and never a root `.gitignore` in a workspace. |
 | Detect, don't guess | An unknown base branch stays unknown and gets asked about. A probed value is reported as probed. |
 | Comments are part of the file | Every key keeps its description and allowed values. A stripped config is an incomplete config. |
 | Hooks are named, not written | Setup records hook skill names. Creating those skills is the project's work. |

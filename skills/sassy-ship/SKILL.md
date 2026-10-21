@@ -6,7 +6,7 @@ description: >-
   delegated to subagents. Default `mode:manual` presents a shipping summary and
   waits before anything is written, committed, pushed, or opened. `mode:auto`
   runs the close-out with no review.
-argument-hint: "<plan path or topic> [steps:compound,handbook,commit,pr,babysit] [merge:on|off] [delete-branch:on|off] [mode:manual|auto]"
+argument-hint: "<plan path or topic> [steps:compound,handbook,commit,pr,babysit] [base:<branch>] [merge:on|off] [delete-branch:on|off] [mode:manual|auto]"
 disable-model-invocation: true
 ---
 
@@ -18,7 +18,7 @@ disable-model-invocation: true
 
 **Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `pr.babysit`, `pr.merge`, and `pr.delete_branch` seed the close-out; `git.repo` decides whether this run commits, snapshots, or refuses; `hooks.pr.*` adds project steps to the PR pipeline.
 
-**Update nudge.** Once per run, if `node_modules/.bin/sassy-skills` exists, run `sassy-skills outdated`. It is throttled to once a day per machine and silently does nothing offline. Pass any newer version on in one line; never block, retry, or fail on it.
+**Update nudge.** Once per run, if `node_modules/.bin/sassy-skills` exists, run `node_modules/.bin/sassy-skills outdated`. It is throttled to once a day per machine and silently does nothing offline. Pass any newer version on in one line; never block, retry, or fail on it.
 
 **Subagent-maximal by design.** The orchestrator delegates every heavy step (docs, tree reads, git, gh) to subagents and only receives compact summaries. It never reads diffs, file contents, or the tree itself.
 
@@ -31,7 +31,7 @@ disable-model-invocation: true
    - **`git.repo` is a remote.** Dispatch a `worker`: *load the `sassy-commit` skill and follow it*, naming that the commit must include the plan, any new solutions docs, the concepts file, `AGENTS.md`, and any handbook just written — resolved from `artifacts.*`, never hardcoded. Use `branch:current` when already on a feature branch, so the docs land with the phase commits. When the checked-out branch is the base branch, use `branch:new <name>` so the branch is created from `origin/<base>` and carries every phase commit; a workspace run passes the run's shared branch name. Never push directly to the base branch. It returns the hash and subject.
    - **`git.repo: workspace`.** Commit code inside each affected repo on the run's shared branch (cut once on the run's first commit, `branch:current` after), then run `.sassywares/workspace/snapshot`. The snapshot is the workspace's commit and it runs every time, right after approval. A missing or outdated `.sassywares/workspace/snapshot` is a blocker: report it and say to run `sassy-setup`.
    - **`git.repo: none`.** No commit exists here. Report that the work is not persisted and stop.
-5. **PR.** In a `remote` repo, dispatch a `worker`: *load the `sassy-commit-push-pr` skill and follow it with `branch:current` and `babysit:off`* (step 6 owns the babysit). It returns the PR URL. In a `workspace`, open one PR per affected repo — the same branch name in each, `--base` from that repo's `repos` entry — and return a table. A touched repo missing from `repos`, or a base that cannot be resolved, is a stop-and-ask, never a guess. `none` opens nothing.
+5. **PR.** In a `remote` repo, dispatch a `worker`: *load the `sassy-commit-push-pr` skill and follow it with `branch:current` and `babysit:off`, forwarding `base:<branch>` when the caller supplied one* (step 6 owns the babysit). It returns the PR URL. In a `workspace`, open one PR per affected repo — the same branch name in each, `--base` from that repo's `repos` entry — and return a table. A touched repo missing from `repos`, or a base that cannot be resolved, is a stop-and-ask, never a guess. `none` opens nothing.
 
    **The PR step owns the PR hooks.** `before_create` and `after_create` run inside `sassy-commit-push-pr`, once per PR; ship neither runs nor repeats them.
 6. **Babysit.** With `pr.babysit` (default `true`), dispatch a `worker`: *load the `sassy-babysit` skill and follow it for the PR just created, one checkpoint*, forwarding any `merge:on|off` and `delete-branch:on|off` the caller supplied, else `pr.merge` and `pr.delete_branch`. It reports looks-ready or blocked. For a continuous watch, tell the user to run `sassy-babysit` in-session.

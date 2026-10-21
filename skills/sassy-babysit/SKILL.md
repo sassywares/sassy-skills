@@ -50,9 +50,11 @@ Stop when any holds:
 - **Terminal** — merged or closed.
 - **Looks ready** — `MERGEABLE`, `CLEAN`, all checks terminal, no open review threads, no currency blocker, zero `needs-human` items. With `merge:on`, run the merge (and `delete-branch:on` branch deletion if set) before treating this as a stop; the merge turns it into the **Terminal** stop.
 
-  **Merge hooks.** Immediately before merging, run `hooks.pr.before_merge` in declared order — one `worker` per hook, brief carrying the PR URL and head SHA. A missing skill or a `blocked` result means **do not merge**: report it and stop at Blocked. After a successful merge, run `hooks.pr.after_merge` the same way; these follow the merge, so they must leave the tree clean. In a workspace fan-out, everything is per PR.
+  **Merge hooks.** Immediately before merging, run `hooks.pr.before_merge` in declared order — one `worker` per hook, with the same brief every hook gets: plan path, changed files, artifact paths, base, branch, commit hash, and the PR URL plus head SHA. These run before the merge, so they must leave the tree clean. A missing skill or a `blocked` result means **do not merge**: report it and stop at Blocked. After a successful merge, run `hooks.pr.after_merge` the same way; these follow the merge, so they must leave the tree clean. In a workspace fan-out, everything is per PR.
 
-  **Inert hooks.** With merging off, `before_merge` and `after_merge` cannot fire. Say so in one line — "not merging this run, merge hooks skipped" — rather than letting a declared hook vanish silently.
+  **Which merge hook fires.** `before_merge` needs a merge this run will perform. `after_merge` fires whenever this run observes the PR merged, including one that was already merged when the run started — so it must be idempotent.
+
+  **Inert hooks.** With merging off, `before_merge` never fires; say so. Say so in one line — "not merging this run, merge hooks skipped" — rather than letting a declared hook vanish silently.
 - **Blocked** — a `needs-human` item or a blocked-external dependency remains.
 - **Budget** — the requested duration or a 3-day backstop has elapsed.
 

@@ -30,7 +30,7 @@ sassy-skills/
 └── package.json               # npm/pi package manifest
 ```
 
-The npm package is `@sassywares/skills`. `package.json` lists `skills/` under `pi.skills`, and `files` ships `skills/`, `README.md`, `CONCEPTS.md`, and `LICENSE` — nothing else.
+The npm package is `@sassywares/skills`. `package.json` lists `skills/` under `pi.skills`, and `files` ships `skills/`, `bin/`, `README.md`, `CONCEPTS.md`, and `LICENSE` — nothing else.
 
 Keep `.github/workflows/publish.yml` in sync with the one in `sassy-pi-extensions`; it is intentionally near-identical.
 
