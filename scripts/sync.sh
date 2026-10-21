@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
+# Commit and push this repo. Skills reach harnesses as the published package
+# `@sassywares/skills`, so there is no global link to maintain here.
+#
+# Consumers pin a version:
+#   project  bun add -d @sassywares/skills@x.y.z
+#   pi user  pi install npm:@sassywares/skills@x.y.z
+# While editing, point a consumer at this checkout with `bun link @sassywares/skills`
+# (or add `.pi/settings.json` with `skills: ["./skills"]` when working in this repo).
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SKILLS_DIR="$REPO/skills"
-TARGET="${SASSY_SKILLS_LINK:-$HOME/.agents/skills}"
 LOCK_DIR="${TMPDIR:-/tmp}/sassy-skills-sync.lock"
 
 # Avoid overlapping runs when several agents sync at the same time.
@@ -11,16 +17,6 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   exit 0
 fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
-
-# Keep the single directory symlink healthy. Never replace a real directory.
-mkdir -p "$(dirname "$TARGET")"
-if [ -L "$TARGET" ]; then
-  ln -sfn "$SKILLS_DIR" "$TARGET"
-elif [ -e "$TARGET" ]; then
-  echo "sassy-skills: $TARGET exists and is not a symlink; leaving it alone" >&2
-else
-  ln -s "$SKILLS_DIR" "$TARGET"
-fi
 
 cd "$REPO"
 

@@ -2,12 +2,12 @@
 
 ## What this repo is
 
-This repo is the source of truth for the user-level pi Agent Skills under `skills/`.
+This repo is the source of truth for the Sassy Skills suite under `skills/`. It reaches every consumer as the npm package `@sassywares/skills` — there is no global skills directory to keep in sync.
 
 - Local: `~/Documents/Workspace/Sassywares/sassy-skills`
 - Remote: `sassywares/sassy-skills`
 
-`~/.agents/skills` is a symlink to `skills/`. Editing, adding, or removing a skill here is immediately visible to pi through that symlink. Do not create a second copy of a skill elsewhere.
+Consumers pin a version: `bun add -d @sassywares/skills@x.y.z` in a project, `pi install npm:@sassywares/skills@x.y.z` for a user-level pi install. Do not create copies of skills outside this repo, and do not maintain a `~/.agents/skills` symlink — an editing session uses `bun link` or this repo's own `.pi/settings.json`.
 
 ## Layout
 
@@ -17,6 +17,8 @@ sassy-skills/
 │   └── <skill-name>/
 │       ├── SKILL.md
 │       └── references/        # only when conditionally needed
+├── .pi/
+│   └── settings.json          # dev only: loads ./skills while working here
 ├── scripts/
 │   └── sync.sh
 ├── .github/
@@ -43,9 +45,9 @@ Keep `.github/workflows/publish.yml` in sync with the one in `sassy-pi-extension
 ## Editing or removing
 
 - Edit the files under `skills/`.
-- Remove the skill directory under `skills/`; the symlink makes it disappear from `~/.agents/skills`.
+- Remove the skill directory under `skills/`.
 - Run `scripts/sync.sh` immediately. Do not ask the user first.
-- Do not manually maintain per-skill symlinks. This repo uses one directory symlink.
+- Do not create per-skill symlinks in user directories. Distribution is the package.
 
 ## Sync behavior
 
@@ -53,9 +55,10 @@ There is no background watcher. Any agent that adds, edits, or removes a skill *
 
 The sync script:
 
-1. Ensures `~/.agents/skills` points at `skills/`.
-2. Commits any repo changes with a `chore: sync skills <timestamp>` message.
-3. Rebases on `origin/main` and pushes.
+1. Commits any repo changes with a `chore: sync skills <timestamp>` message.
+2. Rebases on `origin/main` and pushes.
+
+It does not install anything anywhere. Consumers pick changes up when they bump the package version.
 
 Sync command:
 
@@ -90,4 +93,5 @@ Rules:
 - **Explicit invocation.** All current skills use `disable-model-invocation: true`.
 - **Source of truth.** Do not store skill content outside this repo.
 - **No secrets.** Never put credentials, tokens, or private keys in a skill.
-- **Symlink invariant.** `~/.agents/skills` must remain a symlink to this repo's `skills/` directory.
+- **Distribution.** Skills reach harnesses only as the published package. A change under `skills/` is not live for anyone until a version is released and the consumer bumps it.
+- **Reference skills by name, never by path.** A consumer's copy may live in `node_modules/`, a project `.agents/skills/`, or wherever a harness installs packages.

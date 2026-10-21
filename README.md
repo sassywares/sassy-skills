@@ -271,56 +271,15 @@ sassy-skills/
 
 ## Installation
 
-Sassy Skills are plain Agent Skills. Install them as a pi package from npm, or clone the repo and symlink the whole suite or copy only the skills you want.
+The suite ships as the npm package **`@sassywares/skills`**. Pin it, don't symlink it into a global directory — the version in your lockfile is the pin, and upgrading is one command.
 
-### Option 0 — install as a pi package
-
-```bash
-pi install npm:@sassywares/skills
-```
-
-This pins the published version and reconciles on `pi update --extensions`. Use `pi install git:github.com/sassywares/sassy-skills` to track the repo instead of a release.
-
-### Clone
-
-```bash
-git clone https://github.com/sassywares/sassy-skills.git ~/sassy-skills
-```
-
-### Option A — symlink the whole suite
-
-```bash
-ln -s ~/sassy-skills/skills ~/.agents/skills
-```
-
-Replace `~/.agents/skills` with your harness's skills directory if it uses a different path.
-
-### Option B — symlink individual skills
-
-```bash
-mkdir -p /path/to/your/skills
-ln -s ~/sassy-skills/skills/sassy-plan /path/to/your/skills/sassy-plan
-ln -s ~/sassy-skills/skills/sassy-work /path/to/your/skills/sassy-work
-```
-
-### Option C — copy individual skills
-
-```bash
-mkdir -p /path/to/your/skills
-cp -R ~/sassy-skills/skills/sassy-plan /path/to/your/skills/
-```
-
-Use this when you only want a few workflows and do not want to track the repo.
-
-### Option D — npm package (best for teams)
-
-The suite publishes as `@sassywares/skills`. Install it as a dependency and let the lockfile pin the version:
+### As a project dependency (recommended for teams)
 
 ```bash
 bun add -d @sassywares/skills
 ```
 
-Then make the skills discoverable. Harnesses that read a project skills directory need links, because nothing scans `node_modules` on its own:
+Nothing scans `node_modules` on its own, so give your harness the directory it does read:
 
 ```bash
 mkdir -p .agents/skills
@@ -329,17 +288,34 @@ for d in node_modules/@sassywares/skills/skills/*/; do
 done
 ```
 
-Claude Code needs `.claude/skills` too — a symlink to `../.agents/skills` works, and per-skill links work as well. Commit neither: they are derived from the lockfile, so ignore them like any other build output. A `postinstall` script that runs the loop above gives teammates zero setup beyond `bun install`.
+`.agents/skills/` is read by Cursor and pi. Claude Code reads `.claude/skills/` only, so add one directory symlink:
 
-Pi can load the package directly instead, without links:
-
-```json
-{ "pi": { "skills": ["./skills"] } }
+```bash
+mkdir -p .claude && ln -sfn ../.agents/skills .claude/skills
 ```
 
-Upgrade with `bun update @sassywares/skills`, which changes one lockfile line and nothing else.
+Ignore both: they're derived from the lockfile, like any build output. A `postinstall` that runs the loop gives teammates zero setup beyond `bun install`; a preflight in the skills tells anyone who skipped it what to run.
 
-Invoke the skills using your harness's skill syntax.
+### As a pi package
+
+pi resolves packages directly, so no links are needed:
+
+```bash
+pi install npm:@sassywares/skills@0.1.0            # user-level, all projects
+pi install npm:@sassywares/skills@0.1.0 --local     # project-level → commit .pi/settings.json
+```
+
+### While editing the suite
+
+Point a consumer at your checkout instead of a published version:
+
+```bash
+bun link @sassywares/skills
+```
+
+Inside this repo, `.pi/settings.json` already declares `./skills`, so pi loads the working copy directly.
+
+Get the skills however they arrive — package, link, or vendored copy — and invoke them with your harness's skill syntax.
 
 ## Repository maintenance
 
