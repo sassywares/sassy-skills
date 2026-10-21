@@ -154,6 +154,10 @@ even when the resolved config says `workspace`. Ran from `fe/`, work commits in
 
 Steps 2 and 3 can only learn the **remote's default**, which is not necessarily the team's base: a repo whose PRs target `dev` or `staging` still reports `main`. So a probed base is reported as probed, and confirmed by a human before it is written. A wrong base aims PRs at the wrong branch — the exact failure a hand-kept integration table exists to prevent.
 
+Because of that, a declared base differing from the remote default is **not**
+drift: `sassy-setup --check` reports the override and moves on. Only a missing
+base, or a repo with no `repos` entry, is drift.
+
 A repo on disk but absent from `repos` is a question, not a default. A `repos`
 entry with no directory on disk is ignored with one line.
 
