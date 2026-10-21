@@ -1,0 +1,39 @@
+{
+  "name": "@sassywares/pi-skills",
+  "version": "0.1.0",
+  "description": "Lean, explicit-invocation Agent Skills for shipping fast: plan, work, review, validate, ship.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Sassywares",
+  "homepage": "https://github.com/sassywares/sassy-skills#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sassywares/sassy-skills.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sassywares/sassy-skills/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "agent-skills",
+    "skills",
+    "workflow",
+    "planning",
+    "code-review"
+  ],
+  "files": [
+    "skills",
+    "README.md",
+    "CONCEPTS.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  }
+}

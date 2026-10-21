@@ -19,9 +19,18 @@ sassy-skills/
 │       └── references/        # only when conditionally needed
 ├── scripts/
 │   └── sync.sh
+├── .github/
+│   └── workflows/
+│       └── publish.yml        # publishes on v* tags
 ├── AGENTS.md
-└── CONCEPTS.md
+├── CONCEPTS.md
+├── LICENSE
+└── package.json               # npm/pi package manifest
 ```
+
+The npm package is `@sassywares/pi-skills`. `package.json` lists `skills/` under `pi.skills`, and `files` ships `skills/`, `README.md`, `CONCEPTS.md`, and `LICENSE` — nothing else.
+
+Keep `.github/workflows/publish.yml` in sync with the one in `sassy-pi-extensions`; it is intentionally near-identical.
 
 ## Adding a skill
 
@@ -55,6 +64,25 @@ Sync command:
 ```
 
 If a push fails, the local commit remains and the next sync retries. Report the failure instead of leaving the change uncommitted.
+
+## Releasing
+
+Publishing is tag-driven. `publish.yml` validates every `skills/*/SKILL.md`, checks that the tag matches `package.json`, and publishes to npm. Never publish by hand.
+
+```bash
+npm version patch --no-git-tag-version
+git add -A
+git commit -m "chore: release v$(node -p "require('./package.json').version")"
+git push origin main
+git tag "v$(node -p "require('./package.json').version")"
+git push origin --tags
+```
+
+Rules:
+
+- Bump the patch version for any user-visible skill change. Bump minor for a new skill or a new required config key.
+- Tag only after the version bump is on `main`; the workflow fails when the tag and `package.json` disagree.
+- The first publish of a new package may need a manual `npm publish` bootstrap before the workflow can use trusted publishing.
 
 ## Conventions
 
