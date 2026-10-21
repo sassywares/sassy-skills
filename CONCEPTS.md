@@ -2,11 +2,11 @@
 
 ## Source of truth
 
-The repo's `skills/` directory is the only copy of the skills. `~/.agents/skills` is a symlink to it. Changes are picked up by pi immediately; the sync service handles git commit and push.
+The repo's `skills/` directory is the only copy of the skills. It ships as the npm package `@sassywares/skills`, so consumers pin a version rather than linking a directory; the sync service handles git commit and push.
 
 ## Skill
 
-A directory containing `SKILL.md`, discovered by pi from `~/.agents/skills`. Skills are explicit workflows, not always-on instructions. Most have `disable-model-invocation: true` and are invoked with `/skill:<name>`.
+A directory containing `SKILL.md`, discovered by a harness from a project skills directory, a user skills directory, or an installed package. Skills are explicit workflows, not always-on instructions. Most have `disable-model-invocation: true` and are invoked with `/skill:<name>`.
 
 ## Agent
 
