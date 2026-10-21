@@ -9,6 +9,12 @@ permissions:
   contents: read
   id-token: write
 
+# Publishes are serialized. Two tags pushed seconds apart raced on 2026-10-21 and
+# one version reported success without ever appearing on the registry.
+concurrency:
+  group: publish-npm
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -55,6 +61,22 @@ jobs:
             done
           done
           exit "$status"
+
+      - name: Verify the published version resolves
+        if: steps.check.outputs.already-published != 'true'
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          package="$(node -p "require('./package.json').name")"
+          for attempt in 1 2 3 4 5 6 7 8; do
+            if npm view "${package}@${version}" version >/dev/null 2>&1; then
+              echo "verified ${package}@${version}"
+              exit 0
+            fi
+            echo "attempt ${attempt}: not resolvable yet, waiting"
+            sleep 15
+          done
+          echo "::error::${package}@${version} published but never resolved from the registry"
+          exit 1
 
       # Allows the one-time manual bootstrap publish of a new package.
       - name: Check if the version is already published
