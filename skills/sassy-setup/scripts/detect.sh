@@ -228,7 +228,7 @@ kv() {
 cat <<EOF
 # Sassy Skills project config — written by sassy-setup.
 # Every key is optional: delete a line to fall back to the documented default.
-# Schema and resolution rules: ~/.agents/skills/sassy-setup/references/config.md
+# Guide: https://github.com/sassywares/sassy-skills/blob/main/skills/sassy-setup/references/config.md
 
 # --- Artifacts ------------------------------------------------------------
 # Where sassy writes its documents. Paths are relative to this file's folder.
