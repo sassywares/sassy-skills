@@ -25,6 +25,8 @@ Trivial bugs whose cause is readable from the input may skip the scout, but stil
 
 **Search prior learnings first.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. For every existing path in `knowledge.read`, search the docs for the symptom's keywords, the module, and the failure type. A matching doc **seeds or confirms** a hypothesis — it never replaces the causal chain or the reproduction. Name the docs you consulted, and say plainly when none matched: no match is not evidence that nothing similar has happened.
 
+**Update nudge.** Once per run, if `node_modules/.bin/sassy-skills` exists, run `sassy-skills outdated`. It is throttled to once a day per machine and silently does nothing offline. Pass any newer version on in one line; never block, retry, or fail on it.
+
 ## Phase 1 — Diagnose inline, with `scout` as a helper
 
 You own the diagnosis. The causal reasoning happens here, in the main context, because that is where the full picture lives and where the fix gate is presented.

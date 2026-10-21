@@ -17,6 +17,8 @@ disable-model-invocation: true
 
 **Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. Plans land in `artifacts.plans`.
 
+**Update nudge.** Once per run, if `node_modules/.bin/sassy-skills` exists, run `sassy-skills outdated`. It is throttled to once a day per machine and silently does nothing offline. Pass any newer version on in one line; never block, retry, or fail on it.
+
 ## Phase A — Discuss (brainstorm)
 
 Have one focused discussion to turn the idea into something plannable.

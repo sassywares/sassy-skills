@@ -11,6 +11,8 @@ bun run skills:sync     # recreate the links after a fresh clone
 bun run skills:update   # bump to the latest published version, then relink
 ```
 
+Skills print a one-line nudge when a newer version is published — once a day, and silently nothing when offline. It is never a blocker.
+
 `.agents/skills/` is read by pi and Cursor; Claude Code reads `.claude/skills/` only, which is why that symlink exists. After any change, `/reload` your harness.
 
 If a skill tells you another skill is missing, run `skills:sync` and restart. Substituted package managers: run the same script through `npm`, `pnpm`, or `yarn`.
