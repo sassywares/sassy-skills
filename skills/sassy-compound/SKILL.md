@@ -15,7 +15,7 @@ disable-model-invocation: true
 
 **Modes.** Default `mode:manual` asks before the `AGENTS.md` pointer edit; `mode:auto` applies that edit silently. Ship passes `mode:auto` after its own gate. Never toggle it yourself.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per `~/.agents/skills/sassy-setup/references/config.md`. Precedence: explicit token > session instruction > config > skill default. Paths come from `artifacts.solutions` and `artifacts.concepts`; never hardcode them.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. Paths come from `artifacts.solutions` and `artifacts.concepts`; never hardcode them.
 
 ## When it qualifies — the durable bar
 

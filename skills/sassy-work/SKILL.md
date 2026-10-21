@@ -17,7 +17,7 @@ disable-model-invocation: true
 
 **The orchestrator does not do work.** Read the plan, dispatch `sassy-cycle`, apply its result, update the plan's tracking table, dispatch `sassy-commit` or the snapshot, and report. Never edit application code.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per `~/.agents/skills/sassy-setup/references/config.md`. Precedence: explicit token > session instruction > config > skill default. `git.repo` decides what the phase commit does, `artifacts.plans` decides where the plan lives.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `git.repo` decides what the phase commit does, `artifacts.plans` decides where the plan lives.
 
 ## Input
 
@@ -58,7 +58,7 @@ Always gate before committing. One worker fixes findings, one re-check, then pre
    - **Any QA row fails** → run `sassy-cycle` once more on the same phase, with the failing rows as the intent reference and a work brief that fixes exactly those failures. Then present the gate again. If a row still fails after that one pass, mark it `Blocked` with the reason and stop.
 6. **Commit the phase.** On both gates passing, first mark the phase's QA rows `Done` with the user's notes and the phase `Done` in the Phase tracking table, then persist according to `git.repo`:
 
-   - **A remote** — dispatch a `worker` whose task is: *read `~/.agents/skills/sassy-commit/SKILL.md` and follow it with `branch:current`*, naming that the commit must include the phase's code changes, the QA table results, and the now-updated Phase tracking table. It returns the hash and subject.
+   - **A remote** — dispatch a `worker` whose task is: *load the `sassy-commit` skill and follow it with `branch:current`*, naming that the commit must include the phase's code changes, the QA table results, and the now-updated Phase tracking table. It returns the hash and subject.
    - **`workspace`** — dispatch a `worker` per affected repo to commit that repo's code on the run's shared branch (cut once on the run's first commit with `branch:new <name>`, `branch:current` after), then run `.sassywares/workspace/snapshot` for the plan, QA results, and docs at the root. The gate's approval is the commit approval; the snapshot runs right after it and is never skipped. A missing or outdated `.sassywares/workspace/snapshot` is a blocker — say to run `sassy-setup`.
    - **`none`** — nothing is persisted. Report that the phase's work is uncommitted and stop; never hand off on top of it.
 

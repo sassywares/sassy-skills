@@ -16,7 +16,7 @@ disable-model-invocation: true
 
 **Options.** `branch:new|current` selects the branch policy below. `babysit:on|off` (default `on`) controls the closing babysit. `checkpoint` bounds that babysit to a single tick. `merge:on|off` and `delete-branch:on|off` (both default `off`) are forwarded unchanged to `sassy-babysit`.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per `~/.agents/skills/sassy-setup/references/config.md`. Precedence: explicit token > session instruction > config > skill default. `commit.branch` seeds the branch policy, `pr.*` seeds the babysit options, and `hooks.pr.before_create` / `hooks.pr.after_create` inject project steps around the PR.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `commit.branch` seeds the branch policy, `pr.*` seeds the babysit options, and `hooks.pr.before_create` / `hooks.pr.after_create` inject project steps around the PR.
 
 ## Context
 

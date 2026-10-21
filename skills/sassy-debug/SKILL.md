@@ -23,7 +23,7 @@ Establish the exact input, the observed symptom, the expected behavior, and how 
 
 Trivial bugs whose cause is readable from the input may skip the scout, but still state the causal chain and pass the fix gate before changing code, then run the fix through `sassy-cycle`.
 
-**Search prior learnings first.** Resolve `.sassywares/config.yaml` (nearest, walking up) per `~/.agents/skills/sassy-setup/references/config.md`. For every existing path in `knowledge.read`, search the docs for the symptom's keywords, the module, and the failure type. A matching doc **seeds or confirms** a hypothesis — it never replaces the causal chain or the reproduction. Name the docs you consulted, and say plainly when none matched: no match is not evidence that nothing similar has happened.
+**Search prior learnings first.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. For every existing path in `knowledge.read`, search the docs for the symptom's keywords, the module, and the failure type. A matching doc **seeds or confirms** a hypothesis — it never replaces the causal chain or the reproduction. Name the docs you consulted, and say plainly when none matched: no match is not evidence that nothing similar has happened.
 
 ## Phase 1 — Diagnose inline, with `scout` as a helper
 

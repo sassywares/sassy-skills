@@ -312,6 +312,33 @@ cp -R ~/sassy-skills/skills/sassy-plan /path/to/your/skills/
 
 Use this when you only want a few workflows and do not want to track the repo.
 
+### Option D — npm package (best for teams)
+
+The suite publishes as `@sassywares/skills`. Install it as a dependency and let the lockfile pin the version:
+
+```bash
+bun add -d @sassywares/skills
+```
+
+Then make the skills discoverable. Harnesses that read a project skills directory need links, because nothing scans `node_modules` on its own:
+
+```bash
+mkdir -p .agents/skills
+for d in node_modules/@sassywares/skills/skills/*/; do
+  ln -sfn "../../$d" ".agents/skills/$(basename "$d")"
+done
+```
+
+Claude Code needs `.claude/skills` too — a symlink to `../.agents/skills` works, and per-skill links work as well. Commit neither: they are derived from the lockfile, so ignore them like any other build output. A `postinstall` script that runs the loop above gives teammates zero setup beyond `bun install`.
+
+Pi can load the package directly instead, without links:
+
+```json
+{ "pi": { "skills": ["./skills"] } }
+```
+
+Upgrade with `bun update @sassywares/skills`, which changes one lockfile line and nothing else.
+
 Invoke the skills using your harness's skill syntax.
 
 ## Repository maintenance

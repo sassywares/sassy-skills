@@ -23,6 +23,7 @@ disable-model-invocation: true
 - **Frontmatter fields:** `name`, `description` (required); optional `license`, `compatibility`, `metadata`, `allowed-tools`, `disable-model-invocation`.
 - Use `disable-model-invocation: true` for skills that should run only via explicit `/skill:name`.
 - **Locations:** user `~/.agents/skills/<name>/`; project `<repo>/.agents/skills/<name>/` (discovered from cwd up to the repo root). Also the `skills` array in settings and pi packages.
+- **Reference other skills by name, never by absolute path.** The suite can live in `~/.agents/skills/`, a project `.agents/skills/`, or inside `node_modules/`, so "load the sassy-commit skill" is portable where a `~/…` path is not. Name a bundled file as "the sassy-setup skill's `references/config.md`".
 - Pi **validates at startup**; malformed or descriptionless skills warn. `/reload` applies changes.
 - Pi implements the **Agent Skills specification** (agentskills.io). For the full spec, pi's own `docs/skills.md` is authoritative — read it when the rules here are not enough.
 

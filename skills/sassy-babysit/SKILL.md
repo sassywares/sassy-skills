@@ -21,7 +21,7 @@ Keep an open PR moving toward merge by reacting to three streams as each arrives
 
 An explicit token always beats the config.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per `~/.agents/skills/sassy-setup/references/config.md`. Precedence: explicit token > session instruction > config > skill default. `pr.*` seeds `merge` and `delete_branch`; `hooks.pr.before_merge` and `hooks.pr.after_merge` inject project steps around a merge.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `pr.*` seeds `merge` and `delete_branch`; `hooks.pr.before_merge` and `hooks.pr.after_merge` inject project steps around a merge.
 
 **One PR per run.** This skill watches the PR resolved from the argument or the current branch. A workspace fan-out is N runs, one per PR, and `pr.merge` never merges a fan-out — that needs an explicit say-so per PR.
 

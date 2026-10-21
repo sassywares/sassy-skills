@@ -15,7 +15,7 @@ disable-model-invocation: true
 
 **Not this skill:** durable gotcha learnings (`sassy-compound`), implementation plans, or shipping code.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per `~/.agents/skills/sassy-setup/references/config.md`. Handbooks land in `artifacts.handbooks`.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Handbooks land in `artifacts.handbooks`.
 
 ## When to run
 
