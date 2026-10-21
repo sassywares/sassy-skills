@@ -33,6 +33,8 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 
 Examples use simple slash commands.
 
+An optional first step: `/sassy-setup` detects the project and writes `.sassywares/config.yaml`, so plans, learnings, and PR bases land where your repo actually keeps them. Skipping it is fine — every key falls back to a documented default.
+
 ```text
 /sassy-plan Add workspace invitations
 ```
@@ -131,6 +133,7 @@ knowledge:
   write: true                           # false = this project takes no learnings
 git:
   repo: origin                   # a remote name | workspace (repos below, none here) | none (no git)
+  # remote: org/backup           # workspace only: the snapshot mirror; required when repo: workspace
   default_branch: main           # what branches are cut from and PRs target
 repos:                           # workspace only: each nested repo -> the base its PRs target
   fe: dev
@@ -143,6 +146,17 @@ pr:
 ```
 
 Precedence is always explicit token > session instruction > config > skill default. `sassy-setup` writes the file from the tree it detects and keeps `pr.merge` off unless you say otherwise. The full schema, resolution chains, and the three topologies are in [`skills/sassy-setup/references/config.md`](skills/sassy-setup/references/config.md).
+
+In a `workspace` there is exactly one ignore file, and it is not at the root:
+
+```text
+.sassywares/
+├── config.yaml
+└── workspace/
+    ├── snapshot      installed by sassy-setup
+    ├── .gitignore    what the snapshot leaves out
+    └── mirror/       the side clone, excluded by the script itself
+```
 
 ## Workflows
 
