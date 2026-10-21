@@ -53,6 +53,12 @@ pr:
   babysit: true
   merge: false
   delete_branch: false
+hooks:
+  pr:
+    before_create: []       # after the commit, before the PR opens
+    after_create: []        # the moment the PR exists
+    before_merge: []        # this run is about to merge
+    after_merge: []         # this run observed the merge
 ```
 
 | Key | Default | Meaning |
@@ -71,6 +77,7 @@ pr:
 | `pr.babysit` | `true` | Whether close-out babysits the PR it opened |
 | `pr.merge` | `false` | `true` authorizes merging a single babysat PR |
 | `pr.delete_branch` | `false` | Delete the head branch once merged |
+| `hooks.pr.*` | `[]` | Project steps injected into the PR pipeline |
 
 Paths are relative to the config's own directory, never to the cwd.
 
@@ -175,6 +182,48 @@ recreate it. Never leave a PR aimed at the wrong base.
 prior learnings; a path that does not exist is skipped with one line. Absence of
 matches is a fact worth stating, never evidence that no similar problem exists.
 
+## Hooks
+
+A project injects its own steps into our pipeline by declaring them here. They are
+run by the skill that owns the moment, so they fire no matter which pipeline the
+user started. Nothing declared means nothing runs.
+
+Only the PR has hook points. Planning, phases, review, and commit do not: their
+extension point is `AGENTS.md` for rules, or a project skill the user invokes
+directly.
+
+| Point | Owner | Fires |
+|-------|-------|-------|
+| `before_create` | `sassy-commit-push-pr` | after the commit, before the push and the PR create |
+| `after_create` | `sassy-commit-push-pr` | the PR was just created — not on an update |
+| `before_merge` | `sassy-babysit` | the PR looks ready **and** this run will merge it |
+| `after_merge` | `sassy-babysit` | this run observed the PR merged |
+
+### Contract
+
+- **Resolution**: `<repo>/.agents/skills/<name>/SKILL.md`, nearest walking up.
+- **Names**: project-prefixed, and never one of our own skills.
+- **Order**: declared order, one worker each, sequential.
+- **Brief**: plan path, changed files, artifact paths, base, branch, commit hash,
+  and the PR URL where one exists.
+- **Result**: `done`, `blocked`, or `needs-decision`. A decision comes back to the
+  orchestrator, which holds the gate — a worker never blocks on a prompt.
+- **Fail closed**: a missing file or a `blocked` result stops the pipeline and
+  names the hook. A mandatory step must never evaporate.
+- **Writes**: a hook may write files. Only `before_create` may also **commit**
+  them, because it runs after the pipeline's own commit; every other point must
+  leave the tree clean.
+- **Never**: push, open a PR, change `mode`, `branch`, or `merge`.
+- **Idempotent**: `after_merge` can be reached by a later run observing an already
+  merged PR, and `before_create` can run again on a re-ship.
+- **Per PR**: in a workspace fan-out the hooks run once per PR.
+
+### When they do not fire
+
+`before_merge` and `after_merge` need a merge in this run. `pr.merge` defaults to
+`false`, so a project that declares them without enabling merging has inert
+hooks — the run says so in one line rather than skipping silently.
+
 ## Multi-repo runs
 
 A run that touches N repos produces N commits, N PRs, and one snapshot:
@@ -206,6 +255,8 @@ per-PR say-so, because one switch would merge N PRs nobody re-read.
 - `git.repo` is `workspace`, `none`, or one existing remote name.
 - `git.remote` is required when `git.repo: workspace`; forbidden otherwise.
 - `repos` is allowed only when `git.repo: workspace`.
+- `hooks` is allowed only with the four keys under `hooks.pr`, each a list of
+  skill names that resolve to `.agents/skills/<name>/SKILL.md`.
 - `commit.branch` is `current` or `new`; `pr.*` are `true` or `false`. Write
   booleans as `true`/`false`, never `on`/`off` — bare `on`/`off` are YAML 1.1
   booleans and parse inconsistently.

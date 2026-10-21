@@ -26,6 +26,8 @@ Gather this first, each command as its own shell call (no `;`, `&&`, `|`, or red
 
 Treat the reads as a snapshot; re-read branch and staged set right before committing if anything may have changed. Strip a leading `origin/` from `origin/HEAD` to get the bare base branch name.
 
+**Never bypass hooks.** No `--no-verify`, and never pass it through to a project script this run invokes. A repo's git hooks are the layer that cannot be skipped, so disabling them silently removes an enforcement the project relies on.
+
 **Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per `~/.agents/skills/sassy-setup/references/config.md`. Precedence: explicit token > session instruction > config > skill default. `commit.branch` supplies the default.
 
 **Branch option.** `branch:current|new [<name>]`. `current` commits on the checked-out branch. `new` cuts a branch from `origin/<base>` — `<base>` is `repos[<dir>]` in a workspace config, else `git.default_branch`, else the probed base — named `<name>` when given, else from the change. `sassy-commit-push-pr` forwards its own `branch` choice here.

@@ -143,7 +143,28 @@ pr:
   babysit: true
   merge: false                   # true authorizes merging every babysat PR here
   delete_branch: false
+hooks:                           # project steps injected into the PR pipeline
+  pr:
+    before_create: []            # after the commit, before the PR opens
+    after_create: []             # the moment the PR exists
+    before_merge: []             # this run is about to merge
+    after_merge: []              # this run observed the merge
 ```
+
+### Extending the pipeline
+
+A project adds its own steps by naming a skill that lives in its own `.agents/skills/`. Nothing declared means nothing runs.
+
+| Hook | Runs | Typical use |
+|---|---|---|
+| `before_create` | after the commit, before the PR opens | release artifacts: changeset, release notes, i18n sync |
+| `after_create` | the PR was just created | labels, deploy-target comment |
+| `before_merge` | this run is about to merge | a final approval gate |
+| `after_merge` | this run observed the merge | sync a back-merge branch, tag, notify |
+
+Hooks run in declared order, one subagent each, and fail closed: a declared skill that is missing or returns `blocked` stops the run. Only `before_create` may commit its own output, because it runs after the pipeline's commit. `before_merge` and `after_merge` never fire unless this run merges.
+
+This is deliberately not a fork mechanism. A project skill that *adds* a step is a hook; one that *restates* our steps is a copy, and copies rot. Rules are not hooks either — those belong in `AGENTS.md`.
 
 Precedence is always explicit token > session instruction > config > skill default. `sassy-setup` writes the file from the tree it detects and keeps `pr.merge` off unless you say otherwise. The full schema, resolution chains, and the three topologies are in [`skills/sassy-setup/references/config.md`](skills/sassy-setup/references/config.md).
 

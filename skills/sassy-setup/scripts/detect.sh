@@ -72,6 +72,18 @@ block_value() { # $1 block name, $2 key — value only, comments stripped
 }
 
 # Base branch for one repo. Empty output means unknown — never guessed.
+hook_skill_path() { # $1 hook skill name — nearest .agents/skills/<name>/SKILL.md
+  local name="$1" dir="$ROOT"
+  while :; do
+    if [[ -f "$dir/.agents/skills/$name/SKILL.md" ]]; then
+      printf '%s' "$dir/.agents/skills/$name/SKILL.md"
+      return 0
+    fi
+    [[ "$dir" == "/" ]] && return 1
+    dir="$(dirname "$dir")"
+  done
+}
+
 detect_base() {
   local dir="$1" b
   b="$(git -C "$dir" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)"
@@ -162,11 +174,14 @@ if (( CHECK )); then
 
   if [[ "$TOPOLOGY" == "repo" ]]; then
     configured_base="$(config_value default_branch 2>/dev/null || true)"
-    if [[ -n "$DEFAULT_BRANCH" ]]; then
-      [[ "$configured_base" == "$DEFAULT_BRANCH" ]] \
-        || bad "git.default_branch is '${configured_base:-<unset>}', detected '$DEFAULT_BRANCH'"
-    else
-      note "  base branch undetectable here — confirm git.default_branch by hand"
+    if [[ -z "$configured_base" ]]; then
+      bad "git.default_branch is unset — name the branch new work is cut from"
+    elif [[ -n "$DEFAULT_BRANCH" && "$configured_base" != "$DEFAULT_BRANCH" ]]; then
+      # A team base is a policy choice: staging, dev, or the release branch can
+      # all differ from the remote default. Report it, do not call it drift.
+      note "  default_branch '$configured_base' overrides the remote default '$DEFAULT_BRANCH' — expected when PRs target a team base"
+    elif [[ -z "$DEFAULT_BRANCH" ]]; then
+      note "  remote default undetectable — '$configured_base' taken as declared"
     fi
     configured_remote="$(config_value remote 2>/dev/null || true)"
     [[ -z "$configured_remote" ]] || bad "git.remote is set but git.repo is not workspace"
@@ -193,11 +208,41 @@ if (( CHECK )); then
       base="$(detect_base "$ROOT/$name")"
       listed="$(block_value repos "$name" || true)"
       if [[ -z "$listed" ]]; then
-        bad "repos has no entry for '$name' (detected base: ${base:-unknown})"
+        bad "repos has no entry for '$name' (remote default: ${base:-unknown})"
       elif [[ -n "$base" && "$listed" != "$base" ]]; then
-        bad "repos.$name is '$listed', detected '$base'"
+        note "  repos.$name '$listed' overrides the remote default '$base' — expected for an integration branch"
       fi
     done < <(nested_repos)
+  fi
+
+  # Hooks: every declared name resolves to a project skill, and none may be ours.
+  if grep -q '^hooks:' "$CONFIG" 2>/dev/null; then
+    while IFS= read -r hline; do
+      [[ "$hline" == " "* ]] || continue          # only nested lines belong here
+      hkey="$(printf '%s' "$hline" | sed -nE 's/^[[:space:]]*([A-Za-z_]+):.*/\1/p')"
+      case "$hkey" in
+        "") continue ;;
+        pr) continue ;;
+        before_create|after_create|before_merge|after_merge) ;;
+        *) bad "unknown hook point '$hkey' under hooks:"; continue ;;
+      esac
+      hlist="$(printf '%s' "$hline" | sed -nE 's/^[^:]+:[[:space:]]*\[([^]]*)\].*/\1/p')"
+      [[ -n "$hlist" ]] || continue
+      while IFS= read -r hraw; do
+        hname="$(printf '%s' "$hraw" | sed -E 's/#.*$//; s/^[[:space:]]+//; s/[[:space:]]+$//; s/^["'\'']//; s/["'\'']$//')"
+        [[ -n "$hname" ]] || continue
+        case "$hname" in
+          sassy-*) bad "hook $hkey: '$hname' is one of our skills — hooks are project skills only" ;;
+          *)
+            if hook_skill_path "$hname" >/dev/null; then
+              note "  hook $hkey → $hname"
+            else
+              bad "hook $hkey: '$hname' not found at .agents/skills/$hname/SKILL.md"
+            fi
+            ;;
+        esac
+      done < <(printf '%s\n' "$hlist" | tr ',' '\n')
+    done < <(sed -n '/^hooks:/,/^[a-z]/p' "$CONFIG")
   fi
 
   for key in plans solutions handbooks concepts; do
@@ -215,11 +260,15 @@ fi
 # documentation a teammate reads, so the comments are part of the output, not
 # decoration to be stripped.
 
-# kv KEY VALUE WIDTH COMMENT — prints "  key: value" padded so comments align.
+# kv KEY VALUE WIDTH COMMENT [INDENT] — prints "key: value" padded so comments
+# align. WIDTH 0 means no padding.
 kv() {
-  local line="  $1: $2"
-  if [[ -n "${4:-}" ]]; then
+  local indent="${5:-  }" line
+  line="$indent$1: $2"
+  if [[ -n "${4:-}" && "${3:-0}" != "0" ]]; then
     printf '%-*s%s\n' "$3" "$line" "$4"
+  elif [[ -n "${4:-}" ]]; then
+    printf '%s  %s\n' "$line" "$4"
   else
     printf '%s\n' "$line"
   fi
@@ -333,3 +382,20 @@ EOF
 kv babysit true 24 '# true | false — babysit the PR this run opened'
 kv merge false 24 '# true = merge every babysat PR here'
 kv delete_branch false 24 '# true | false — delete the head branch once merged'
+cat <<'EOF'
+
+# --- Hooks ----------------------------------------------------------------
+# Project steps injected into the PR pipeline. Each entry is a skill name,
+# resolved at .agents/skills/<name>/SKILL.md, nearest walking up. Declared
+# order, one worker each, and a declared-but-missing skill fails closed.
+#   before_create — after the commit, before the PR opens (may commit its output)
+#   after_create  — the PR was just created
+#   before_merge  — this run is about to merge the PR
+#   after_merge   — this run observed the PR merged
+hooks:
+  pr:
+EOF
+kv before_create '[]' 24 '# after the commit, before the PR opens' '    '
+kv after_create '[]' 24 '# the PR was just created' '    '
+kv before_merge '[]' 24 '# this run is about to merge' '    '
+kv after_merge '[]' 24 '# this run observed the merge' '    '

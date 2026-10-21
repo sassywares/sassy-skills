@@ -16,7 +16,7 @@ disable-model-invocation: true
 
 **Options.** `branch:new|current` selects the branch policy below. `babysit:on|off` (default `on`) controls the closing babysit. `checkpoint` bounds that babysit to a single tick. `merge:on|off` and `delete-branch:on|off` (both default `off`) are forwarded unchanged to `sassy-babysit`.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per `~/.agents/skills/sassy-setup/references/config.md`. Precedence: explicit token > session instruction > config > skill default. `commit.branch` seeds the branch policy, `pr.*` seeds the babysit options.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per `~/.agents/skills/sassy-setup/references/config.md`. Precedence: explicit token > session instruction > config > skill default. `commit.branch` seeds the branch policy, `pr.*` seeds the babysit options, and `hooks.pr.before_create` / `hooks.pr.after_create` inject project steps around the PR.
 
 ## Context
 
@@ -43,11 +43,13 @@ Only an exit-0 empty list means "no open PR". A non-zero exit means **unknown** 
 ## Steps
 
 1. **Commit** — follow `sassy-commit` with the branch choice from the policy above (named files only, outcome-stating message). Honor an `exclude:<paths>` token if present.
-2. **Pre-push gate** — resolve any pre-push or review-ready requirement from the project's active instructions. Only evidence valid for the exact commit being sent satisfies it; otherwise stop and report what is missing. If none, proceed.
-3. **Push** — `git push -u origin <branch>` for a new branch, else `git push`. Re-verify branch and remote first.
-4. **Compose the PR title and body**
+2. **`before_create` hooks.** Read `hooks.pr.before_create` from the config; empty means skip. Run each name in declared order, one `worker` per hook, whose task is *read `<repo>/.agents/skills/<name>/SKILL.md` and follow it* plus a brief: plan path, changed files, artifact paths, base, branch, and the commit hash. This point runs **after** the commit, so a hook may write and commit its own artifacts — push whatever ends up on the branch. A missing skill or a `blocked` result stops the run and names the hook; a `needs-decision` result comes back to you to present.
+3. **Pre-push gate** — resolve any pre-push or review-ready requirement from the project's active instructions. Only evidence valid for the exact commit being sent satisfies it; otherwise stop and report what is missing. If none, proceed.
+4. **Push** — `git push -u origin <branch>` for a new branch, else `git push`. Re-verify branch and remote first, and re-check that the branch is ahead of origin after any hook commits.
+5. **Compose the PR title and body**
    - Title: outcome-stating, concise.
    - Body: what changed, why, and how it was verified. Preserve any existing `Related:` / `Fixes` line on an update.
    - If no PR exists, compose fresh; if one does, edit its body.
-5. **Apply** — re-check PR presence. With a matching PR: `gh pr edit <url> --body-file <path>`. With none: `gh pr create --base <base> --title <title> --body-file <path>`. Always pass the body via `--body-file`, never stdin, and always name the base.
-6. **Babysit** — with `babysit:on` (default), load `sassy-babysit` and follow it for the PR just opened or updated, forwarding `checkpoint`, `merge:`, and `delete-branch:` unchanged. Report the PR URL and the babysit status; for a continuous watch beyond this run, point the user at `sassy-babysit`. With `babysit:off`, report the PR URL only.
+6. **Apply** — re-check PR presence. With a matching PR: `gh pr edit <url> --body-file <path>`. With none: `gh pr create --base <base> --title <title> --body-file <path>`. Always pass the body via `--body-file`, never stdin, and always name the base.
+7. **`after_create` hooks.** Only when this run **created** the PR — an update does not fire them, say so in one line. Same resolution and ordering as step 2, with the PR URL added to the brief. These must leave the tree clean: anything they write is reported, not committed.
+8. **Babysit** — with `babysit:on` (default), load `sassy-babysit` and follow it for the PR just opened or updated, forwarding `checkpoint`, `merge:`, and `delete-branch:` unchanged. Report the PR URL and the babysit status; for a continuous watch beyond this run, point the user at `sassy-babysit`. With `babysit:off`, report the PR URL only.
