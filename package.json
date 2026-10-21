@@ -1,5 +1,5 @@
 {
-  "name": "@sassywares/pi-skills",
+  "name": "@sassywares/skills",
   "version": "0.1.0",
   "description": "Lean, explicit-invocation Agent Skills for shipping fast: plan, work, review, validate, ship.",
   "type": "module",

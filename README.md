@@ -276,7 +276,7 @@ Sassy Skills are plain Agent Skills. Install them as a pi package from npm, or c
 ### Option 0 — install as a pi package
 
 ```bash
-pi install npm:@sassywares/pi-skills
+pi install npm:@sassywares/skills
 ```
 
 This pins the published version and reconciles on `pi update --extensions`. Use `pi install git:github.com/sassywares/sassy-skills` to track the repo instead of a release.
@@ -320,7 +320,7 @@ Invoke the skills using your harness's skill syntax.
 
 ### Releases
 
-Publishing is tag-driven. The `Publish` workflow (`.github/workflows/publish.yml`) validates every `skills/*/SKILL.md`, checks that the tag matches `package.json`, and publishes `@sassywares/pi-skills` to npm on a `v*` tag push.
+Publishing is tag-driven. The `Publish` workflow (`.github/workflows/publish.yml`) validates every `skills/*/SKILL.md`, checks that the tag matches `package.json`, and publishes `@sassywares/skills` to npm on a `v*` tag push.
 
 ```bash
 npm version patch --no-git-tag-version
