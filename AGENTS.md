@@ -7,7 +7,7 @@ This repo is the source of truth for the Sassy Skills suite under `skills/`. It 
 - Local: `~/Documents/Workspace/Sassywares/sassy-skills`
 - Remote: `sassywares/sassy-skills`
 
-Consumers pin a version: `bun add -d @sassywares/skills@x.y.z` in a project, `pi install npm:@sassywares/skills@x.y.z` for a user-level pi install. Do not create copies of skills outside this repo, and do not maintain a `~/.agents/skills` symlink — an editing session uses `bun link` or this repo's own `.pi/settings.json`.
+Consumers install with `npx skills add sassywares/sassy-skills`, which vendors `skills/` into their project and pins content hashes in their `skills-lock.json`. Nothing here is installed globally, and there is no `~/.agents/skills` symlink to maintain. Editing happens through this repo's own `.pi/settings.json`, which loads `./skills`.
 
 ## Layout
 
@@ -30,7 +30,7 @@ sassy-skills/
 └── package.json               # npm/pi package manifest
 ```
 
-The npm package is `@sassywares/skills`. `package.json` lists `skills/` under `pi.skills`, and `files` ships `skills/`, `bin/`, `README.md`, `CONCEPTS.md`, and `LICENSE` — nothing else.
+The npm package is `@sassywares/skills`. `package.json` lists `skills/` under `pi.skills`, and `files` ships `skills/`, `README.md`, `CONCEPTS.md`, and `LICENSE` — nothing else. The npm package is a secondary channel for harnesses that install packages; the primary distribution is `npx skills add` against this repo.
 
 Keep `.github/workflows/publish.yml` in sync with the one in `sassy-pi-extensions`; it is intentionally near-identical.
 
@@ -93,5 +93,5 @@ Rules:
 - **Explicit invocation.** All current skills use `disable-model-invocation: true`.
 - **Source of truth.** Do not store skill content outside this repo.
 - **No secrets.** Never put credentials, tokens, or private keys in a skill.
-- **Distribution.** Skills reach harnesses only as the published package. A change under `skills/` is not live for anyone until a version is released and the consumer bumps it.
+- **Distribution.** The repo is the distribution: `npx skills add` reads it directly, so a push to `main` is installable immediately. The npm package mirrors it for package-installing harnesses and does need a version bump.
 - **Reference skills by name, never by path.** A consumer's copy may live in `node_modules/`, a project `.agents/skills/`, or wherever a harness installs packages.

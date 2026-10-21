@@ -30,16 +30,14 @@ disable-model-invocation: true
    - **`pr.*`** — default `babysit: true`, `merge: false`, `delete_branch: false`. Say plainly that `merge: true` authorizes merging every babysat PR in this project without asking.
    - **Hooks** — offer, do not impose. Ask whether the project wants steps injected at `before_create`, `after_create`, `before_merge`, or `after_merge`, and write the skills they name. Leave them `[]` when they have nothing to add. **Never write a hook skill yourself** — hooks are project skills, and copying one of ours into that role is the fork this mechanism exists to prevent.
 4. **Write the config.** Build the file from the proposal plus the answers. It is written **fully commented**: every key keeps a description and its allowed values, exactly as the detector emits them. Never strip those comments to save lines — for a teammate opening the file, the comments are the documentation. If a config already exists, show what changes and ask before writing — never silently overwrite. Keep every key; an unset key falls back to its documented default, so a short file is legal when nothing deviates.
-5. **Wire the skills.** The suite is the package `@sassywares/skills`, and its own CLI creates the links. Never copy skill files into a project.
+5. **Wire the skills.** The suite is installed from upstream with the open `skills` CLI, which vendors the skill files into the project and pins them. Never copy skill files in by hand, never add the suite as a dependency.
 
-   - **It needs a `package.json`.** With none, say so and ask whether to add a minimal manifest or skip the wiring. Do not create one unasked, and do not invent a second distribution mechanism for non-JS projects.
-   - **Detect the package manager** from the lockfile: `bun.lock`/`bun.lockb`, `pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`. Ask when several disagree or none exists.
-   - **Add the dependency pinned exactly** — `bun add --dev --exact @sassywares/skills@<version>`, `npm install --save-dev --save-exact …`, `pnpm add --save-dev --save-exact …`, `yarn add --dev --exact …`. Exact, because one pinned version for every teammate and every harness is the entire point.
-   - **Scripts**, adding only what is missing: `"skills:sync": "sassy-skills sync"`, `"skills:update": "sassy-skills update"`, and `"postinstall": "sassy-skills sync"`. **Never overwrite an existing `postinstall`** — if one is there, leave it alone and tell the user to chain `&& sassy-skills sync`, so setup cannot erase someone's install steps.
-   - **Run `sassy-skills sync`.** The package's CLI is now in `node_modules/.bin`; it links `.agents/skills/sassy-*` and creates `.claude/skills → ../.agents/skills`. The linking rules travel with the lockfile, so they upgrade with the suite instead of drifting in the repo.
-   - **Ignore the derived links — `repo` topology only.** Add `/.agents/skills/sassy-*` and `/.claude/skills` to `.gitignore` when missing, creating it only when there is none. In `workspace` topology never touch the project's root `.gitignore`; the snapshot's own ignore file covers that case.
+   - **Install it**: `npx -y skills add sassywares/sassy-skills -y`. That writes `.agents/skills/sassy-*` (real files), per-agent links such as `.claude/skills/sassy-*`, and `skills-lock.json`.
+   - **Scripts**, adding only what is missing: `"skills:sync": "npx -y skills experimental_install"` (restores exactly what the lock pins) and `"skills:update": "npx -y skills update -y"` (pulls the latest from upstream). **Never rewrite an existing `postinstall`** — leave it alone and tell the user to chain what they need.
+   - **Commit the vendored skills and the lock.** `.agents/skills/sassy-*` and `skills-lock.json` are the pin; a clone then needs no network.
+   - **Ignore `.claude/skills` only.** It is a link created at install time. Create `.gitignore` only when there is none — and in `workspace` topology never touch the project's root `.gitignore` at all.
    - **Write `.sassywares/README.md`** from `assets/sassywares-readme.md` when absent. Never overwrite it — it may carry project notes.
-   - **Tell the user to `/reload`.** The links are invisible to the harness until it rescans.
+   - **Tell the user to `/reload`.** The skills are invisible to the harness until it rescans.
 
 6. **Install the snapshot, `workspace` only.** Read `references/workspace.md` and follow it.
 
@@ -55,9 +53,9 @@ disable-model-invocation: true
 | No silent overwrite | An existing config or an existing `.sassywares/workspace/snapshot` is shown and asked about, never replaced blind. |
 | Version is reported | Setup names the snapshot version it installed; `--check` flags an installed copy older than the skill's. |
 | Never commit | Setup writes files and stops. Committing is `sassy-commit`. |
-| Skills are a dependency | Pin `@sassywares/skills`; never copy skill files into a project or maintain hand-made links. |
+| Skills come from upstream | Install with `npx skills add`; never hand-copy skill files or maintain the links yourself. |
 | Scripts are shared | Adding a missing script is fine; rewriting an existing `postinstall` or `skills:*` entry is not. |
-| Write boundary | Only `.sassywares/`, the `package.json` scripts and devDependency, the lockfile, and — in `repo` topology — two `.gitignore` lines. Never skill content, and never a root `.gitignore` in a workspace. |
+| Write boundary | Only `.sassywares/`, the vendored `.agents/skills/sassy-*`, `skills-lock.json`, two `package.json` scripts, and one `.gitignore` line. Never a root `.gitignore` in a workspace. |
 | Detect, don't guess | An unknown base branch stays unknown and gets asked about. A probed value is reported as probed. |
 | Comments are part of the file | Every key keeps its description and allowed values. A stripped config is an incomplete config. |
 | Hooks are named, not written | Setup records hook skill names. Creating those skills is the project's work. |

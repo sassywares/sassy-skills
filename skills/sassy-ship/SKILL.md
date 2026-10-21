@@ -18,8 +18,6 @@ disable-model-invocation: true
 
 **Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `pr.babysit`, `pr.merge`, and `pr.delete_branch` seed the close-out; `git.repo` decides whether this run commits, snapshots, or refuses; `hooks.pr.*` adds project steps to the PR pipeline.
 
-**Update nudge.** Once per run, if `node_modules/.bin/sassy-skills` exists, run `node_modules/.bin/sassy-skills outdated`. It is throttled to once a day per machine and silently does nothing offline. Pass any newer version on in one line; never block, retry, or fail on it.
-
 **Subagent-maximal by design.** The orchestrator delegates every heavy step (docs, tree reads, git, gh) to subagents and only receives compact summaries. It never reads diffs, file contents, or the tree itself.
 
 ## Steps (in order)

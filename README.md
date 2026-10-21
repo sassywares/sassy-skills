@@ -271,44 +271,39 @@ sassy-skills/
 
 ## Installation
 
-The suite ships as the npm package **`@sassywares/skills`**. Pin it, don't symlink it into a global directory — the version in your lockfile is the pin, and upgrading is one command.
-
-### As a project dependency (recommended for teams)
+The suite installs from this repository with the open `skills` CLI. That CLI vendors the skill files into your project and pins them, so a clone needs no network and every checkout runs the same skills.
 
 ```bash
-bun add --dev --exact @sassywares/skills@0.3.2
+npx skills add sassywares/sassy-skills
 ```
 
-Nothing scans `node_modules` on its own, so link it where harnesses look — the package does that itself:
+That writes three things:
+
+- `.agents/skills/sassy-*` — the skill files themselves, read by pi and Cursor
+- `.claude/skills/sassy-*` — links for Claude Code, which reads only its own directory
+- `skills-lock.json` — source and content hash per skill
+
+Commit the vendored skills and the lock; ignore `.claude/skills`, which is a link created at install time.
 
 ```bash
-bunx sassy-skills sync
+npx skills update -y              # pull the latest from this repo
+npx skills experimental_install   # restore exactly what the lock pins
+npx skills remove                 # take the suite out again
 ```
 
-That writes `.agents/skills/sassy-*` (read by pi and Cursor) and the `.claude/skills` link Claude Code needs. Add it as `"postinstall": "sassy-skills sync"` and teammates need nothing beyond `bun install`.
-
-Ignore both paths — they're derived from the lockfile, like any build output. `sassy-setup` does all of this for you, including the gitignore lines and the pinned version.
-
-### As a pi package
-
-pi resolves packages directly, so no links are needed:
-
-```bash
-pi install npm:@sassywares/skills@0.3.2            # user-level, all projects
-pi install npm:@sassywares/skills@0.3.2 --local     # project-level → commit .pi/settings.json
-```
+`sassy-setup` does all of this for you, including the ignore line and the two package scripts.
 
 ### While editing the suite
 
-Point a consumer at your checkout instead of a published version:
+`.pi/settings.json` in this repo declares `./skills`, so pi loads your working copy directly. Consumers see a change once it is pushed to `main` and they run `npx skills update` — no release step in between.
+
+### Also published as a package
+
+`@sassywares/skills` is on npm for harnesses that install packages rather than skill directories:
 
 ```bash
-bun link @sassywares/skills
+pi install npm:@sassywares/skills@0.4.0
 ```
-
-Inside this repo, `.pi/settings.json` already declares `./skills`, so pi loads the working copy directly.
-
-Get the skills however they arrive — package, link, or vendored copy — and invoke them with your harness's skill syntax.
 
 ## Repository maintenance
 

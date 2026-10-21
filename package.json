@@ -1,6 +1,6 @@
 {
   "name": "@sassywares/skills",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Lean, explicit-invocation Agent Skills for shipping fast: plan, work, review, validate, ship.",
   "type": "module",
   "license": "MIT",
@@ -24,7 +24,6 @@
   ],
   "files": [
     "skills",
-    "bin",
     "README.md",
     "CONCEPTS.md",
     "LICENSE"
@@ -36,9 +35,6 @@
     "skills": [
       "./skills"
     ]
-  },
-  "bin": {
-    "sassy-skills": "./bin/sassy-skills.mjs"
   },
   "engines": {
     "node": ">=18"
