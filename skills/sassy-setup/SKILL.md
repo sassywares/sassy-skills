@@ -54,7 +54,7 @@ disable-model-invocation: true
 | Version is reported | Setup names the snapshot version it installed; `--check` flags an installed copy older than the skill's. |
 | Never commit | Setup writes files and stops. Committing is `sassy-commit`. |
 | Skills come from upstream | Install with `npx skills add`; never hand-copy skill files or maintain the links yourself. |
-| Scripts are shared | Adding a missing script is fine; rewriting an existing `postinstall` or `skills:*` entry is not. |
+| Never edit the manifest | No dependencies, no scripts, no `postinstall`. Setup installs the suite; the project decides how it updates. |
 | Write boundary | Only `.sassywares/`, the vendored `.agents/skills/sassy-*`, `skills-lock.json`, and one `.gitignore` line. Never `package.json`, never a root `.gitignore` in a workspace. |
 | Detect, don't guess | An unknown base branch stays unknown and gets asked about. A probed value is reported as probed. |
 | Comments are part of the file | Every key keeps its description and allowed values. A stripped config is an incomplete config. |
