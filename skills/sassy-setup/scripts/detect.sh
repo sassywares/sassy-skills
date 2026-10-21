@@ -135,13 +135,23 @@ if (( CHECK )); then
   fi
 
   configured_repo="$(config_value repo 2>/dev/null || true)"
-  case "$TOPOLOGY" in
-    repo)      expected_repo="$REPO_NAME" ;;
-    workspace) expected_repo="workspace" ;;
-    *)         expected_repo="none" ;;
-  esac
-  [[ "$configured_repo" == "$expected_repo" ]] \
-    || bad "git.repo is '${configured_repo:-<unset>}', tree says '$expected_repo'"
+  if [[ -z "$configured_repo" ]]; then
+    bad "git.repo is unset"
+  elif [[ "$TOPOLOGY" == "repo" ]]; then
+    # The tree is a repo: the configured value must name one of its remotes.
+    case "$configured_repo" in
+      workspace|none) bad "git.repo is '$configured_repo' but this folder is a git repo" ;;
+      *) git -C "$ROOT" remote 2>/dev/null | grep -qx "$configured_repo" \
+           || bad "git.repo '$configured_repo' is not a remote of this repo" ;;
+    esac
+  else
+    # Not a repo: `workspace` and `none` are both legal, and which one is a
+    # human policy call the tree cannot verify.
+    case "$configured_repo" in
+      workspace|none) note "  not a repo; '$configured_repo' accepted" ;;
+      *) bad "git.repo is '$configured_repo' but this folder is not a git repo" ;;
+    esac
+  fi
 
   if [[ "$TOPOLOGY" == "repo" ]]; then
     configured_base="$(config_value default_branch 2>/dev/null || true)"
