@@ -9,9 +9,11 @@ Installed from upstream with the open `skills` CLI, which vendors the skills int
 
 ```bash
 npx skills add sassywares/sassy-skills   # first install
-bun run skills:sync                       # restore exactly what the lock pins
-bun run skills:update                     # pull the latest from upstream
+npx skills update -y                      # pull the latest from upstream
+npx skills experimental_install           # restore exactly what the lock pins
 ```
+
+Refreshing the suite is this project's decision — nothing here updates itself.
 
 The vendored skills and the lock are committed; `.claude/skills` is a link and is not.
 

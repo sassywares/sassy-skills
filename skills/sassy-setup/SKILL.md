@@ -33,7 +33,7 @@ disable-model-invocation: true
 5. **Wire the skills.** The suite is installed from upstream with the open `skills` CLI, which vendors the skill files into the project and pins them. Never copy skill files in by hand, never add the suite as a dependency.
 
    - **Install it**: `npx -y skills add sassywares/sassy-skills -y`. That writes `.agents/skills/sassy-*` (real files), per-agent links such as `.claude/skills/sassy-*`, and `skills-lock.json`.
-   - **Scripts**, adding only what is missing: `"skills:sync": "npx -y skills experimental_install"` (restores exactly what the lock pins) and `"skills:update": "npx -y skills update -y"` (pulls the latest from upstream). **Never rewrite an existing `postinstall`** — leave it alone and tell the user to chain what they need.
+   - **Do not wire updates.** How and when the project refreshes the suite is the project's decision, not setup's: no `skills:*` scripts, no `postinstall` edit. Mention the commands (`npx skills update`, `npx skills experimental_install`) and stop there.
    - **Commit the vendored skills and the lock.** `.agents/skills/sassy-*` and `skills-lock.json` are the pin; a clone then needs no network.
    - **Ignore `.claude/skills` only.** It is a link created at install time. Create `.gitignore` only when there is none — and in `workspace` topology never touch the project's root `.gitignore` at all.
    - **Write `.sassywares/README.md`** from `assets/sassywares-readme.md` when absent. Never overwrite it — it may carry project notes.
@@ -55,7 +55,7 @@ disable-model-invocation: true
 | Never commit | Setup writes files and stops. Committing is `sassy-commit`. |
 | Skills come from upstream | Install with `npx skills add`; never hand-copy skill files or maintain the links yourself. |
 | Scripts are shared | Adding a missing script is fine; rewriting an existing `postinstall` or `skills:*` entry is not. |
-| Write boundary | Only `.sassywares/`, the vendored `.agents/skills/sassy-*`, `skills-lock.json`, two `package.json` scripts, and one `.gitignore` line. Never a root `.gitignore` in a workspace. |
+| Write boundary | Only `.sassywares/`, the vendored `.agents/skills/sassy-*`, `skills-lock.json`, and one `.gitignore` line. Never `package.json`, never a root `.gitignore` in a workspace. |
 | Detect, don't guess | An unknown base branch stays unknown and gets asked about. A probed value is reported as probed. |
 | Comments are part of the file | Every key keeps its description and allowed values. A stripped config is an incomplete config. |
 | Hooks are named, not written | Setup records hook skill names. Creating those skills is the project's work. |
