@@ -1,11 +1,10 @@
 ---
 name: sassy-setup
 description: >-
-  Detect a project's topology and write .sassywares/config.yaml, so every sassy
-  skill resolves paths, base branches, and git behavior from one file. Also
-  installs the workspace snapshot tooling when the folder is a multi-repo
-  workspace rather than a repo. Use when asked to set up, configure, or verify a
-  project.
+  Detect a project's topology and wire it for the Sassy Skills suite: write
+  .sassywares/config.yaml, pin the skills as an npm dependency, link them where
+  harnesses look, and install the snapshot tooling in a multi-repo workspace.
+  Use when asked to set up, configure, or verify a project.
 argument-hint: "[path] [--check]"
 disable-model-invocation: true
 ---
@@ -23,11 +22,11 @@ disable-model-invocation: true
 1. **Resolve the start.** The argument's path, else the working directory. If a `.sassywares/config.yaml` is already found walking up, this is a **verify run**: run the checks in step 7 and report, without rewriting anything.
 2. **Detect.** Run `scripts/detect.sh --root <path>`. It prints a proposed config: topology (`repo`, `workspace`, `none`), the remote name, a probed base branch, nested repos with their bases, and which artifact paths exist.
 3. **Ask only what detection cannot answer.** Never re-ask what the tree already said.
-   - **`workspace`** — the snapshot mirror: create a **private** GitHub repo, or connect an existing one (`owner/name` or URL)? For creating it, get explicit approval and name the slug before running anything. Automatic creation is `gh repo create` inside `snapshot`, and only after that approval.
+   - **`workspace`** — the snapshot mirror: create a **private** GitHub repo, or connect an existing one? Creating it needs explicit approval and a named slug first.
    - **`none`** — confirm the intent: this folder is deliberately outside git, so commit, PR, and babysit refuse here.
    - **Artifacts** — offer the detected paths as the default; take overrides.
    - **Knowledge** — `knowledge.read` defaults to the solutions dir plus the concepts file. Ask whether there are extra folders to read (a hand-written `notes/learnings/`, a `docs/adr/`).
-   - **Base branch** — in `repo` mode, if detection printed no `default_branch`, ask. Never fill in `main` as a guess. In `workspace` mode, show the detected `repos` map and get a yes on every row: each probed base is only the remote's default, so a repo that targets `dev` or `staging` will read `main` until a human corrects it. Never write an unconfirmed probed base.
+   - **Base branch** — if detection printed no `default_branch`, ask; never write `main` as a guess. In `workspace` mode, show the `repos` map and get a yes on every row — a probed base is only the remote's default, so a repo that targets `dev` or `staging` reads `main` until a human corrects it.
    - **`pr.*`** — default `babysit: true`, `merge: false`, `delete_branch: false`. Say plainly that `merge: true` authorizes merging every babysat PR in this project without asking.
    - **Hooks** — offer, do not impose. Ask whether the project wants steps injected at `before_create`, `after_create`, `before_merge`, or `after_merge`, and write the skills they name. Leave them `[]` when they have nothing to add. **Never write a hook skill yourself** — hooks are project skills, and copying one of ours into that role is the fork this mechanism exists to prevent.
 4. **Write the config.** Build the file from the proposal plus the answers. It is written **fully commented**: every key keeps a description and its allowed values, exactly as the detector emits them. Never strip those comments to save lines — for a teammate opening the file, the comments are the documentation. If a config already exists, show what changes and ask before writing — never silently overwrite. Keep every key; an unset key falls back to its documented default, so a short file is legal when nothing deviates.
@@ -42,21 +41,8 @@ disable-model-invocation: true
    - **Write `.sassywares/README.md`** from `assets/sassywares-readme.md` when absent. Never overwrite it — it may carry project notes.
    - **Tell the user to `/reload`.** The links are invisible to the harness until it rescans.
 
-6. **Install the snapshot, `workspace` only.** The layout is fixed, and everything the snapshot owns lives under one directory:
+6. **Install the snapshot, `workspace` only.** Read `references/workspace.md` and follow it.
 
-   ```text
-   .sassywares/
-   ├── config.yaml
-   └── workspace/
-       ├── snapshot    the script (tracked)
-       ├── .gitignore  exclude patterns for the sync (tracked)
-       └── mirror/     the side clone (untracked, self-excluded)
-   ```
-
-   - Copy `assets/snapshot` to `.sassywares/workspace/snapshot` and make it executable. **If a `snapshot` file is already there, say so and ask** — it may carry hand edits. Report the version you installed (`snapshot --version`) so a later `--check` can catch a stale copy.
-   - Write `.sassywares/workspace/.gitignore` for excluded paths (vendored trees, generated dirs, `.run/`). One pattern per line, `.gitignore` style. Skip it when there is nothing to exclude; the snapshot syncs without it. The mirror itself needs no line — the script excludes it.
-   - Do **not** add a `.gitignore` at the project root, and do not modify one that exists.
-   - Do **not** run the snapshot during setup. It clones and pushes; that is the user's call. Offer `--dry-run` and run it only if they ask.
 7. **Verify.** Run `scripts/detect.sh --root <path> --check`, then `sassy-skills check` for the links. Report every `drift:` line it prints — including an outdated `snapshot` version — or that the config matches the tree.
 8. **Report.** The config path, the topology, the resolved artifact and knowledge paths, the skills version pinned and that `/reload` is needed, and in `workspace` mode what was installed. **Commit nothing.**
 
