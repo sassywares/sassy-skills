@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 # Sassy Setup
 
-**Outcome:** `.sassywares/config.yaml` at the project root, matching the tree it describes. In `workspace` mode, also `.sassywares/workspace/snapshot` plus the root `.gitignore` entry that keeps the mirror out of itself.
+**Outcome:** `.sassywares/config.yaml` at the project root, matching the tree it describes. In `workspace` mode, also `.sassywares/workspace/snapshot` and `.sassywares/workspace/.gitignore`.
 
 **Read `references/config.md` first.** It is the schema and the resolution rules; this skill only decides and writes.
 
@@ -35,15 +35,15 @@ disable-model-invocation: true
    ```text
    .sassywares/
    ├── config.yaml
-   ├── .gitignore    exclude patterns for the snapshot (tracked)
    └── workspace/
-       ├── snapshot  the script (tracked)
-       └── mirror/   the side clone (untracked, self-excluded)
+       ├── snapshot    the script (tracked)
+       ├── .gitignore  exclude patterns for the sync (tracked)
+       └── mirror/     the side clone (untracked, self-excluded)
    ```
 
    - Copy `assets/snapshot` to `.sassywares/workspace/snapshot` and make it executable. **If a `snapshot` file is already there, say so and ask** — it may carry hand edits. Report the version you installed (`snapshot --version`) so a later `--check` can catch a stale copy.
-   - Add `/.sassywares/workspace/mirror/` to the root `.gitignore` if that line is missing. Create `.gitignore` only when there is none.
-   - Offer to write `.sassywares/.gitignore` for excluded paths (vendored trees, generated dirs, `.run/`). One pattern per line, `.gitignore` style. Skip it when there is nothing to exclude; the snapshot syncs without it.
+   - Write `.sassywares/workspace/.gitignore` for excluded paths (vendored trees, generated dirs, `.run/`). One pattern per line, `.gitignore` style. Skip it when there is nothing to exclude; the snapshot syncs without it. The mirror itself needs no line — the script excludes it.
+   - Do **not** add a `.gitignore` at the project root, and do not modify one that exists.
    - Do **not** run the snapshot during setup. It clones and pushes; that is the user's call. Offer `--dry-run` and run it only if they ask.
 6. **Verify.** Run `scripts/detect.sh --root <path> --check`. Report every `drift:` line it prints — including an outdated `snapshot` version — or that the config matches the tree.
 7. **Report.** The config path, the topology, the resolved artifact and knowledge paths, and in `workspace` mode what was installed. **Commit nothing.**
@@ -57,7 +57,7 @@ disable-model-invocation: true
 | No silent overwrite | An existing config or an existing `.sassywares/workspace/snapshot` is shown and asked about, never replaced blind. |
 | Version is reported | Setup names the snapshot version it installed; `--check` flags an installed copy older than the skill's. |
 | Never commit | Setup writes files and stops. Committing is `sassy-commit`. |
-| Write boundary | Only `.sassywares/config.yaml`, `.sassywares/workspace/snapshot`, `.sassywares/.gitignore`, and one line in the root `.gitignore`. |
+| Write boundary | Only `.sassywares/config.yaml`, `.sassywares/workspace/snapshot`, and `.sassywares/workspace/.gitignore`. Nothing at the project root. |
 | Detect, don't guess | An unknown base branch stays unknown and gets asked about. A probed value is reported as probed. |
 | Repair is verify | Run against an existing config, setup reports drift — it does not rewrite the file without approval. |
 

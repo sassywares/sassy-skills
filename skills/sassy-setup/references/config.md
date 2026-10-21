@@ -91,21 +91,23 @@ Fixed, so nothing has to be guessed:
 ```text
 .sassywares/
 ├── config.yaml
-├── .gitignore        exclude patterns for the snapshot, one per line
 └── workspace/
     ├── snapshot      the script; its header carries the version
+    ├── .gitignore    exclude patterns, one per line
     └── mirror/       the side clone, untracked
 ```
 
-The root `.gitignore` carries `/.sassywares/workspace/mirror/`. That line is
-load-bearing: without it the mirror sits inside its own sync source.
+This is the only ignore file. There is no `.gitignore` at the project root, and
+setup does not touch one that exists. The mirror is excluded by the script
+itself, so no pattern is needed for it.
 
-`.sassywares/.gitignore` is a pattern list for the sync, and it is itself synced
-into the mirror, where git honors it for paths under `.sassywares/`. Two
-safeguards keep a broad pattern from silently dropping the config or the script:
-the sync includes `config.yaml`, `.gitignore`, and `workspace/snapshot` ahead of
-every user pattern, and the mirror stages with `git add -A -f`. Anchor patterns
-with a leading `/` when you mean the workspace root.
+`.sassywares/workspace/.gitignore` is a pattern list for the sync, and it is
+itself synced into the mirror, where git honors it for paths under
+`.sassywares/workspace/`. Two safeguards keep a broad pattern from silently
+dropping the config or the script: the sync includes `config.yaml`,
+`workspace/.gitignore`, and `workspace/snapshot` ahead of every user pattern,
+and the mirror stages with `git add -A -f`. Anchor patterns with a leading `/`
+when you mean the workspace root.
 
 The script's header carries `# snapshot-version: N`. Bump `N` whenever the asset
 changes; `sassy-setup --check` compares the installed copy against the skill's

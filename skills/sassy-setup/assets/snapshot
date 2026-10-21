@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG="$ROOT/.sassywares/config.yaml"
 WS_DIR="$ROOT/.sassywares/workspace"
-EXCLUDES_FILE="$ROOT/.sassywares/.gitignore"
+EXCLUDES_FILE="$WS_DIR/.gitignore"
 MIRROR="$WS_DIR/mirror"
 
 MSG=""
@@ -49,7 +49,7 @@ Env (override the config):
   SASSY_WORKSPACE_BRANCH   mirror branch
 
 Mirror:    .sassywares/workspace/mirror
-Excludes:  .sassywares/.gitignore (one pattern per line)
+Excludes:  .sassywares/workspace/.gitignore (one pattern per line)
 Version:   $SNAPSHOT_VERSION
 EOF
 }
@@ -202,7 +202,7 @@ sync_into_mirror() {
       --include '/.sassywares/'
       --include '/.sassywares/workspace/'
       --include '/.sassywares/config.yaml'
-      --include '/.sassywares/.gitignore'
+      --include '/.sassywares/workspace/.gitignore'
       --include '/.sassywares/workspace/snapshot'
       "${user_excludes[@]}"
     )
@@ -222,9 +222,10 @@ commit_and_push() {
     git -C "$MIRROR" merge --ff-only "origin/$BRANCH" >/dev/null 2>&1 || true
   fi
 
-  # -f on purpose: .sassywares/.gitignore is synced into the mirror, where git
-  # honors it for that subtree. Without the force, a broad pattern would leave
-  # the config and the script untracked and the snapshot would look empty.
+  # -f on purpose: .sassywares/workspace/.gitignore is synced into the mirror,
+  # where git honors it for that subtree. Without the force, a broad pattern
+  # would leave the config and the script untracked and the snapshot would look
+  # empty.
   git -C "$MIRROR" add -A -f
   if [[ -z "$(git -C "$MIRROR" status --porcelain)" ]]; then
     ok "nothing to snapshot — mirror already matches remote"
