@@ -5,6 +5,11 @@ skill follows this document. `sassy-setup` is the only skill that writes it.
 
 No file means today's behavior — every default below is the fallback.
 
+The file `sassy-setup` writes is **fully commented**: every key carries its
+meaning and its allowed values, and `detect.sh` emits those comments as part of
+the proposal. Keep them. For a teammate opening the file, the comments *are* the
+documentation, and a stripped config is an incomplete one.
+
 ## Discovery
 
 Walk up from the working directory until `.sassywares/config.yaml` is found.

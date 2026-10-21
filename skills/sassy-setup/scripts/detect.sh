@@ -64,6 +64,13 @@ config_value() {
     | grep -v '^$' || return 1
 }
 
+block_value() { # $1 block name, $2 key — value only, comments stripped
+  sed -n "/^$1:/,/^[a-z]/p" "$CONFIG" \
+    | sed -n "s/^[[:space:]]\{1,\}$2:[[:space:]]*//p" \
+    | head -n 1 \
+    | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//'
+}
+
 # Base branch for one repo. Empty output means unknown — never guessed.
 detect_base() {
   local dir="$1" b
@@ -184,7 +191,7 @@ if (( CHECK )); then
     while IFS= read -r name; do
       [[ -n "$name" ]] || continue
       base="$(detect_base "$ROOT/$name")"
-      listed="$(sed -n "/^repos:/,/^[a-z]/p" "$CONFIG" | sed -n "s/^[[:space:]]\{1,\}${name}:[[:space:]]*//p" | head -n 1 || true)"
+      listed="$(block_value repos "$name" || true)"
       if [[ -z "$listed" ]]; then
         bad "repos has no entry for '$name' (detected base: ${base:-unknown})"
       elif [[ -n "$base" && "$listed" != "$base" ]]; then
@@ -194,7 +201,7 @@ if (( CHECK )); then
   fi
 
   for key in plans solutions handbooks concepts; do
-    val="$(sed -n "/^artifacts:/,/^[a-z]/p" "$CONFIG" | sed -n "s/^[[:space:]]\{1,\}${key}:[[:space:]]*//p" | head -n 1 || true)"
+    val="$(block_value artifacts "$key" || true)"
     [[ -n "$val" ]] && note "  artifacts.$key: $val"
   done
 
@@ -204,55 +211,125 @@ if (( CHECK )); then
 fi
 
 # --- Emit a proposal -------------------------------------------------------
+# Every key carries its meaning and its allowed values. The file is the
+# documentation a teammate reads, so the comments are part of the output, not
+# decoration to be stripped.
+
+# kv KEY VALUE WIDTH COMMENT — prints "  key: value" padded so comments align.
+kv() {
+  local line="  $1: $2"
+  if [[ -n "${4:-}" ]]; then
+    printf '%-*s%s\n' "$3" "$line" "$4"
+  else
+    printf '%s\n' "$line"
+  fi
+}
 
 cat <<EOF
-# .sassywares/config.yaml — written by sassy-setup. Every key is optional;
-# deleting this file restores the documented defaults.
+# Sassy Skills project config — written by sassy-setup.
+# Every key is optional: delete a line to fall back to the documented default.
+# Schema and resolution rules: ~/.agents/skills/sassy-setup/references/config.md
+
+# --- Artifacts ------------------------------------------------------------
+# Where sassy writes its documents. Paths are relative to this file's folder.
 artifacts:
-  plans: $PLANS
-  solutions: $SOLUTIONS
-  handbooks: $HANDBOOKS
-  concepts: $CONCEPTS
-knowledge:
-  read: [$SOLUTIONS, ${CONCEPTS}]
-  write: true
 EOF
+kv plans "$PLANS" 34 '# sassy-plan writes plans here'
+kv solutions "$SOLUTIONS" 34 '# sassy-compound writes learnings here'
+kv handbooks "$HANDBOOKS" 34 '# sassy-handbook writes handovers here'
+kv concepts "$CONCEPTS" 34 '# the glossary sassy-compound maintains (a file)'
+cat <<EOF
+
+# --- Knowledge ------------------------------------------------------------
+# read: folders and files searched for prior learnings before planning or
+#       debugging. Any paths; one that does not exist is skipped, not fatal.
+# write: true | false — false means this project takes no learnings.
+knowledge:
+EOF
+kv read "[$SOLUTIONS, $CONCEPTS]" 0
+kv write true 34 '# true | false'
 
 case "$TOPOLOGY" in
   repo)
-    printf 'git:\n  repo: %s\n' "$REPO_NAME"
+    cat <<EOF
+
+# --- Git ------------------------------------------------------------------
+# repo: a remote name (this folder is the repo) | workspace (repos live below,
+#       this folder is not a repo) | none (no git anywhere here).
+# default_branch: what new branches are cut from, and what PRs target.
+git:
+EOF
+    kv repo "$REPO_NAME" 0
     if [[ -n "$DEFAULT_BRANCH" ]]; then
-      printf '  default_branch: %s   # probed: the remote default, confirm it is the team base\n' "$DEFAULT_BRANCH"
+      kv default_branch "$DEFAULT_BRANCH" 34 '# probed — confirm it is the team base'
+    else
+      kv default_branch "<confirm by hand>" 34 '# base for branches and PRs; never guessed'
     fi
+    cat <<'EOF'
+
+# workspace only: each nested repo folder -> the base its PRs target
+# repos:
+#   fe: dev
+EOF
     ;;
   workspace)
-    printf 'git:\n  repo: workspace\n'
-    printf '  remote: %s\n' "${MIRROR_REMOTE:-<set the snapshot mirror remote, owner/name or URL>}"
-    printf '  default_branch: %s\n' "$MIRROR_BRANCH"
-    printf 'repos:\n'
+    cat <<EOF
+
+# --- Git ------------------------------------------------------------------
+# repo: workspace means repos live below and this folder is not a repo.
+# remote: the snapshot mirror (GitHub owner/name or URL), required here.
+# default_branch: the mirror's branch, not any nested repo's base.
+git:
+EOF
+    kv repo workspace 0
+    kv remote "${MIRROR_REMOTE:-<set the snapshot mirror, owner/name or URL>}" 0
+    kv default_branch "$MIRROR_BRANCH" 0
+    cat <<'EOF'
+
+# --- Repos ----------------------------------------------------------------
+# Every nested repo -> the base its PRs target. A touched repo missing here is
+# a question, never a default.
+repos:
+EOF
     any=0
     while IFS= read -r name; do
       [[ -n "$name" ]] || continue
       base="$(detect_base "$ROOT/$name")"
       if [[ -n "$base" ]]; then
-        printf '  %s: %s   # probed: the remote default, confirm the PR base\n' "$name" "$base"
+        kv "$name" "$base" 34 '# probed — confirm the PR base'
       else
-        printf '  %s: %s\n' "$name" "<base unknown, confirm by hand>"
+        kv "$name" "<confirm>" 34 '# base unknown; confirm by hand'
       fi
       any=1
     done < <(nested_repos)
     (( any )) || printf '  # no nested repos found\n'
     ;;
   *)
-    printf 'git:\n  repo: none\n'
+    cat <<EOF
+
+# --- Git ------------------------------------------------------------------
+# repo: none means this folder is deliberately outside git: commit, PR, and
+#       babysit refuse here, and work still leaves its changes on disk.
+git:
+EOF
+    kv repo none 0
     ;;
 esac
 
-cat <<EOF
+cat <<'EOF'
+
+# --- Commit ---------------------------------------------------------------
+# current: commit on the checked-out branch.
+# new: cut a branch from origin/<default_branch>; name it in multi-repo runs so
+#      every repo gets the same branch name.
 commit:
-  branch: current
-pr:
-  babysit: true
-  merge: false
-  delete_branch: false
 EOF
+kv branch current 34 '# current | new'
+cat <<'EOF'
+
+# --- Pull requests --------------------------------------------------------
+pr:
+EOF
+kv babysit true 24 '# true | false — babysit the PR this run opened'
+kv merge false 24 '# true = merge every babysat PR here'
+kv delete_branch false 24 '# true | false — delete the head branch once merged'

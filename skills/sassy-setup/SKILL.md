@@ -29,7 +29,7 @@ disable-model-invocation: true
    - **Knowledge** — `knowledge.read` defaults to the solutions dir plus the concepts file. Ask whether there are extra folders to read (a hand-written `notes/learnings/`, a `docs/adr/`).
    - **Base branch** — in `repo` mode, if detection printed no `default_branch`, ask. Never fill in `main` as a guess. In `workspace` mode, show the detected `repos` map and get a yes on every row: each probed base is only the remote's default, so a repo that targets `dev` or `staging` will read `main` until a human corrects it. Never write an unconfirmed probed base.
    - **`pr.*`** — default `babysit: true`, `merge: false`, `delete_branch: false`. Say plainly that `merge: true` authorizes merging every babysat PR in this project without asking.
-4. **Write the config.** Build the file from the proposal plus the answers. If a config already exists, show what changes and ask before writing — never silently overwrite. Keep every key; an unset key falls back to its documented default, so a short file is legal when nothing deviates.
+4. **Write the config.** Build the file from the proposal plus the answers. It is written **fully commented**: every key keeps a description and its allowed values, exactly as the detector emits them. Never strip those comments to save lines — for a teammate opening the file, the comments are the documentation. If a config already exists, show what changes and ask before writing — never silently overwrite. Keep every key; an unset key falls back to its documented default, so a short file is legal when nothing deviates.
 5. **Install, `workspace` only.** The layout is fixed, and everything the snapshot owns lives under one directory:
 
    ```text
@@ -59,6 +59,7 @@ disable-model-invocation: true
 | Never commit | Setup writes files and stops. Committing is `sassy-commit`. |
 | Write boundary | Only `.sassywares/config.yaml`, `.sassywares/workspace/snapshot`, and `.sassywares/workspace/.gitignore`. Nothing at the project root. |
 | Detect, don't guess | An unknown base branch stays unknown and gets asked about. A probed value is reported as probed. |
+| Comments are part of the file | Every key keeps its description and allowed values. A stripped config is an incomplete config. |
 | Repair is verify | Run against an existing config, setup reports drift — it does not rewrite the file without approval. |
 
 ## What setup is not
