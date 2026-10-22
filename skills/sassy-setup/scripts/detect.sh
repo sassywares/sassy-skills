@@ -302,7 +302,8 @@ if (( CHECK )); then
       done < <(yaml_flat | awk -F'\t' -v us="$US" '{n=split($1,a,us); if (n==3 && a[1]=="git" && a[2]=="base_map") print a[3]}' | sort -u)
       head_ref="${HEAD_ARG:-$(git -C "$ROOT" branch --show-current 2>/dev/null || true)}"
       if [[ -n "$head_ref" ]]; then
-        note "  base for '${head_ref}': $(base_for_head "$head_ref")"
+        # the --head readout below prints this line; avoid printing it twice
+        [[ -n "$HEAD_ARG" ]] || note "  base for '${head_ref}': $(base_for_head "$head_ref")"
         cur="$head_ref"; hops=0
         while [[ -n "$cur" ]] && (( hops < 8 )); do
           next="$(yflat "git${US}base_map${US}${cur}")"
