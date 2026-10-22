@@ -19,7 +19,7 @@ The vendored skills and the lock are committed; `.claude/skills` is a link and i
 
 `.agents/skills/` is read by pi and Cursor; Claude Code reads `.claude/skills/` only, which is why that symlink exists. After any change, `/reload` your harness.
 
-If a skill tells you another skill is missing, run `skills:sync` and restart. Substituted package managers: run the same script through `npm`, `pnpm`, or `yarn`.
+If a skill tells you another skill is missing, run `npx skills add sassywares/sassy-skills` (or `npx skills experimental_install` to restore exactly what the lock pins) and restart.
 
 ## Config
 
