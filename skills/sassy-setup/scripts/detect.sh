@@ -281,10 +281,15 @@ if (( CHECK )); then
     esac
   fi
 
-  if [[ "$TOPOLOGY" == "repo" ]]; then
-    if [[ -n "$(yflat "git${US}default_branch")" ]]; then
+  if [[ -n "$(yflat "git${US}default_branch")" ]]; then
+    if [[ "$TOPOLOGY" == "workspace" ]]; then
+      bad "git.default_branch is gone — the mirror's branch is git.mirror_branch"
+    else
       bad "git.default_branch is gone — use git.base_map with a \"*\" entry"
     fi
+  fi
+
+  if [[ "$TOPOLOGY" == "repo" ]]; then
     if [[ -z "$(yflat "git${US}base_map${US}*")" ]]; then
       bad "git.base_map has no \"*\" entry — it is the base for ordinary work"
     else
@@ -367,7 +372,10 @@ if (( CHECK )); then
   done < <(hook_patterns)
 
   # Resolve for one head, so nobody has to merge maps in their head.
-  if [[ -n "$HEAD_ARG" && "$TOPOLOGY" == "repo" ]]; then
+  if [[ -n "$HEAD_ARG" ]]; then
+    if [[ "$TOPOLOGY" == "repo" ]]; then
+      note "  base for '$HEAD_ARG': $(base_for_head "$HEAD_ARG")"
+    fi
     for point in before_create after_create before_merge after_merge; do
       resolved="$(hooks_for_head_point "$HEAD_ARG" "$point")"
       note "  head '$HEAD_ARG' → $point: $( [[ -n "$resolved" ]] && printf '%s' "$resolved" || printf 'none' )"
