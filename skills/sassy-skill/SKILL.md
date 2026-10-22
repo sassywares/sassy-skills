@@ -6,13 +6,15 @@ description: >-
   the rules and release steps that location requires. Use when asked to create a
   skill, turn a workflow into a skill, fix a description or triggering,
   restructure a bloated skill, or retune an existing one.
-argument-hint: "[create|retune] [name, idea, or skill path]"
+argument-hint: "[mode:create|retune|verify] [name, idea, or skill path]"
 disable-model-invocation: true
 ---
 
 # Sassy Skill
 
 **Outcome:** a well-formed Agent Skill at a location the user chose, or an existing skill improved and re-verified. The harness loads it with no diagnostics.
+
+**Modes.** `mode:create` writes a new skill. `mode:retune` changes the smallest thing that fixes a named failure in an existing skill. `mode:verify` checks an existing skill against the checklist and reports — it edits nothing. Omitted, detect it from the argument: something that already resolves to a skill directory is `retune`, or `verify` when the user only asked whether it is any good; anything else is `create`. State the mode you picked and why; when both are plausible, ask instead of guessing.
 
 **Locations are not interchangeable** — they decide who gets the skill, how it ships, and what it may be called. Ask before writing.
 
@@ -54,7 +56,7 @@ Paths in the table are the defaults. Harnesses also read `skills` arrays in sett
 
 ## Workflow
 
-1. **Intake.** What the skill does, when it should trigger, and **where it lives** — internal, project, or user (see above). Ask; do not infer from the cwd. For a retune, read the existing skill and name the specific failure (won't trigger, too long, wrong steps, stale, wrong scope).
+1. **Intake.** Settle the mode (above), then what the skill does, when it should trigger, and **where it lives** — internal, project, or user (see above). Ask; do not infer from the cwd. In `mode:retune`, read the existing skill and name the specific failure (won't trigger, too long, wrong steps, stale, wrong scope). In `mode:verify`, read it, run the checklist and Verify, report, and stop without writing.
 2. **Choose the shape.** Single file, or `SKILL.md` + `references/` per the rule above.
 3. **Write the frontmatter.** A description that states both what and when.
 4. **Write the body.** Outcome, a hard-rules table, the workflow, and reference pointers. Plain English. Structured output where the skill returns a result. Match this setup's house style.
@@ -72,7 +74,7 @@ Paths in the table are the defaults. Harnesses also read `skills` arrays in sett
 
 ## Retune
 
-When asked to retune or improve a skill, change the **smallest** thing that fixes the named failure:
+In `mode:retune`, change the **smallest** thing that fixes the named failure:
 
 - **Won't trigger** → rewrite the description (what + when, concrete verbs).
 - **Too long / bloated** → extract conditional content to `references/`, or delete what never gets used.
@@ -82,6 +84,8 @@ When asked to retune or improve a skill, change the **smallest** thing that fixe
 Re-verify after any retune.
 
 ## Verify
+
+Run this at the end of `create` and `retune`, and as the whole job in `mode:verify`.
 
 - `/reload`.
 - Check pi's startup output for warnings about the skill.
