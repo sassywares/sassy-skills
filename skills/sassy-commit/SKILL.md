@@ -42,10 +42,11 @@ Treat the reads as a snapshot; re-read branch and staged set right before commit
 1. **Nothing to commit** — if there are no staged, modified, or untracked files, say so and stop.
 2. **Branch** — honor the `branch` option. With `branch:new`, cut from the base: `git fetch <remote> <base>`, then `git checkout -b <name> <remote>/<base>`, then confirm `git merge-base HEAD <remote>/<base>` is `<remote>/<base>`. If that ancestry check fails, the branch was cut from the wrong base — recreate it, never push it. If the name already exists, reuse it when it descends from the base; fork a suffix only when it has diverged, and never cut a second branch off the base for the same work.
 
-   With `branch:current`, commit on the checked-out branch — but check what it is first with the `sassy-setup` skill's `scripts/detect.sh --branch`. **Base means any `base_map` value, not just `origin/HEAD`.** Resolve the two facts before committing:
-   - `state: on-base` with `policy: new` means the caller skipped the branch decision. **Stop and report** — do not commit. A warning inside a subagent's summary has already failed to protect a shared branch once; this is a stop, not a notice.
-   - `commit-here` means the config or a token explicitly chose to commit here. Proceed, and name the branch in the summary you return.
-   - Any other state: commit on the checked-out branch.
+   With `branch:current`, commit on the checked-out branch — but check what it is first with the `sassy-setup` skill's `scripts/detect.sh --branch`, passing `--policy current` so the detector knows the caller chose this branch. **Base means any `base_map` value, not just `origin/HEAD`.** Read `action` before committing:
+   - `commit-here` — the caller's `branch:current` (or a config that says `current`) chose this branch. Commit, and name the branch in the summary you return.
+   - `reuse` — a branch that is not a base. Commit.
+   - `create` — you were told `current` but nothing chose it and this is a base: the caller skipped the branch decision. **Stop and report** — do not commit. A warning inside a subagent's summary has already failed to protect a shared branch once; this is a stop, not a notice.
+   - `stop-and-ask` or `refuse` — report the reason line and stop.
 3. **Convention** — match the project's existing commit style; else the recent log pattern; else conventional commits (`type(scope): description`). When `fix`/`feat` both fit, default to `fix:`.
 4. **Logical commits** — if changed files clearly split into distinct concerns, make separate commits (file level, 2–3 max, never `git add -p`). If ambiguous, one commit.
 5. **Message** — imperative subject naming the outcome, not the file list. Body only when the motivation is not obvious.
