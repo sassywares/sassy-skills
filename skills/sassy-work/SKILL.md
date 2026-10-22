@@ -5,7 +5,7 @@ description: >-
   hand off to a fresh session for the next phase (or close out via sassy-ship if
   it was the last). Also runs one settled in-context brief and stops before ship.
   The orchestrator only coordinates.
-argument-hint: "<plan path | brief> [phase:<n>]"
+argument-hint: "<plan path | brief> [phase:<n>] [branch:infer|current|new]"
 disable-model-invocation: true
 ---
 
@@ -17,7 +17,7 @@ disable-model-invocation: true
 
 **The orchestrator does not do work.** Read the plan, dispatch `sassy-cycle`, apply its result, update the plan's tracking table, dispatch `sassy-commit` or the snapshot, and report. Never edit application code.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `git.repo` decides what the phase commit does, `artifacts.plans` decides where the plan lives.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `git.repo` decides what the phase commit does, `artifacts.plans` decides where the plan lives, and `commit.branch` decides whether this run needs its own branch.
 
 ## Input
 
@@ -46,26 +46,25 @@ Always gate before committing. One worker fixes findings, one re-check, then pre
 
 1. **Load the phase.** Read the plan and only the selected phase's section. If it is already `Done`, stop and report.
 
-   If the phase is `In progress`, an earlier run was interrupted before both gates passed. Ask one question — resume at the gate, or re-run the cycle from scratch — and take the answer. Resuming skips straight to step 4 and does not rebuild the phase.
-2. **Run the cycle.** Set the phase `In progress` in the Phase tracking table, then load the `sassy-cycle` skill and follow it, with:
+   If the phase is `In progress`, an earlier run was interrupted before both gates passed. Ask one question — resume at the gate, or re-run the cycle from scratch — and take the answer. Resuming skips straight to step 5 and does not rebuild the phase.
+2. **Resolve the branch, before touching code.** Follow the `sassy-setup` skill's `references/branching.md` with this run's `branch:` token, if any. On `create`, cut the branch now — not at commit time — so no change ever exists on a base branch. On `reuse`, stay where you are, which is how a handed-off later phase or a resumed run lands on the branch the first phase cut. Carry the branch and its start point into every gate summary you present. Stop and ask when the reference says to.
+3. **Run the cycle.** Set the phase `In progress` in the Phase tracking table, then load the `sassy-cycle` skill and follow it, with:
    - work brief = the phase's goal, work items, and "Done when" criteria
    - intent reference = the plan path and phase
-3. **Evaluate the phase.** On `Status: done` with `Validator: Conforms` and no critical review findings, note that the code is ready but leave the phase `In progress` — both gates must pass before it closes. On `Status: blocked`, set it `Blocked` in the Phase tracking table and stop; a blocked phase is a real outcome and needs no approval.
-4. **Present the phase gate.** Report the phase, what changed, findings raised/resolved, the validator grade, and the reviewer summary. Then give the QA checklist verbatim: each row's ID, check, how to run it, and what passing looks like, with unreported rows `Pending`. Ask for both decisions — code approval and the QA result per row. Wait.
-5. **Resolve the gate.** Three outcomes, nothing in between:
-   - **Code approved and every QA row passes** → go to step 6.
+4. **Evaluate the phase.** On `Status: done` with `Validator: Conforms` and no critical review findings, note that the code is ready but leave the phase `In progress` — both gates must pass before it closes. On `Status: blocked`, set it `Blocked` in the Phase tracking table and stop; a blocked phase is a real outcome and needs no approval.
+5. **Present the phase gate.** Report the phase, what changed, findings raised/resolved, the validator grade, and the reviewer summary. Then give the QA checklist verbatim: each row's ID, check, how to run it, and what passing looks like, with unreported rows `Pending`. Ask for both decisions — code approval and the QA result per row. Wait.
+6. **Resolve the gate.** Three outcomes, nothing in between:
+   - **Code approved and every QA row passes** → go to step 7.
    - **Code approved, QA still pending** → record that code is approved but leave the phase `In progress`, tick nothing, commit nothing, hand off nothing, and report that the phase is waiting on manual QA plus the command that resumes it.
    - **Any QA row fails** → run `sassy-cycle` once more on the same phase, with the failing rows as the intent reference and a work brief that fixes exactly those failures. Then present the gate again. If a row still fails after that one pass, mark it `Blocked` with the reason and stop.
-6. **Commit the phase.** On both gates passing, first mark the phase's QA rows `Done` with the user's notes and the phase `Done` in the Phase tracking table, then persist according to `git.repo`:
+7. **Commit the phase.** On both gates passing, first mark the phase's QA rows `Done` with the user's notes and the phase `Done` in the Phase tracking table, then persist according to `git.repo`:
 
-   - **A remote** — dispatch a `worker` whose task is: *load the `sassy-commit` skill and follow it with `branch:current`*, naming that the commit must include the phase's code changes, the QA table results, and the now-updated Phase tracking table. It returns the hash and subject.
-   - **`workspace`** — dispatch a `worker` per affected repo to commit that repo's code on the run's shared branch (cut once on the run's first commit with `branch:new <name>`, `branch:current` after), then run `.sassywares/workspace/snapshot` for the plan, QA results, and docs at the root. The gate's approval is the commit approval; the snapshot runs right after it and is never skipped. A missing or outdated `.sassywares/workspace/snapshot` is a blocker — say to run `sassy-setup`.
+   - **A remote** — dispatch a `worker` whose task is: *load the `sassy-commit` skill and follow it with `branch:current`*, naming that the commit must include the phase's code changes, the QA table results, and the now-updated Phase tracking table. It returns the hash and subject. The branch already exists: step 2 cut it, so committing on it is the point of `branch:current` here.
+   - **`workspace`** — dispatch a `worker` per affected repo to commit that repo's code on the run's shared branch, then run `.sassywares/workspace/snapshot` for the plan, QA results, and docs at the root. The gate's approval is the commit approval; the snapshot runs right after it and is never skipped. A missing or outdated `.sassywares/workspace/snapshot` is a blocker — say to run `sassy-setup`.
    - **`none`** — nothing is persisted. Report that the phase's work is uncommitted and stop; never hand off on top of it.
 
-   Work commits on the current branch. `sassy-ship` creates the shipping branch at close-out when the checked-out branch is the repo base.
-
    Do not hand off or close out until the commit or snapshot succeeds.
-7. **On commit success:**
+8. **On commit success:**
    - **A next phase exists** → hand off so it starts in a fresh session:
 
      ```text
@@ -82,16 +81,18 @@ Always gate before committing. One worker fixes findings, one re-check, then pre
 
 When the argument is not a plan path, it is one settled brief:
 
-1. Run one `sassy-cycle` with the brief as the work brief and its decisions / done-when as the intent reference. Do not split it into multiple cycles.
-2. Present the code approval gate with no QA checklist, and wait.
-3. On code approval, persist the brief's changes the same way the plan path does: a `sassy-commit` delegation with `branch:current` in a remote repo, or the workspace snapshot in a workspace.
-4. Stop and report. Shipping is a separate step (`sassy-ship`), or `sassy-lfg` would have taken it all the way. Never create or update a plan file.
+1. Resolve the branch exactly as the plan path does — `references/branching.md`, this run's `branch:` token — before the cycle runs.
+2. Run one `sassy-cycle` with the brief as the work brief and its decisions / done-when as the intent reference. Do not split it into multiple cycles.
+3. Present the code approval gate with no QA checklist, and wait.
+4. On code approval, persist the brief's changes the same way the plan path does: a `sassy-commit` delegation with `branch:current` in a remote repo, or the workspace snapshot in a workspace.
+5. Stop and report. Shipping is a separate step (`sassy-ship`), or `sassy-lfg` would have taken it all the way. Never create or update a plan file.
 
 ## Hard rules
 
 | Rule | Requirement |
 |------|-------------|
 | Orchestrator only | Delegate all implementation and quality work to `sassy-cycle`. |
+| Branch before code | Resolve the branch per `references/branching.md` before the cycle runs, so no change ever lands on a base branch. |
 | One phase per run | Do exactly one phase. Never continue into the next phase in this session. |
 | Gate before commit and handoff | Do not commit, hand off, or close out until the user approves the code and the phase QA rows pass. |
 | Commit per phase | Commit the phase, its QA results, and the plan update via `sassy-commit` before handoff or close-out. |

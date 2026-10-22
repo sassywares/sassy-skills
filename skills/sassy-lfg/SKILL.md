@@ -4,7 +4,7 @@ description: >-
   Execute a whole sassy plan phase by phase, or one settled in-context brief,
   then close out via sassy-ship after code approval. The orchestrator only
   coordinates. Best for small plans that one context can hold.
-argument-hint: "<plan path | brief>"
+argument-hint: "<plan path | brief> [branch:infer|current|new]"
 disable-model-invocation: true
 ---
 
@@ -14,7 +14,7 @@ disable-model-invocation: true
 
 **The orchestrator does not do work.** Read the plan, dispatch `sassy-cycle` per phase, then `sassy-ship`. Never edit application code. Keep the main context small — all heavy work happens in subagents.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. Plans live under `artifacts.plans`; `git.repo` decides how the close-out persists.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. Plans live under `artifacts.plans`; `git.repo` decides how the close-out persists; `commit.branch` decides whether the run needs its own branch.
 
 ## Input
 
@@ -38,18 +38,17 @@ A brief has no QA table, so its gate is code approval alone. Never invent, enabl
 ## Steps
 
 1. **Load the plan.** Read the plan and its Phase tracking table. If phases are already `In progress` from an interrupted run, ask once whether to resume at the gate or rerun those cycles, then continue from the answer.
-2. **Run every phase, in order.** For each phase not `Done`:
+2. **Resolve the branch, before touching code.** Follow the `sassy-setup` skill's `references/branching.md` with this run's `branch:` token, if any. LFG runs every phase in one session, so the branch is cut once here and every phase commits onto it. Report the branch and its start point in the gate.
+3. **Run every phase, in order.** For each phase not `Done`:
    - Set the phase `In progress`, then load the `sassy-cycle` skill and follow it, with work brief = the phase's goal/work/"Done when", and intent reference = the plan path and phase.
    - On `Status: done` and `Validator: Conforms`, leave the phase `In progress` — its QA rows are still owed, and only the gate closes them.
    - On `Status: blocked`, mark it `Blocked` and stop the run.
-3. **The gate.** After the last phase, report: the plan path, each phase's status, what changed per phase, and the validator/reviewer summaries. Then give every phase's QA checklist verbatim — row ID, check, how to run it, what passing looks like — with unreported rows `Pending`. Ask for both decisions: code approval and the QA result per row. Wait. Do not commit.
-4. **Resolve the gate.** Three outcomes:
+4. **The gate.** After the last phase, report: the plan path, each phase's status, what changed per phase, and the validator/reviewer summaries. Then give every phase's QA checklist verbatim — row ID, check, how to run it, what passing looks like — with unreported rows `Pending`. Ask for both decisions: code approval and the QA result per row. Wait. Do not commit.
+5. **Resolve the gate.** Three outcomes:
    - **Code approved and every QA row passes** → mark the rows `Done` with the user's notes, mark the phases `Done`, then run the close-out below.
    - **Code approved, QA still pending** → tick nothing, mark nothing `Done`, commit nothing, ship nothing. Report which rows are outstanding and how to resume (`/skill:sassy-lfg <plan>`), and stop.
    - **Any QA row fails** → run one more `sassy-cycle` on that phase with the failing rows as the intent reference, then present the gate again. A row that still fails is `Blocked` with the reason and stops the run.
-5. **Close-out.** On both gates passing, load the `sassy-ship` skill and follow it. Do only the close-out steps the user approves. Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship` to `sassy-babysit`.
-
-Work commits to the current branch. `sassy-ship` creates the shipping branch at close-out when the checked-out branch is the repo default.
+6. **Close-out.** On both gates passing, load the `sassy-ship` skill and follow it. Do only the close-out steps the user approves. Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship` to `sassy-babysit`. The branch from step 2 already carries the work, so ship commits and opens the PR on it; ship never creates the branch.
 
 ## Brief constraints
 
@@ -63,15 +62,17 @@ Every worker brief this run dispatches must include:
 
 When the argument is not a plan path, the brief is the one phase:
 
-1. Run one `sassy-cycle` with the brief as the work brief and its decisions / done-when as the intent reference. Do not split it into multiple phases.
-2. Present the code approval gate with no QA checklist, and wait.
-3. On code approval, run `sassy-ship`. Do not run `sassy-plan` or write a plan file.
+1. Resolve the branch exactly as the plan path does — `references/branching.md`, this run's `branch:` token — before the cycle runs.
+2. Run one `sassy-cycle` with the brief as the work brief and its decisions / done-when as the intent reference. Do not split it into multiple phases.
+3. Present the code approval gate with no QA checklist, and wait.
+4. On code approval, run `sassy-ship`. Do not run `sassy-plan` or write a plan file.
 
 ## Hard rules
 
 | Rule | Requirement |
 |------|-------------|
 | Orchestrator only | Delegate every phase to `sassy-cycle`. Never read source or edit code. |
+| Branch before code | Resolve the branch per `references/branching.md` before any phase runs, so no change lands on a base branch. |
 | Phases in plan order | Phases run one after another, in plan order. |
 | Done needs both gates | Mark a phase `Done` only when the user approves the code and every QA row for it is `Done`. |
 | QA rows follow the user | Tick a QA row `Done` only from the user's explicit confirmation; keep unreported rows `Pending`; log a failed row as a finding for one more cycle. |

@@ -16,7 +16,7 @@ disable-model-invocation: true
 
 **Options.** `branch:new|current` selects the branch policy below. `babysit:on|off` (default `on`) controls the closing babysit. `checkpoint` bounds that babysit to a single tick. `merge:on|off` and `delete-branch:on|off` (both default `off`) are forwarded unchanged to `sassy-babysit`.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `commit.branch` seeds the branch policy, `pr.*` seeds the babysit options, and `hooks.pr` supplies the `before_create` / `after_create` steps for this run's head.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. `commit.branch` seeds the branch policy, `pr.*` seeds the babysit options, and `hooks.pr` supplies the `before_create` / `after_create` steps for this run's head. Precedence is explicit token > session instruction > config > skill default, and a token is explicit only when the **caller** supplied it; never pass this skill's own default as a token.
 
 **Keys are the head branch.** Resolve per head: the exact head, then the longest matching family (`release/*`), then `"*"`. Each point overrides independently. An entry is `<skill> <args…>` — split on the first whitespace and pass the args verbatim.
 
@@ -37,7 +37,7 @@ gh pr list --head <branch> --state open --json url,number
 
 Only an exit-0 empty list means "no open PR". A non-zero exit means **unknown** — resolve auth/connectivity first, never treat it as "none". Probe output is a snapshot; re-check branch/remote/PR state right before the push and the PR create.
 
-**Branch policy.** Default: if on the base branch or detached HEAD, create a feature branch named from the work and say so. `branch:current` or a plain request keeps the checked-out branch (that run pushes and skips the PR). Never ask whether to branch. Forward the resolved choice to `sassy-commit`: `branch:new <name>` when this run creates a branch, else `branch:current`.
+**Branch policy.** The run's branch is normally already decided: `sassy-work` and `sassy-lfg` cut it at the start via `sassy-setup`'s `references/branching.md`, and `sassy-ship` forwards `branch:current`. So the default here is to commit on the checked-out branch when it is not a base. Only when it *is* a base or a detached HEAD — a bare invocation with no orchestrator above it — create a feature branch named from the work and say so. `branch:current` or a plain request keeps the checked-out branch (that run pushes and skips the PR). Never ask whether to branch. Forward the resolved choice to `sassy-commit`: `branch:new <name>` only when this run creates a branch, else `branch:current`.
 
 **Base branch.** `<base>` is `base_map[<current head>]` from the nearest config — a nested repo's own config wins over the workspace's `repos[<dir>]` — falling back to `base_map["*"]`, else the probed remote HEAD **confirmed with the user before use**. The map is the reason a release PR targets `main` while the work sits on `staging`, with no token passed. An explicit `base:<branch>` token wins over all of them — use it when this PR targets something other than the day-to-day base, such as a release PR aimed at `main` while work lands on `staging`. **Never use `defaultBranchRef` as the PR base when the config names one.** Pass it explicitly: `gh pr create --base <base>`.
 

@@ -5,7 +5,7 @@ description: >-
   through sassy-cycle (fix, review, validate), and finally ship it
   through sassy-ship after code approval. Never auto-commits. Use when asked to
   debug or fix a failure.
-argument-hint: "[issue reference, error message, test path, or description]"
+argument-hint: "[issue reference, error message, test path, or description] [branch:infer|current|new]"
 disable-model-invocation: true
 ---
 
@@ -14,6 +14,8 @@ disable-model-invocation: true
 Find the root cause of a failure, get approval for the fix, fix it through the shared quality cycle, then ship it only after code approval. **This skill never commits on its own.**
 
 **Done when:** the full causal chain is stated with `file:line` evidence, the fix gate was answered with one of its four options, and either the fix has passed the quality cycle and shipped after code approval, or the run ended at the fix gate.
+
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. `commit.branch` decides whether the fix needs its own branch; `sassy-work` makes that decision when the fix starts, because the branch belongs to the work and not to the diagnosis.
 
 **Escalate rather than persist:** 2–3 hypotheses exhausted without confirmation, or 3 failed fix attempts, means diagnose *why* instead of trying again. One hypothesis, one change at a time — never shotgun-debug. Before escalating, re-search the prior learnings with the keywords of what you just ruled out: an exhausted hypothesis list is often a documented trap.
 
@@ -57,7 +59,11 @@ This gate is mandatory even when the original request said "fix the bug". Do not
 
 ### Option 1 — Fix it now
 
-Load the `sassy-work` skill with the fix brief as the work brief and the diagnosis from Phase 1 as the intent reference. Work runs one cycle, presents its own code approval gate, commits, and stops before ship. Continue to Phase 3.
+Load the `sassy-work` skill with the fix brief as the work brief and the diagnosis from Phase 1 as the intent reference, forwarding this run's `branch:` token if it was given. Work runs one cycle, presents its own code approval gate, commits, and stops before ship.
+
+The branch decision belongs to work, not to this phase: diagnosis writes nothing, so cutting a branch before the fix gate would leave an empty branch every time the gate ends in *Write a plan*, *Hand off*, or *Stop here*. Work resolves it per `sassy-setup`'s `references/branching.md` before it touches code, so the fix is on its own branch from the first edit and still never lands on a base branch.
+
+Continue to Phase 3.
 
 ### Option 2 — Write a plan
 

@@ -259,6 +259,14 @@ The fix gate offers four options:
 
 The artifact decides QA: a plan document carries manual QA tables that gate phase completion, an in-context brief does not. Gates are deliberate stops; the only way past one is the user's approval. `mode:auto` is accepted only by `sassy-ship` and `sassy-compound`.
 
+## Branching
+
+`sassy-work`, `sassy-lfg`, and `sassy-debug` decide the branch **before they touch code**, from `commit.branch` (default `new`) compared against `base_map`. On `new`, the run cuts a branch and every commit — phases, docs, ship — lands on it, so no change ever exists on a base branch. A run that is already on a branch that is not a base reuses it, which is how a handed-off phase, a resumed run, or `sassy-lfg` after `sassy-work` converges instead of cutting a second branch.
+
+A base is **any `base_map` value**, not just the remote default: in a repo whose `"*"` targets `staging`, standing on `staging` counts as standing on a base. That distinction is the whole point of the key — see [`skills/sassy-setup/references/branching.md`](skills/sassy-setup/references/branching.md).
+
+The three skills take `branch:infer|current|new` to override the config for one run: `infer` (default) means the config decides, `new` forces a branch, `current` commits where you stand. `sassy-ship` never creates a branch; finding the head on a base branch with unpublished commits is a stop-and-ask.
+
 ## Repository layout
 
 ```text

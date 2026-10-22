@@ -25,6 +25,15 @@ explicit token in the request  >  instruction in this session
 >  .sassywares/config.yaml  >  skill default
 ```
 
+**A token is explicit only when the caller supplied it** — the user typed it, or
+an earlier gate of the same run authorized that side effect. A skill must never
+pass its own default as a token, to another skill or to itself: once a default
+sits in the token slot, nothing downstream can tell it apart from a user's
+choice, so it silently outranks the project's config. A skill defers to config
+by **omitting** the token, never by passing a value it invented. That is how
+`commit.branch` became unreachable while every skill still read as if it
+explained the rule correctly.
+
 Read it once per run. An orchestrator resolves every config-backed value and
 passes the resolved values into subagent briefs; subagents never re-read the
 file. A skill invoked directly resolves it itself.
@@ -76,7 +85,7 @@ hooks:
 | `git.remote` | mirror of `git.repo` | Workspace only: mirror remote (URL or `owner/name`) |
 | `git.mirror_branch` | `main` | Workspace only: the branch the mirror pushes to |
 | `repos` | `{}` | Workspace only: repo dir name → the base its PRs target |
-| `commit.branch` | `current` | `current` commits where you are; `new` cuts a branch |
+| `commit.branch` | `new` | Resolved once per run, before the first change. `new` never commits on a base branch: `sassy-work`, `sassy-lfg`, and `sassy-debug` cut a branch first. `current` commits where you stand, base branch included |
 | `pr.babysit` | `true` | Whether close-out babysits the PR it opened |
 | `pr.merge` | `false` | `true` authorizes merging a single babysat PR |
 | `pr.delete_branch` | `false` | Delete the head branch once merged |
@@ -143,6 +152,35 @@ without asking, so the version line is how staleness surfaces.
 In `workspace` and `none`, changes still land on disk. Nothing is silently
 dropped; the refusal names why and what to run instead.
 
+## `commit.branch` — decide once, before code
+
+Resolved once per run, by the entry skill (`sassy-work`, `sassy-lfg`,
+`sassy-debug`), **before the first change**, through
+`sassy-setup/references/branching.md`. Not at commit time: committing first and
+re-branching later leaves the commits on a base branch, and cutting the new
+branch from `origin/<base>` then leaves them behind entirely.
+
+| Value | Meaning |
+|-------|---------|
+| `current` | Commit where you stand, even on a base branch. An explicit statement that this repo's work in progress is acceptable |
+| `new` (default) | Never commit on a base branch. Cut one first, then stay on it for the rest of the run |
+
+A branch that is already checked out and is **not** a base is reused, whatever
+the config says. That is what makes a second phase, a resumed run, or a
+handed-off session converge on the branch the first one cut instead of cutting
+another.
+
+A base is **any `base_map` value**, plus the remote default — not the remote
+default alone. In the config above `staging` is a base because `"*"` targets it,
+even though `origin/HEAD` is `main`. Comparing only against `origin/HEAD` is how
+phase work once got committed straight onto `staging`.
+
+The `branch:infer|current|new` token on those skills overrides this key for one
+run; `infer` means this key decides. In a workspace the key is resolved from the
+workspace config for the whole run, one branch name in every repo; a nested
+repo whose own `commit.branch` disagrees is drift, because one run cannot follow
+two policies.
+
 ## Resolution chains
 
 **Effective repo.** Inside a git work tree, the nearest toplevel is the repo —
@@ -186,9 +224,10 @@ config to. When a repo has both, the nested config wins and `--check` reports
 the disagreement rather than picking silently. A nested config needs no ladder
 of its own unless its PRs target more than one branch.
 
-**Branch name**, one per run. Derived once from the plan slug or topic before the
-first commit, then passed to every repo. Multi-repo runs pass
-`branch:new <name>`; a per-repo derived name would diverge.
+**Branch name**, one per run. Derived once from the plan slug or topic when the
+run starts, then used in every repo. The branch is cut at the start of the run,
+not at commit time, so every repo sits on it before any change exists; each
+repo cuts from its own upstream base and reuses the name in the others.
 
 Cut from the base, then verify:
 
