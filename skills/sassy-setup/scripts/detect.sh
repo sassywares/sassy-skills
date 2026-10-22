@@ -10,12 +10,15 @@
 set -euo pipefail
 
 ROOT_ARG=""
+HEAD_ARG=""
 CHECK=0
 
 while (( $# )); do
   case "$1" in
     --root)   shift; [[ $# -ge 1 ]] || { echo "missing DIR after --root" >&2; exit 2; }; ROOT_ARG="$1" ;;
     --root=*) ROOT_ARG="${1#*=}" ;;
+    --head)   shift; [[ $# -ge 1 ]] || { echo "missing BRANCH after --head" >&2; exit 2; }; HEAD_ARG="$1" ;;
+    --head=*) HEAD_ARG="${1#*=}" ;;
     --check)  CHECK=1 ;;
     -h|--help) sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's|^# \{0,1\}||'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -102,6 +105,91 @@ hook_skill_path() { # $1 hook skill name — nearest .agents/skills/<name>/SKILL
   done
 }
 
+# --- config readers -------------------------------------------------------
+# The file is flattened to `path<TAB>value` with paths joined by unit separators,
+# which is enough to read the two nested maps we own (git.base_map, hooks.pr.*).
+US=$'\037'
+
+yaml_flat() {
+  awk -v us="$(printf '\037')" '
+    function ind(s,  m) { m = match(s, /^ */); return m ? RLENGTH : 0 }
+    {
+      line = $0; sub(/#.*$/, "", line)
+      if (line ~ /^[[:space:]]*$/) next
+      d = ind(line)
+      body = line; sub(/^[[:space:]]*/, "", body); sub(/[[:space:]]+$/, "", body)
+      if (body ~ /:$/) {
+        key = body; sub(/:$/, "", key); gsub(/"/, "", key)
+        while (sp > 0 && sd[sp] >= d) sp--
+        sd[++sp] = d; sk[sp] = key
+        next
+      }
+      if (body !~ /:/) next
+      key = body; sub(/:.*/, "", key); gsub(/"/, "", key)
+      val = body; sub(/^[^:]*:[[:space:]]*/, "", val); gsub(/^"|"$/, "", val)
+      path = ""
+      for (i = 1; i <= sp; i++) if (sd[i] < d) path = path (path == "" ? "" : us) sk[i]
+      print path (path == "" ? "" : us) key "\t" val
+    }' "$CONFIG"
+}
+
+yflat() { yaml_flat | awk -F'\t' -v p="$1" '$1 == p { print $2; exit }'; }
+
+list_items() {
+  printf '%s' "$1" | sed -e 's/^\[//' -e 's/\]$//' | tr ',' '\n' \
+    | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s/^"//; s/"$//' | grep -v '^$' || true
+}
+
+# map_match SECTION HEAD — exact key, then the longest matching family, then "*".
+# base_map uses it, and hooks use the same rule, so "which pattern applies" has
+# exactly one answer in the whole config.
+map_match() {
+  local section="$1" head="$2" pat stem best="" bestlen=0 v
+  v="$(yflat "git${US}${section}${US}${head}")"
+  [[ -n "$v" ]] && { printf '%s' "$v"; return; }
+  while IFS= read -r pat; do
+    case "$pat" in *"*") ;; *) continue ;; esac
+    [[ "$pat" == "*" ]] && continue
+    stem="${pat%\*}"
+    if [[ "$head" == "$stem"* ]] && (( ${#stem} > bestlen )); then
+      best="$pat"; bestlen=${#stem}
+    fi
+  done < <(yaml_flat | awk -F'\t' -v us="$US" -v sec="$section" \
+             '{n=split($1,a,us); if (n==3 && a[1]=="git" && a[2]==sec) print a[3]}' | sort -u)
+  if [[ -n "$best" ]]; then
+    v="$(yflat "git${US}${section}${US}${best}")"
+    [[ -n "$v" ]] && { printf '%s' "$v"; return; }
+  fi
+  yflat "git${US}${section}${US}*"
+}
+
+base_for_head() { map_match base_map "$1"; }
+
+hook_patterns() {
+  yaml_flat | awk -F'\t' -v us="$US" '{n=split($1,a,us); if (n==4 && a[1]=="hooks" && a[2]=="pr") print a[3]}' | sort -u
+}
+
+# hooks_for_head_point HEAD POINT — exact head, then the longest matching
+# family, then "*". A pattern that declares no entry for this point inherits.
+hooks_for_head_point() {
+  local head="$1" point="$2" pat stem best="" bestlen=0 v
+  v="$(yflat "hooks${US}pr${US}${head}${US}${point}")"
+  [[ -n "$v" ]] && { printf '%s' "$v"; return; }
+  while IFS= read -r pat; do
+    case "$pat" in *"*") ;; *) continue ;; esac
+    [[ "$pat" == "*" ]] && continue
+    stem="${pat%\*}"
+    if [[ "$head" == "$stem"* ]] && (( ${#stem} > bestlen )); then
+      best="$pat"; bestlen=${#stem}
+    fi
+  done < <(hook_patterns)
+  if [[ -n "$best" ]]; then
+    v="$(yflat "hooks${US}pr${US}${best}${US}${point}")"
+    [[ -n "$v" ]] && { printf '%s' "$v"; return; }
+  fi
+  printf '%s' "$(yflat "hooks${US}pr${US}*${US}${point}")"
+}
+
 detect_base() {
   local dir="$1" b
   b="$(git -C "$dir" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)"
@@ -156,7 +244,7 @@ case "$TOPOLOGY" in
     ;;
   workspace)
     MIRROR_REMOTE="$(config_value remote 2>/dev/null || true)"
-    MIRROR_BRANCH="$(config_value default_branch 2>/dev/null || true)"
+    MIRROR_BRANCH="$(config_value mirror_branch 2>/dev/null || true)"
     MIRROR_BRANCH="${MIRROR_BRANCH:-main}"
     ;;
 esac
@@ -194,17 +282,35 @@ if (( CHECK )); then
   fi
 
   if [[ "$TOPOLOGY" == "repo" ]]; then
-    configured_base="$(config_value default_branch 2>/dev/null || true)"
-    [[ -n "$configured_base" ]] || DEFAULT_BRANCH="$(detect_base "$ROOT")"
-    if [[ -z "$configured_base" ]]; then
-      bad "git.default_branch is unset — name the branch new work is cut from"
-    elif [[ -n "$DEFAULT_BRANCH" && "$configured_base" != "$DEFAULT_BRANCH" ]]; then
-      # A team base is a policy choice: staging, dev, or the release branch can
-      # all differ from the remote default. Report it, do not call it drift.
-      note "  default_branch '$configured_base' overrides the remote default '$DEFAULT_BRANCH' — expected when PRs target a team base"
+    if [[ -n "$(yflat "git${US}default_branch")" ]]; then
+      bad "git.default_branch is gone — use git.base_map with a \"*\" entry"
     fi
-    configured_remote="$(config_value remote 2>/dev/null || true)"
-    [[ -z "$configured_remote" ]] || bad "git.remote is set but git.repo is not workspace"
+    if [[ -z "$(yflat "git${US}base_map${US}*")" ]]; then
+      bad "git.base_map has no \"*\" entry — it is the base for ordinary work"
+    else
+      while IFS= read -r pat; do
+        [[ -n "$pat" ]] || continue
+        case "$pat" in
+          "*") ;;
+          *"*") [[ "${pat%\*}" != *"*" ]] || bad "base_map key '$pat': only one trailing * is allowed" ;;
+        esac
+      done < <(yaml_flat | awk -F'\t' -v us="$US" '{n=split($1,a,us); if (n==3 && a[1]=="git" && a[2]=="base_map") print a[3]}' | sort -u)
+      head_ref="${HEAD_ARG:-$(git -C "$ROOT" branch --show-current 2>/dev/null || true)}"
+      if [[ -n "$head_ref" ]]; then
+        note "  base for '${head_ref}': $(base_for_head "$head_ref")"
+        cur="$head_ref"; hops=0
+        while [[ -n "$cur" ]] && (( hops < 8 )); do
+          next="$(yflat "git${US}base_map${US}${cur}")"
+          [[ -z "$next" ]] && break
+          cur="$next"; hops=$((hops + 1))
+          if [[ "$cur" == "$head_ref" ]]; then
+            bad "git.base_map cycles through '$head_ref'"; break
+          fi
+        done
+      else
+        note "  detached HEAD — pass --head <branch> to see the resolved base"
+      fi
+    fi
   fi
 
   if [[ "$TOPOLOGY" == "workspace" ]]; then
@@ -235,34 +341,37 @@ if (( CHECK )); then
     done < <(nested_repos)
   fi
 
-  # Hooks: every declared name resolves to a project skill, and none may be ours.
-  if grep -q '^hooks:' "$CONFIG" 2>/dev/null; then
-    while IFS= read -r hline; do
-      [[ "$hline" == " "* ]] || continue          # only nested lines belong here
-      hkey="$(printf '%s' "$hline" | sed -nE 's/^[[:space:]]*([A-Za-z_]+):.*/\1/p')"
-      case "$hkey" in
-        "") continue ;;
-        pr) continue ;;
-        before_create|after_create|before_merge|after_merge) ;;
-        *) bad "unknown hook point '$hkey' under hooks:"; continue ;;
-      esac
-      hlist="$(printf '%s' "$hline" | sed -nE 's/^[^:]+:[[:space:]]*\[([^]]*)\].*/\1/p')"
-      [[ -n "$hlist" ]] || continue
-      while IFS= read -r hraw; do
-        hname="$(printf '%s' "$hraw" | sed -E 's/#.*$//; s/^[[:space:]]+//; s/[[:space:]]+$//; s/^["'\'']//; s/["'\'']$//')"
-        [[ -n "$hname" ]] || continue
-        case "$hname" in
-          sassy-*) bad "hook $hkey: '$hname' is one of our skills — hooks are project skills only" ;;
-          *)
-            if hook_skill_path "$hname" >/dev/null; then
-              note "  hook $hkey → $hname"
-            else
-              bad "hook $hkey: '$hname' not found at .agents/skills/$hname/SKILL.md"
-            fi
-            ;;
+  # Hooks: head-scoped, so `staging` means "the PR is from staging".
+  if [[ -n "$(yflat "hooks${US}pr${US}before_create")" ]]; then
+    bad "hooks.pr.<point> is now nested by head branch — write hooks.pr.\"*\".<point>"
+  fi
+  while IFS= read -r pat; do
+    [[ -n "$pat" ]] || continue
+    case "$pat" in
+      "*") ;;
+      *"*") [[ "${pat%\*}" != *"*" ]] || bad "hook pattern '$pat': only one trailing * is allowed" ;;
+    esac
+    for point in before_create after_create before_merge after_merge; do
+      val="$(yflat "hooks${US}pr${US}${pat}${US}${point}")"
+      [[ -n "$val" ]] || continue
+      while IFS= read -r entry; do
+        [[ -n "$entry" ]] || continue
+        name="${entry%% *}"
+        case "$name" in
+          sassy-*) bad "hooks.$pat.$point: '$name' is one of our skills — hooks are project skills only" ;;
+          *) hook_skill_path "$name" >/dev/null 2>&1 \
+               || bad "hooks.$pat.$point: '$name' not found at .agents/skills/$name/SKILL.md" ;;
         esac
-      done < <(printf '%s\n' "$hlist" | tr ',' '\n')
-    done < <(sed -n '/^hooks:/,/^[a-z]/p' "$CONFIG")
+      done < <(list_items "$val")
+    done
+  done < <(hook_patterns)
+
+  # Resolve for one head, so nobody has to merge maps in their head.
+  if [[ -n "$HEAD_ARG" && "$TOPOLOGY" == "repo" ]]; then
+    for point in before_create after_create before_merge after_merge; do
+      resolved="$(hooks_for_head_point "$HEAD_ARG" "$point")"
+      note "  head '$HEAD_ARG' → $point: $( [[ -n "$resolved" ]] && printf '%s' "$resolved" || printf 'none' )"
+    done
   fi
 
   for key in plans solutions handbooks concepts; do
@@ -325,15 +434,18 @@ case "$TOPOLOGY" in
 # --- Git ------------------------------------------------------------------
 # repo: a remote name (this folder is the repo) | workspace (repos live below,
 #       this folder is not a repo) | none (no git anywhere here).
-# default_branch: what new branches are cut from, and what PRs target.
+# base_map: the base for a HEAD branch, so a PR targets the right rung.
+#   "*" is ordinary work; add a rung for a branch that releases elsewhere.
 git:
 EOF
     kv repo "$REPO_NAME" 0
+    printf '  base_map:\n'
     if [[ -n "$DEFAULT_BRANCH" ]]; then
-      kv default_branch "$DEFAULT_BRANCH" 34 '# probed — confirm it is the team base'
+      printf '    "*": %s   # probed — confirm this is where ordinary work branches from\n' "$DEFAULT_BRANCH"
     else
-      kv default_branch "<confirm by hand>" 34 '# base for branches and PRs; never guessed'
+      printf '    "*": %s   # base for ordinary work; never guessed\n' "<confirm by hand>"
     fi
+    printf '    # staging: main   # uncomment when a branch releases somewhere else\n'
     cat <<'EOF'
 
 # workspace only: each nested repo folder -> the base its PRs target
@@ -347,12 +459,13 @@ EOF
 # --- Git ------------------------------------------------------------------
 # repo: workspace means repos live below and this folder is not a repo.
 # remote: the snapshot mirror (GitHub owner/name or URL), required here.
-# default_branch: the mirror's branch, not any nested repo's base.
+# mirror_branch: the branch the mirror pushes to. Not a PR base — nested repos
+#   carry their own, and a workspace has no branches of its own.
 git:
 EOF
     kv repo workspace 0
     kv remote "${MIRROR_REMOTE:-<set the snapshot mirror, owner/name or URL>}" 0
-    kv default_branch "$MIRROR_BRANCH" 0
+    kv mirror_branch "$MIRROR_BRANCH" 0
     cat <<'EOF'
 
 # --- Repos ----------------------------------------------------------------
@@ -389,7 +502,7 @@ cat <<'EOF'
 
 # --- Commit ---------------------------------------------------------------
 # current: commit on the checked-out branch.
-# new: cut a branch from origin/<default_branch>; name it in multi-repo runs so
+# new: cut a branch from the base map for the current head; name it in multi-repo runs so
 #      every repo gets the same branch name.
 commit:
 EOF
@@ -405,17 +518,22 @@ kv delete_branch false 24 '# true | false — delete the head branch once merged
 cat <<'EOF'
 
 # --- Hooks ----------------------------------------------------------------
-# Project steps injected into the PR pipeline. Each entry is a skill name,
-# resolved at .agents/skills/<name>/SKILL.md, nearest walking up. Declared
-# order, one worker each, and a declared-but-missing skill fails closed.
-#   before_create — after the commit, before the PR opens (may commit its output)
-#   after_create  — the PR was just created
-#   before_merge  — this run is about to merge the PR
-#   after_merge   — this run observed the PR merged
+# Project steps injected into the PR pipeline, keyed by the HEAD branch — the
+# branch the PR comes from, never the one it targets. `"*"` is the default;
+# a name overrides per point, and `release/*` matches a family. Each entry is
+# `<skill> <args…>`, resolved at .agents/skills/<name>/SKILL.md; args are passed
+# to the skill verbatim. Declared order, one worker each, missing skill fails closed.
 hooks:
   pr:
+    "*":
 EOF
-kv before_create '[]' 24 '# after the commit, before the PR opens' '    '
-kv after_create '[]' 24 '# the PR was just created' '    '
-kv before_merge '[]' 24 '# this run is about to merge' '    '
-kv after_merge '[]' 24 '# this run observed the merge' '    '
+kv before_create '[]' 30 '# after the commit, before the PR opens' '      '
+kv after_create '[]' 30 '# the PR was just created' '      '
+kv before_merge '[]' 30 '# this run is about to merge' '      '
+kv after_merge '[]' 30 '# this run observed the merge' '      '
+cat <<'EOF'
+    # staging:            # per-point override for one head branch
+    #   before_create: []
+    # release/*:          # a family of heads
+    #   after_merge: [notify mode:auto]
+EOF

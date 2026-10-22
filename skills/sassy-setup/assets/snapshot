@@ -120,7 +120,7 @@ resolve_branch() {
     fi
   fi
   local configured
-  configured="$(config_value default_branch || true)"
+  configured="$(config_value mirror_branch || true)"
   BRANCH="${configured:-main}"
 }
 

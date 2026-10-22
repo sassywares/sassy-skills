@@ -42,11 +42,13 @@ knowledge:
   write: true
 git:
   repo: origin              # <remote name> | workspace | none
-  remote: thekayshawn/knit  # workspace only: the snapshot mirror
-  default_branch: main      # repo base; workspace: the mirror branch
+  base_map:                 # head branch -> the base it targets
+    "*": staging            # ordinary work branches from and targets staging
+    staging: main           # staging releases to main
+  remote: owner/backup      # workspace only: the snapshot mirror
+  mirror_branch: main       # workspace only: the mirror's branch
 repos:                      # workspace only: sibling dir -> PR base
   fe: dev
-  knit-ai-pipeline: master
 commit:
   branch: current           # current | new
 pr:
@@ -55,10 +57,10 @@ pr:
   delete_branch: false
 hooks:
   pr:
-    before_create: []       # after the commit, before the PR opens
-    after_create: []        # the moment the PR exists
-    before_merge: []        # this run is about to merge
-    after_merge: []         # this run observed the merge
+    "*":
+      before_create: [tap2-version mode:auto]
+    staging:
+      before_create: []
 ```
 
 | Key | Default | Meaning |
@@ -70,14 +72,15 @@ hooks:
 | `knowledge.read` | `[docs/solutions, CONCEPTS.md]` | Paths scouted for prior learnings |
 | `knowledge.write` | `true` | `false` = this project takes no learnings |
 | `git.repo` | `origin` | Remote name, or a reserved value (below) |
+| `git.base_map` | probed `"*"` | Head branch → the base it targets. `"*"` is required |
 | `git.remote` | mirror of `git.repo` | Workspace only: mirror remote (URL or `owner/name`) |
-| `git.default_branch` | probed | Repo base branch; workspace: the mirror branch |
+| `git.mirror_branch` | `main` | Workspace only: the branch the mirror pushes to |
 | `repos` | `{}` | Workspace only: repo dir name → the base its PRs target |
 | `commit.branch` | `current` | `current` commits where you are; `new` cuts a branch |
 | `pr.babysit` | `true` | Whether close-out babysits the PR it opened |
 | `pr.merge` | `false` | `true` authorizes merging a single babysat PR |
 | `pr.delete_branch` | `false` | Delete the head branch once merged |
-| `hooks.pr.*` | `[]` | Project steps injected into the PR pipeline |
+| `hooks.pr.<pattern>.<point>` | `[]` | Project steps, keyed by the PR's head branch |
 
 Paths are relative to the config's own directory, never to the cwd.
 
@@ -91,8 +94,9 @@ Paths are relative to the config's own directory, never to the cwd.
 
 `workspace` and `none` are reserved words; a remote cannot be named either.
 
-`remote` and `default_branch` are conditional. In a repo config, `remote` is
-omitted (the repo name is `git.repo`) and `default_branch` is the repo's base.
+`base_map` is repo-only. `remote` and `mirror_branch` are workspace-only and
+describe the snapshot mirror — in a repo config the remote is simply
+the value of `git.repo`.
 In a workspace config, both describe **the snapshot mirror**: where it pushes,
 and its branch.
 
@@ -145,21 +149,30 @@ dropped; the refusal names why and what to run instead.
 even when the resolved config says `workspace`. Ran from `fe/`, work commits in
 `fe/`. Ran from the workspace root (no repo), the workspace rules above apply.
 
-**Base branch**, per affected repo:
+**Base branch of a head.** `base_map` answers one question — *given this head,
+what does a PR target?* — so there is no free-floating "default branch":
 
-1. `repos[<dir name>]` in a workspace config; `git.default_branch` in a repo config
-2. `git -C <repo> symbolic-ref --short refs/remotes/origin/HEAD`
-3. `gh repo view <repo> --json defaultBranchRef -q .defaultBranchRef.name`
-4. stop and ask — **never guess `main`**
+```
+feature/x  --base_map["*"]-->     staging  --base_map[staging]-->  main
+```
 
-Steps 2 and 3 can only learn the **remote's default**, which is not necessarily the team's base: a repo whose PRs target `dev` or `staging` still reports `main`. So a probed base is reported as probed, and confirmed by a human before it is written. A wrong base aims PRs at the wrong branch — the exact failure a hand-kept integration table exists to prevent.
+1. `base_map[<head>]` — the exact rung
+2. `base_map["*"]` — ordinary work
+3. stop and ask; never guess
 
-Because of that, a declared base differing from the remote default is **not**
-drift: `sassy-setup --check` reports the override and moves on. Only a missing
-base, or a repo with no `repos` entry, is drift.
+A rung is a release edge: standing on `staging`, a PR targets `main` without
+anyone passing `base:main`. Add a rung for any branch that releases elsewhere; a
+three-rung ladder is just one more line. The map must be acyclic, and `"*"` must
+exist — that is the rung everything falls back to.
 
-A repo on disk but absent from `repos` is a question, not a default. A `repos`
-entry with no directory on disk is ignored with one line.
+The probed remote default is only useful as a hint for `"*"`: it tells you where
+the repository considers work to land, not what every branch targets. Confirm it
+before writing.
+
+In a `workspace`, `base_map` does not apply — there are no branches at the
+workspace level. Nested repos carry their own bases in `repos`, and a nested repo
+that needs a ladder gets its own `.sassywares/config.yaml` rather than a nested
+map here.
 
 **Branch name**, one per run. Derived once from the plan slug or topic before the
 first commit, then passed to every repo. Multi-repo runs pass
@@ -180,7 +193,7 @@ recreate it. Never leave a PR aimed at the wrong base.
 `origin` → `git.remote` → stop and say setup is incomplete.
 
 **Mirror branch**: `SASSY_WORKSPACE_BRANCH` → the mirror's own
-`refs/remotes/origin/HEAD` → `git.default_branch` → `main`.
+`refs/remotes/origin/HEAD` → `git.mirror_branch` → `main`.
 
 **Knowledge read.** Every path in `knowledge.read` that exists is searched for
 prior learnings; a path that does not exist is skipped with one line. Absence of
@@ -188,13 +201,18 @@ matches is a fact worth stating, never evidence that no similar problem exists.
 
 ## Hooks
 
-A project injects its own steps into our pipeline by declaring them here. They are
-run by the skill that owns the moment, so they fire no matter which pipeline the
-user started. Nothing declared means nothing runs.
+A project injects its own steps into the PR pipeline. They run by the skill that
+owns the moment, so they fire whichever pipeline the user started. Nothing
+declared means nothing runs.
 
-Only the PR has hook points. Planning, phases, review, and commit do not: their
-extension point is `AGENTS.md` for rules, or a project skill the user invokes
-directly.
+**Keys are the head branch** — the branch the PR comes from, never the one it
+targets. `hooks.pr.staging` means *PRs whose source is staging*.
+
+| Key form | Matches |
+|----------|---------|
+| `staging` | that exact head |
+| `release/*` | a family; only one trailing `*` is allowed |
+| `"*"` | every other head |
 
 | Point | Owner | Fires |
 |-------|-------|-------|
@@ -203,25 +221,44 @@ directly.
 | `before_merge` | `sassy-babysit` | the PR looks ready **and** this run will merge it |
 | `after_merge` | `sassy-babysit` | this run observed the PR merged |
 
+### Resolution
+
+Per point, independently:
+
+1. the exact head
+2. the longest matching family, if the head starts with its prefix
+3. `"*"`
+
+The first rule that declares a value for that point wins and the rest are not
+merged. So a `staging` entry that sets only `before_create` still inherits
+`after_merge` from `"*"`. Declaring the same point in two families that both
+match one head is a configuration error, not a precedence puzzle.
+
+### Entries carry arguments
+
+An entry is `<skill>` or `<skill> <args…>`, split on the first whitespace. Args
+are passed to the hook verbatim — they are that skill's vocabulary, not ours. A
+hook skill documents the args it accepts and must not silently ignore one.
+
+Args are how a project pre-authorizes a step: `tap2-version mode:auto` runs
+versioning without its approval prompt. Treat it like `pr.merge: true` — visible
+in review, and commented when it is deliberate.
+
 ### Contract
 
 - **Resolution**: `<repo>/.agents/skills/<name>/SKILL.md`, nearest walking up.
-- **Names**: a skill the project owns, never one of ours. A `tap2-`/`knit-`
-  prefix is the convention when the name could be confused with a general
-  workflow; `version` is fine when it is plainly the project's.
+- **Names**: a skill the project owns, never one of ours.
 - **Order**: declared order, one worker each, sequential.
 - **Brief**: plan path, changed files, artifact paths, base, branch, commit hash,
   and the PR URL where one exists.
-- **Result**: `done`, `blocked`, or `needs-decision`. A decision comes back to the
-  orchestrator, which holds the gate — a worker never blocks on a prompt.
-- **Fail closed**: a missing file or a `blocked` result stops the pipeline and
-  names the hook. A mandatory step must never evaporate.
-- **Writes**: a hook may write files. Only `before_create` may also **commit**
-  them, because it runs after the pipeline's own commit; every other point must
-  leave the tree clean.
+- **Result**: `done`, `blocked`, or `needs-decision`; a decision comes back to the
+  orchestrator, which holds the gate.
+- **Fail closed**: a missing skill or a `blocked` result stops the pipeline.
+- **Writes**: only `before_create` may also commit, because it runs after the
+  pipeline's commit; every other point leaves the tree clean.
 - **Never**: push, open a PR, change `mode`, `branch`, or `merge`.
-- **Idempotent**: `after_merge` can be reached by a later run observing an already
-  merged PR, and `before_create` can run again on a re-ship.
+- **Idempotent**: `after_merge` can be reached by a later run observing an
+  already merged PR, and `before_create` can run again on a re-ship.
 - **Per PR**: in a workspace fan-out the hooks run once per PR.
 
 ### When they do not fire

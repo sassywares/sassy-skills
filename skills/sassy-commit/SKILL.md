@@ -30,7 +30,7 @@ Treat the reads as a snapshot; re-read branch and staged set right before commit
 
 **Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `commit.branch` supplies the default.
 
-**Branch option.** `branch:current|new [<name>]`. `current` commits on the checked-out branch. `new` cuts a branch from `origin/<base>` — `<base>` is `repos[<dir>]` in a workspace config, else `git.default_branch`, else the probed base **confirmed with the user** — named `<name>` when given, else from the change. `sassy-commit-push-pr` forwards its own `branch` choice here.
+**Branch option.** `branch:current|new [<name>]`. `current` commits on the checked-out branch. `new` cuts a branch from `origin/<base>` — `<base>` is `repos[<dir>]` in a workspace config, else `base_map[<current head>]` (falling back to `base_map["*"]`), else the probed base **confirmed with the user** — named `<name>` when given, else from the change. `sassy-commit-push-pr` forwards its own `branch` choice here.
 
 **Not in a workspace root, not outside git.** With `git.repo: workspace` there is no local commit to make: refuse in one line and name the snapshot instead. With `git.repo: none`, refuse and say the project is deliberately outside git. Inside a nested repo, a normal commit is correct — the nearest work tree is the repo.
 
