@@ -13,11 +13,14 @@
 # --policy takes infer|current|new: the skill-level token. infer (the default)
 # defers to commit.branch in the config, and new is the fallback when the config
 # is silent. --branch is read-only; it prints the decision, it never cuts.
+# --name BRANCH resolves pr-base for the name a run is about to pick, because a
+# new name can match a base_map family (release/*) and retarget the PR.
 set -euo pipefail
 
 ROOT_ARG=""
 HEAD_ARG=""
 POLICY_ARG=""
+NAME_ARG=""
 CHECK=0
 BRANCH=0
 
@@ -29,9 +32,11 @@ while (( $# )); do
     --head=*) HEAD_ARG="${1#*=}" ;;
     --policy) shift; [[ $# -ge 1 ]] || { echo "missing POLICY after --policy" >&2; exit 2; }; POLICY_ARG="$1" ;;
     --policy=*) POLICY_ARG="${1#*=}" ;;
+    --name)   shift; [[ $# -ge 1 ]] || { echo "missing BRANCH after --name" >&2; exit 2; }; NAME_ARG="$1" ;;
+    --name=*) NAME_ARG="${1#*=}" ;;
     --branch) BRANCH=1 ;;
     --check)  CHECK=1 ;;
-    -h|--help) sed -n '2,14p' "${BASH_SOURCE[0]}" | sed 's|^# \{0,1\}||'; exit 0 ;;
+    -h|--help) sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's|^# \{0,1\}||'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
   shift
@@ -39,6 +44,9 @@ done
 
 START="${ROOT_ARG:-$PWD}"
 [[ -d "$START" ]] || { echo "not a directory: $START" >&2; exit 2; }
+# --branch prints a decision; --check validates a config. One at a time, or the
+# second is silently ignored.
+(( BRANCH && CHECK )) && { echo "--branch and --check are separate modes; run them one at a time" >&2; exit 2; }
 # Absolute, or the walk-up loop below re-reads "." forever.
 START="$(cd "$START" && pwd -P)"
 
@@ -419,6 +427,16 @@ if (( CHECK )); then
     [[ -n "$val" ]] && note "  artifacts.$key: $val"
   done
 
+  # commit.branch steers whether a run may touch a base branch, so an invalid
+  # value is reported rather than silently ignored.
+  val="$(yflat "commit${US}branch" 2>/dev/null || true)"
+  if [[ -n "$val" ]]; then
+    case "$val" in
+      current|new) note "  commit.branch: $val" ;;
+      *) bad "commit.branch '$val' is not current|new" ;;
+    esac
+  fi
+
   if (( drift )); then exit 1; fi
   note "  config matches the tree"
   exit 0
@@ -439,64 +457,145 @@ if (( BRANCH )); then
     *) echo "unknown --policy: $policy (expected infer, current, or new)" >&2; exit 2 ;;
   esac
   configured="$(yflat "commit${US}branch" 2>/dev/null || true)"
-  [[ "$policy" == "infer" ]] && policy="${configured:-new}"
+  note=""
+  if [[ -n "$configured" && "$configured" != "current" && "$configured" != "new" ]]; then
+    # A soft config error must not become a silently wrong branch decision.
+    note="commit.branch '$configured' is not current|new; using new"
+    configured=""
+  fi
+  if [[ "$policy" == "infer" ]]; then
+    policy="${configured:-new}"
+  fi
 
-  # base_heads prints every branch this config treats as a base: each base_map
-  # value, plus the remote default it inherits from. With no config to speak,
-  # the probed remote HEAD is the only base there is.
-  base_heads() {
-    local v out=""
-    out="$(yaml_flat "$CONFIG" 2>/dev/null | awk -F'\t' -v us="$US" \
-      '{n=split($1,a,us); if (n==3 && a[1]=="git" && a[2]=="base_map") print $2}' | sort -u || true)"
-    if [[ "$TOPOLOGY" == "repo" ]]; then
-      v="$(git -C "$ROOT" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)"
+  # base_heads_in DIR — every branch DIR's config treats as a base: each
+  # base_map value, the repos[<dir>] rung, and the remote default. A workspace
+  # has no base_map of its own, so repos[] is what names its bases; reading
+  # base_map alone reported every nested repo as on-branch and let runs commit
+  # onto staging, which is the bug this whole mode exists to stop.
+  base_heads_in() {
+    local dir="$1" r v out=""
+    if [[ -f "$dir/.sassywares/config.yaml" ]]; then
+      out="$(yaml_flat "$dir/.sassywares/config.yaml" 2>/dev/null | awk -F'\t' -v us="$US" \
+        '{n=split($1,a,us); if (n==3 && a[1]=="git" && a[2]=="base_map") print $2}' | sort -u || true)"
+    fi
+    v="$(yflat "repos${US}$(basename "$dir")" 2>/dev/null || true)"
+    [[ -n "$v" ]] && out="$out"$'\n'"$v"
+    r="$(remote_name "$dir")"
+    if [[ -n "$r" ]]; then
+      v="$(git -C "$dir" symbolic-ref --short "refs/remotes/$r/HEAD" 2>/dev/null | sed "s|^$r/||" || true)"
       [[ -n "$v" ]] && out="$out"$'\n'"$v"
     fi
     out="$(printf '%s\n' "$out" | grep -v '^$' | sort -u || true)"
     # Probing through gh costs a network call, so only when nothing else said.
-    [[ -n "$out" ]] || out="$(detect_base "$ROOT" 2>/dev/null || true)"
+    [[ -n "$out" ]] || out="$(detect_base "$dir" 2>/dev/null || true)"
     printf '%s\n' "$out" | grep -v '^$' || true
   }
 
-  # in_base_heads BRANCH — membership without a pipe: `base_heads | grep -q`
-  # trips pipefail, because grep exits on the first match and SIGPIPEs the
-  # producer, so a branch that IS a base reported as if it were not.
+  # in_base_heads DIR BRANCH — membership without a pipe: `… | grep -q` trips
+  # pipefail, because grep exits on the first match and SIGPIPEs the producer,
+  # so a branch that IS a base reported as if it were not.
   in_base_heads() {
-    local want="$1" b
+    local dir="$1" want="$2" b
     while IFS= read -r b; do
       [[ "$b" == "$want" ]] && return 0
-    done < <(base_heads)
+    done < <(base_heads_in "$dir")
     return 1
   }
 
+  # repo_base DIR — the base a PR from DIR targets, for a brand-new branch name.
+  repo_base() {
+    local dir="$1" v="" r
+    if [[ -f "$dir/.sassywares/config.yaml" ]]; then
+      v="$(yflat_in "$dir/.sassywares/config.yaml" "git${US}base_map${US}*" 2>/dev/null || true)"
+    fi
+    [[ -n "$v" ]] || v="$(yflat "repos${US}$(basename "$dir")" 2>/dev/null || true)"
+    if [[ -z "$v" ]]; then
+      v="$(detect_base "$dir" 2>/dev/null || true)"
+      [[ -n "$v" ]] && printf '%s' "$v" && return 0
+    fi
+    printf '%s' "$v"
+  }
+
+  # classify DIR [HEAD] — on-base, on-branch, detached, or unknown.
+  classify() {
+    local dir="$1" h="$2"
+    if [[ -z "$h" ]]; then printf 'detached'; return 0; fi
+    if in_base_heads "$dir" "$h"; then printf 'on-base'; else printf 'on-branch'; fi
+  }
+
+  # start_point DIR HEAD — the upstream ref a new branch is cut from. Prints
+  # "none" when there is no upstream ref: cutting from local HEAD would carry
+  # commits stranded on the base, which is the failure this prevents.
+  start_point() {
+    local dir="$1" h="$2" r
+    r="$(remote_name "$dir")"
+    if [[ -n "$r" && -n "$h" ]] && git -C "$dir" rev-parse --verify --quiet "refs/remotes/$r/$h" >/dev/null 2>&1; then
+      printf '%s/%s' "$r" "$h"
+    else
+      printf 'none'
+    fi
+  }
+
+  # unpublished DIR HEAD — commits on the local base that are not upstream.
+  # Unknown on error, never 0: an unreadable count must not read as "clean".
+  unpublished() {
+    local dir="$1" h="$2" r n
+    r="$(remote_name "$dir")"
+    [[ -n "$r" && -n "$h" ]] || { printf 'unknown'; return 0; }
+    git -C "$dir" rev-parse --verify --quiet "refs/remotes/$r/$h" >/dev/null 2>&1 || { printf 'unknown'; return 0; }
+    n="$(git -C "$dir" rev-list --count "$r/$h..$h" 2>/dev/null || true)"
+    [[ -n "$n" ]] && printf '%s' "$n" || printf 'unknown'
+  }
+
+  # decide STATE POLICY START UNPUBLISHED — the action, fail closed.
+  decide() {
+    local st="$1" pol="$2" start="$3" unp="$4"
+    case "$st:$pol" in
+      on-branch:*)     printf 'reuse'; return 0 ;;
+      on-base:new)     ;;
+      on-base:current) printf 'commit-here'; return 0 ;;
+      detached:new)    ;;
+      *)               printf 'refuse'; return 0 ;;
+    esac
+    # Cutting needs a known-clean upstream base.
+    [[ "$start" == "none" ]] && { printf 'refuse'; return 0; }
+    [[ "$unp" == "0" ]] || { printf 'stop-and-ask'; return 0; }
+    printf 'create'
+  }
+
+  repo_value="$(yflat "git${US}repo" 2>/dev/null || true)"
+
+  [[ -n "$note" ]] && printf 'note: %s\n' "$note"
   printf 'topology: %s\n' "$TOPOLOGY"
   printf 'config: %s\n' "${CONFIG:-none}"
   printf 'configured: %s\n' "${configured:-none}"
   printf 'policy: %s\n' "$policy"
 
-  if [[ "$TOPOLOGY" == "none" ]]; then
-    printf 'state: no-git\naction: refuse\n'
+  if [[ "$TOPOLOGY" == "none" || "$repo_value" == "none" ]]; then
+    if [[ "$repo_value" == "none" ]]; then
+      printf 'state: no-git\naction: refuse\nreason: git.repo is none\n'
+    else
+      printf 'state: no-git\naction: refuse\nreason: not a git work tree\n'
+    fi
     exit 0
   fi
 
   if [[ "$TOPOLOGY" == "workspace" ]]; then
-    # The run shares one branch name across every repo, so the decision is made
-    # once, here, and applied inside each nested repo. A nested repo carrying
-    # its own commit.branch that disagrees is drift, not an override: it would
-    # give one run two branch policies.
+    # One policy for the whole run, resolved per repo: a run cannot follow two
+    # branch policies, so a nested repo that disagrees is reported as drift.
     while IFS= read -r dir; do
       [[ -n "$dir" ]] || continue
-      head="$(git -C "$ROOT/$dir" branch --show-current 2>/dev/null || true)"
-      if [[ -z "$head" ]]; then
-        printf 'repo %s: head=detached state=detached\n' "$dir"
-      elif in_base_heads "$head"; then
-        printf 'repo %s: head=%s state=on-base\n' "$dir" "$head"
-      else
-        printf 'repo %s: head=%s state=on-branch\n' "$dir" "$head"
-      fi
+      d="$ROOT/$dir"
+      h="$(git -C "$d" branch --show-current 2>/dev/null || true)"
+      st="$(classify "$d" "$h")"
+      sp="$(start_point "$d" "$h")"
+      base="$(repo_base "$d")"
+      if [[ "$st" == "on-base" ]]; then unp="$(unpublished "$d" "$h")"; else unp=n/a; fi
+      printf 'repo %s: head=%s state=%s base=%s start-point=%s unpublished=%s action=%s\n' \
+        "$dir" "${h:-none}" "$st" "${base:-none}" "$sp" "$unp" "$(decide "$st" "$policy" "$sp" "$unp")"
       own=""
-      if [[ -f "$ROOT/$dir/.sassywares/config.yaml" ]]; then
-        own="$(yflat_in "$ROOT/$dir/.sassywares/config.yaml" "commit${US}branch" 2>/dev/null || true)"
+      if [[ -f "$d/.sassywares/config.yaml" ]]; then
+        own="$(yflat_in "$d/.sassywares/config.yaml" "commit${US}branch" 2>/dev/null || true)"
       fi
       [[ -n "$own" && "$own" != "$policy" ]] && printf 'drift %s: commit.branch=%s\n' "$dir" "$own"
     done < <(nested_repos)
@@ -504,53 +603,38 @@ if (( BRANCH )); then
   fi
 
   head="${HEAD_ARG:-$(git -C "$ROOT" branch --show-current 2>/dev/null || true)}"
+  actual="$(git -C "$ROOT" branch --show-current 2>/dev/null || true)"
+  [[ -n "$HEAD_ARG" && "$HEAD_ARG" != "$actual" ]] && printf 'checked-out: %s\n' "${actual:-none}"
   printf 'head: %s\n' "${head:-none}"
 
-  if [[ -z "$head" ]]; then
-    state=detached
-  elif in_base_heads "$head"; then
-    state=on-base
-  else
-    state=on-branch
-  fi
+  state="$(classify "$ROOT" "$head")"
   printf 'state: %s\n' "$state"
+  start="$(start_point "$ROOT" "$head")"
+  unp=n/a
+  [[ "$state" == "on-base" ]] && unp="$(unpublished "$ROOT" "$head")"
+  printf 'action: %s\n' "$(decide "$state" "$policy" "$start" "$unp")"
+  printf 'start-point: %s\n' "$start"
+  printf 'unpublished: %s\n' "$unp"
 
-  case "$state:$policy" in
-    on-branch:*)     action=reuse ;;
-    on-base:new)     action=create ;;
-    on-base:current) action=commit-here ;;
-    detached:new)    action=create ;;
-    *)               action=refuse ;;
-  esac
-  printf 'action: %s\n' "$action"
-
-  # A new branch starts at the upstream tip, never at local HEAD: commits that
-  # were stranded on the base earlier must not ride along silently.
-  if [[ -n "$head" ]] && git -C "$ROOT" rev-parse --verify --quiet "refs/remotes/origin/$head" >/dev/null 2>&1; then
-    printf 'start-point: origin/%s\n' "$head"
-    printf 'unpublished: %s\n' "$(git -C "$ROOT" rev-list --count "origin/$head..$head" 2>/dev/null || echo 0)"
-  else
-    printf 'start-point: %s\n' "${head:-none}"
-    printf 'unpublished: unknown\n'
-  fi
-
-  if [[ "$action" == "create" ]]; then
-    # The head will be a brand-new name, so only the "*" rung can apply to it.
-    pr_base="$(yflat "git${US}base_map${US}*" 2>/dev/null || true)"
-    pr_src=config
+  # pr-base is provisional for a branch that does not exist yet: the name the
+  # skill picks can match a base_map family (release/*, hotfix/*) and retarget
+  # the PR. Pass --name once the name is known to get the final answer.
+  pr_src=config
+  if [[ -n "$NAME_ARG" ]]; then
+    pr_base="$(base_for_head "$NAME_ARG" 2>/dev/null || true)"
+  elif [[ "$state" == "on-base" || "$state" == "detached" ]]; then
+    pr_base="$(repo_base "$ROOT")"
   else
     pr_base="$(base_for_head "$head" 2>/dev/null || true)"
-    pr_src=config
   fi
   if [[ -z "$pr_base" ]]; then
-    # No config named a base. A probed value is not a decision: the skills must
-    # confirm it with the user before it becomes a PR target.
     pr_base="$(detect_base "$ROOT" 2>/dev/null || true)"
     pr_src=probed
   fi
   [[ -n "$pr_base" ]] || pr_src=unknown
   printf 'pr-base: %s\n' "$pr_base"
   printf 'pr-base-source: %s\n' "$pr_src"
+  printf 'pr-base-final: %s\n' "$( [[ -n "$NAME_ARG" ]] && printf yes || printf no )"
   exit 0
 fi
 

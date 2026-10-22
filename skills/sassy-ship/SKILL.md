@@ -28,7 +28,7 @@ disable-model-invocation: true
 4. **Commit or snapshot.** After the review gate — never before it — the docs and any remaining code become durable.
    - **`git.repo` is a remote.** Dispatch a `worker`: *load the `sassy-commit` skill and follow it with `branch:current`*, naming that the commit must include the plan, any new solutions docs, the concepts file, `AGENTS.md`, and any handbook just written — resolved from `artifacts.*`, never hardcoded. The branch already exists: `sassy-work` or `sassy-lfg` cut it before the first change, so the docs belong on it with the phase commits. It returns the hash and subject.
 
-     **Ship never creates the branch.** If this run's head is a base branch with unpublished commits, that is a mis-run — `sassy-work` was supposed to cut before touching code. Stop and ask, naming the branch and the count; never relocate commits silently, never push to the base.
+     **Ship never creates the branch.** If this run's head is a base branch with unpublished commits, that is a mis-run — `sassy-work` was supposed to cut before touching code. Ask the commit worker to return `state` and `unpublished` from the `sassy-setup` skill's `scripts/detect.sh --branch`, and stop and ask if they show a base with a non-zero count. Never relocate commits silently, never push to the base.
    - **`git.repo: workspace`.** Commit code inside each affected repo on the run's shared branch — cut once at the start of the run, `branch:current` from then on — then run `.sassywares/workspace/snapshot`. The snapshot is the workspace's commit and it runs every time, right after approval. A missing or outdated `.sassywares/workspace/snapshot` is a blocker: report it and say to run `sassy-setup`.
    - **`git.repo: none`.** No commit exists here. Report that the work is not persisted and stop.
 5. **PR.** In a `remote` repo, dispatch a `worker`: *load the `sassy-commit-push-pr` skill and follow it with `branch:current` and `babysit:off`, forwarding `base:<branch>` when the caller supplied one* (step 6 owns the babysit). It returns the PR URL. In a `workspace`, open one PR per affected repo — the same branch name in each, `--base` from that repo's own `base_map` when it carries a `.sassywares/config.yaml`, else its `repos` entry — and return a table. A touched repo missing from `repos`, or a base that cannot be resolved, is a stop-and-ask, never a guess. `none` opens nothing.
@@ -49,7 +49,7 @@ disable-model-invocation: true
 | Conditional docs | Compound and handbook are skipped when they do not qualify. |
 | Docs in the commit | New docs and pointer lines ship in the same change. |
 | One branch | The branch is cut once, before the first change, by `sassy-work` or `sassy-lfg`. Ship and its docs commit land on it. |
-| Never create the branch | Ship never cuts a branch. Finding the run's head on a base branch with unpublished commits is a stop-and-ask. |
+| Never create the branch | Ship never cuts a branch. A head on a base branch with unpublished commits is a stop-and-ask, decided from the commit worker's `state` and `unpublished`. |
 | Never default | Never push directly to the repo base branch. |
 | Snapshot after approval | In a workspace, the snapshot runs every time, immediately after the commit approval — never before it, never skipped. |
 | One PR per run | `pr.babysit` and `pr.merge` are single-PR. A fan-out gets one babysit run per PR and no automatic merge. |

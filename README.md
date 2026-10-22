@@ -205,7 +205,7 @@ flowchart LR
   I -->|changes| H
   I --> Q{Manual QA}
   Q -->|fails| H
-  Q -->|passes, via sassy-work| J[Commit on current branch and stop]
+  Q -->|passes, via sassy-work| J[Commit on the run branch and stop]
   Q -->|passes, via sassy-lfg| K[sassy-ship]
   K --> L{Ship review}
   L -->|approve or mode:auto| M[Commit, PR, babysit]
@@ -215,7 +215,7 @@ Option 1 produces a durable plan with phased slices and manual QA tables. Option
 
 `sassy-work` handles one phase and hands off the next. `sassy-lfg` drains the whole plan in one session. Both delegate to `sassy-cycle` and stop at one gate carrying code approval plus the manual QA checklist; nothing is `Done`, committed, or shipped until both pass. With an in-context brief there are no QA rows, so the gate is code approval alone.
 
-Work always commits to the current branch; `sassy-ship` creates the shipping branch at close-out when the checked-out branch is the repo default.
+The branch is cut once, before the first change, by `sassy-work` or `sassy-lfg` — never at commit time — and `sassy-ship` never creates it. `commit.branch` (default `new`) decides whether the run cuts one at all; see [Branching](#branching).
 
 `sassy-ship` is the close-out. It summarizes what is about to ship and waits, unless the caller passed `mode:auto`.
 

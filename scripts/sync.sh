@@ -18,7 +18,9 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCK_DIR="${TMPDIR:-/tmp}/sassy-skills-sync.lock"
 
 # Paths that reach consumers. A change here needs a version; a change to
-# tooling, CI, or docs outside `package.json#files` does not.
+# tooling, CI, or docs outside `package.json#files` does not. `package.json`
+# counts whole: it holds the version, the skill manifest, and the shipped file
+# list, so any edit to it is treated as shipped rather than guessed at.
 PUBLISHED_PATHS=(skills README.md CONCEPTS.md LICENSE package.json)
 
 die() {
@@ -26,12 +28,25 @@ die() {
   exit 1
 }
 
-# Avoid overlapping runs when several agents sync at the same time.
+# Avoid overlapping runs when several agents sync at the same time. A lock file
+# holds the owner's PID: a run killed with SIGKILL used to leave the directory
+# behind forever, and every later sync then printed "another sync is running" and
+# exited 0 — a silent no-op that looks exactly like a successful release.
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  echo "sassy-skills: another sync is running, skipping" >&2
-  exit 0
+  holder="$(cat "$LOCK_DIR/pid" 2>/dev/null || true)"
+  if [[ -n "$holder" ]] && ! kill -0 "$holder" 2>/dev/null; then
+    rm -rf "$LOCK_DIR"
+  elif [[ -z "$holder" ]] && [[ -n "$(find "$LOCK_DIR" -maxdepth 0 -mmin +10 2>/dev/null)" ]]; then
+    # A lock with no PID that is older than ten minutes predates this script.
+    rm -rf "$LOCK_DIR"
+  fi
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    echo "sassy-skills: another sync is running (pid ${holder:-unknown}), skipping" >&2
+    exit 0
+  fi
 fi
-trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+printf '%s' "$$" > "$LOCK_DIR/pid" 2>/dev/null || true
+trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 cd "$REPO"
 [ -d .git ] || die "$REPO is not a git repository"
@@ -52,7 +67,8 @@ published_drift() {
   return 1
 }
 
-branch="$(git symbolic-ref --short HEAD 2>/dev/null || echo HEAD)"
+branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
+[ -n "$branch" ] || die "detached HEAD; check out a branch before syncing"
 
 release=""
 

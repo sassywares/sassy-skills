@@ -25,14 +25,20 @@ explicit token in the request  >  instruction in this session
 >  .sassywares/config.yaml  >  skill default
 ```
 
-**A token is explicit only when the caller supplied it** — the user typed it, or
-an earlier gate of the same run authorized that side effect. A skill must never
-pass its own default as a token, to another skill or to itself: once a default
-sits in the token slot, nothing downstream can tell it apart from a user's
-choice, so it silently outranks the project's config. A skill defers to config
-by **omitting** the token, never by passing a value it invented. That is how
-`commit.branch` became unreachable while every skill still read as if it
-explained the rule correctly.
+**A token is explicit only when the caller supplied it.** Three sources qualify:
+
+1. the user typed it in the request;
+2. an approval gate earlier in the same run authorized that side effect;
+3. the run's own orchestration decision, already recorded in its gate summary —
+   for example `sassy-ship` passing `babysit:off` because its step 6 owns the
+   babysit, or `sassy-work` forwarding `branch:current` because its step 2 cut
+   the branch and the gate showed it.
+
+What never qualifies is **this skill's own default**. Once a default sits in the
+slot, nothing downstream can tell it apart from the user's choice, so it
+silently outranks the project's config. A skill defers to config by **omitting**
+the token, never by passing a value it invented. That is how `commit.branch`
+became unreachable while every skill still read as if it explained the rule.
 
 Read it once per run. An orchestrator resolves every config-backed value and
 passes the resolved values into subagent briefs; subagents never re-read the
@@ -59,7 +65,7 @@ git:
 repos:                      # workspace only: sibling dir -> PR base
   fe: dev
 commit:
-  branch: current           # current | new
+  branch: new               # current | new
 pr:
   babysit: true
   merge: false

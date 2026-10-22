@@ -38,7 +38,7 @@ A brief has no QA table, so its gate is code approval alone. Never invent, enabl
 ## Steps
 
 1. **Load the plan.** Read the plan and its Phase tracking table. If phases are already `In progress` from an interrupted run, ask once whether to resume at the gate or rerun those cycles, then continue from the answer.
-2. **Resolve the branch, before touching code.** Follow the `sassy-setup` skill's `references/branching.md` with this run's `branch:` token, if any. LFG runs every phase in one session, so the branch is cut once here and every phase commits onto it. Report the branch and its start point in the gate.
+2. **Resolve the branch, before touching code.** Follow the `sassy-setup` skill's `references/branching.md` with this run's `branch:` token, if any. LFG runs every phase in one session, so the branch is cut once here and every phase commits onto it. Report the branch and its start point in the gate. A `stop-and-ask` here stops the run before any phase starts.
 3. **Run every phase, in order.** For each phase not `Done`:
    - Set the phase `In progress`, then load the `sassy-cycle` skill and follow it, with work brief = the phase's goal/work/"Done when", and intent reference = the plan path and phase.
    - On `Status: done` and `Validator: Conforms`, leave the phase `In progress` — its QA rows are still owed, and only the gate closes them.
@@ -62,7 +62,7 @@ Every worker brief this run dispatches must include:
 
 When the argument is not a plan path, the brief is the one phase:
 
-1. Resolve the branch exactly as the plan path does — `references/branching.md`, this run's `branch:` token — before the cycle runs.
+1. Resolve the branch exactly as the plan path does — the `sassy-setup` skill's `references/branching.md`, this run's `branch:` token — before the cycle runs.
 2. Run one `sassy-cycle` with the brief as the work brief and its decisions / done-when as the intent reference. Do not split it into multiple phases.
 3. Present the code approval gate with no QA checklist, and wait.
 4. On code approval, run `sassy-ship`. Do not run `sassy-plan` or write a plan file.
@@ -72,7 +72,7 @@ When the argument is not a plan path, the brief is the one phase:
 | Rule | Requirement |
 |------|-------------|
 | Orchestrator only | Delegate every phase to `sassy-cycle`. Never read source or edit code. |
-| Branch before code | Resolve the branch per `references/branching.md` before any phase runs, so no change lands on a base branch. |
+| Branch before code | Resolve the branch per the `sassy-setup` skill's `references/branching.md` before any phase runs, so no change lands on a base branch. |
 | Phases in plan order | Phases run one after another, in plan order. |
 | Done needs both gates | Mark a phase `Done` only when the user approves the code and every QA row for it is `Done`. |
 | QA rows follow the user | Tick a QA row `Done` only from the user's explicit confirmation; keep unreported rows `Pending`; log a failed row as a finding for one more cycle. |

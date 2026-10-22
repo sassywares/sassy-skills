@@ -46,8 +46,8 @@ Always gate before committing. One worker fixes findings, one re-check, then pre
 
 1. **Load the phase.** Read the plan and only the selected phase's section. If it is already `Done`, stop and report.
 
-   If the phase is `In progress`, an earlier run was interrupted before both gates passed. Ask one question — resume at the gate, or re-run the cycle from scratch — and take the answer. Resuming skips straight to step 5 and does not rebuild the phase.
-2. **Resolve the branch, before touching code.** Follow the `sassy-setup` skill's `references/branching.md` with this run's `branch:` token, if any. On `create`, cut the branch now — not at commit time — so no change ever exists on a base branch. On `reuse`, stay where you are, which is how a handed-off later phase or a resumed run lands on the branch the first phase cut. Carry the branch and its start point into every gate summary you present. Stop and ask when the reference says to.
+   If the phase is `In progress`, an earlier run was interrupted before both gates passed. Ask one question — resume at the gate, or re-run the cycle from scratch — and take the answer. Resuming skips the cycle and goes straight to step 5, but **still resolve the branch at step 2 first**: on `reuse` it is a no-op, and on `create` it is the difference between committing on the base and not.
+2. **Resolve the branch, before touching code.** Follow the `sassy-setup` skill's `references/branching.md` with this run's `branch:` token, if any. On `create`, cut the branch now — not at commit time — so no change ever exists on a base branch. On `reuse`, stay where you are, which is how a handed-off later phase or a resumed run lands on the branch the first phase cut. On `stop-and-ask`, present the choice and wait. Carry the branch and its start point into every gate summary you present.
 3. **Run the cycle.** Set the phase `In progress` in the Phase tracking table, then load the `sassy-cycle` skill and follow it, with:
    - work brief = the phase's goal, work items, and "Done when" criteria
    - intent reference = the plan path and phase
@@ -92,7 +92,7 @@ When the argument is not a plan path, it is one settled brief:
 | Rule | Requirement |
 |------|-------------|
 | Orchestrator only | Delegate all implementation and quality work to `sassy-cycle`. |
-| Branch before code | Resolve the branch per `references/branching.md` before the cycle runs, so no change ever lands on a base branch. |
+| Branch before code | Resolve the branch per the `sassy-setup` skill's `references/branching.md` before the cycle runs, so no change ever lands on a base branch. |
 | One phase per run | Do exactly one phase. Never continue into the next phase in this session. |
 | Gate before commit and handoff | Do not commit, hand off, or close out until the user approves the code and the phase QA rows pass. |
 | Commit per phase | Commit the phase, its QA results, and the plan update via `sassy-commit` before handoff or close-out. |
