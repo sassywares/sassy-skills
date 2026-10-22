@@ -174,9 +174,17 @@ before writing.
 and all four hook points. Use it instead of merging maps by hand.
 
 In a `workspace`, `base_map` does not apply — there are no branches at the
-workspace level. Nested repos carry their own bases in `repos`, and a nested repo
-that needs a ladder gets its own `.sassywares/config.yaml` rather than a nested
-map here.
+workspace level. A nested repo's base resolves in this order:
+
+1. that repo's own `.sassywares/config.yaml` → `base_map` — **authoritative**
+2. `repos[<dir>]` in the workspace config — the inventory, and the fallback for a
+   repo that carries no config
+3. stop and ask
+
+`repos` exists because a workspace can hold repos you do not own and cannot add a
+config to. When a repo has both, the nested config wins and `--check` reports
+the disagreement rather than picking silently. A nested config needs no ladder
+of its own unless its PRs target more than one branch.
 
 **Branch name**, one per run. Derived once from the plan slug or topic before the
 first commit, then passed to every repo. Multi-repo runs pass

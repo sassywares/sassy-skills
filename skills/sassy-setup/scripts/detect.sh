@@ -131,10 +131,13 @@ yaml_flat() {
       path = ""
       for (i = 1; i <= sp; i++) if (sd[i] < d) path = path (path == "" ? "" : us) sk[i]
       print path (path == "" ? "" : us) key "\t" val
-    }' "$CONFIG"
+    }' "${1:-$CONFIG}"
 }
 
-yflat() { yaml_flat | awk -F'\t' -v p="$1" '$1 == p { print $2; exit }'; }
+yflat() { yaml_flat "$CONFIG" | awk -F'\t' -v p="$1" '$1 == p { print $2; exit }'; }
+
+# yflat_in FILE PATH — the same reader against another config file.
+yflat_in() { yaml_flat "$1" | awk -F'\t' -v p="$2" '$1 == p { print $2; exit }'; }
 
 list_items() {
   printf '%s' "$1" | sed -e 's/^\[//' -e 's/\]$//' | tr ',' '\n' \
@@ -155,7 +158,7 @@ map_match() {
     if [[ "$head" == "$stem"* ]] && (( ${#stem} > bestlen )); then
       best="$pat"; bestlen=${#stem}
     fi
-  done < <(yaml_flat | awk -F'\t' -v us="$US" -v sec="$section" \
+  done < <(yaml_flat "$CONFIG" | awk -F'\t' -v us="$US" -v sec="$section" \
              '{n=split($1,a,us); if (n==3 && a[1]=="git" && a[2]==sec) print a[3]}' | sort -u)
   if [[ -n "$best" ]]; then
     v="$(yflat "git${US}${section}${US}${best}")"
@@ -303,7 +306,7 @@ if (( CHECK )); then
           "*") ;;
           *"*") [[ "${pat%\*}" != *"*" ]] || bad "base_map key '$pat': only one trailing * is allowed" ;;
         esac
-      done < <(yaml_flat | awk -F'\t' -v us="$US" '{n=split($1,a,us); if (n==3 && a[1]=="git" && a[2]=="base_map") print a[3]}' | sort -u)
+      done < <(yaml_flat "$CONFIG" | awk -F'\t' -v us="$US" '{n=split($1,a,us); if (n==3 && a[1]=="git" && a[2]=="base_map") print a[3]}' | sort -u)
       head_ref="${HEAD_ARG:-$(git -C "$ROOT" branch --show-current 2>/dev/null || true)}"
       if [[ -n "$head_ref" ]]; then
         # the --head readout below prints this line; avoid printing it twice
@@ -343,8 +346,22 @@ if (( CHECK )); then
       [[ -n "$name" ]] || continue
       base="$(detect_base "$ROOT/$name")"
       listed="$(block_value repos "$name" || true)"
-      if [[ -z "$listed" ]]; then
-        bad "repos has no entry for '$name' (remote default: ${base:-unknown})"
+      # A nested repo's own config is authoritative; `repos` is the inventory and
+      # the fallback for repos that have none.
+      nested="$ROOT/$name/.sassywares/config.yaml"
+      nested_base=""
+      [[ -f "$nested" ]] && nested_base="$(yflat_in "$nested" "git${US}base_map${US}*")"
+
+      if [[ -n "$nested_base" ]]; then
+        if [[ -n "$listed" && "$listed" != "$nested_base" ]]; then
+          bad "repos.$name is '$listed' but $name/.sassywares/config.yaml maps \"*\" to '$nested_base' — the nested config wins; fix or drop the repos entry"
+        elif [[ -z "$listed" ]]; then
+          note "  $name: base '$nested_base' from its own config (no repos entry needed)"
+        else
+          note "  $name: base '$nested_base' (agrees with its own config)"
+        fi
+      elif [[ -z "$listed" ]]; then
+        bad "repos has no entry for '$name' and $name carries no config (remote default: ${base:-unknown})"
       elif [[ -n "$base" && "$listed" != "$base" ]]; then
         note "  repos.$name '$listed' overrides the remote default '$base' — expected for an integration branch"
       fi
