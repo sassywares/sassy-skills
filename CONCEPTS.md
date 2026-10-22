@@ -29,6 +29,12 @@ A gate is a deliberate stop or pass/fail condition.
 - **Ship review gate** — `sassy-ship` summarizes the close-out and waits in `mode:manual` (default); skipped only when the caller passed `mode:auto`.
 - **QA gate** — manual QA checklists, part of phase completion rather than a separate track: a phase turns `Done` only when the code is approved and every QA row passed. The user runs the rows; no agent ticks its own. It exists only when the plan document has QA tables; an in-context brief has none.
 
+## Branch and base
+
+- **Base branch** — any branch the config names as a base: every `base_map` value, the `repos` rung in a workspace, and the remote default. In a repo whose `base_map` routes `"*"` to `staging`, `staging` **is** a base even though `origin/HEAD` is `main`. Comparing against `origin/HEAD` alone is the mistake that let phase work land on a shared integration branch.
+- **Run branch** — the branch a run cuts before its first change when `commit.branch` is `new`. Cut once, at the start: every phase, every doc, and ship's commit land on it. A later phase, a resumed run, or `sassy-lfg` after `sassy-work` reuses it rather than cutting another.
+- **Token authorship** — a token is explicit only when the caller supplied it or the run's own gate recorded it. A skill that passes its own default as a token outranks the project's config, which is the bug class `commit.branch` was lost to.
+
 ## Modes
 
 Two mode tokens: `mode:manual` (default) and `mode:auto`. `mode:manual` asks at the skill's gate; `mode:auto` means pre-authorized, no review.
