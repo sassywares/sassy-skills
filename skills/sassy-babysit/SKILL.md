@@ -21,7 +21,9 @@ Keep an open PR moving toward merge by reacting to three streams as each arrives
 
 An explicit token always beats the config.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `pr.*` seeds `merge` and `delete_branch`; `hooks.pr.before_merge` and `hooks.pr.after_merge` inject project steps around a merge.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `pr.*` seeds `merge` and `delete_branch`; merge hooks come from `hooks.pr` for this run's head.
+
+**Keys are the head branch.** Resolve per head: the exact head, then the longest matching family (`release/*`), then `"*"`. Each point overrides independently. An entry is `<skill> <args…>` — split on the first whitespace and pass the args verbatim.
 
 **One PR per run.** This skill watches the PR resolved from the argument or the current branch. A workspace fan-out is N runs, one per PR, and `pr.merge` never merges a fan-out — that needs an explicit say-so per PR.
 
@@ -35,7 +37,7 @@ An explicit token always beats the config.
 
 Snapshot the PR state first, then act in this order:
 
-1. **Terminal** — `MERGED`/`CLOSED` → if it is `MERGED` and `hooks.pr.after_merge` is declared, run those hooks once (see Step 3) before stopping.
+1. **Terminal** — `MERGED`/`CLOSED` → if it is `MERGED` and `after_merge` resolves for this PR's head, run those hooks once (see Step 3) before stopping.
 2. **Capture the head SHA** — a later push invalidates this snapshot's CI.
 3. **Feedback before CI** — fetch open review threads (`gh pr view --json reviewThreads,comments`). Address each actionable thread: reply, then fix. Use `sassy-debug` for a real defect. Never wait for a reviewer who is "still reviewing" before acting on feedback already posted.
 4. **Stale-SHA cancellation** — if the head moved since step 2, skip the CI work for this snapshot.
@@ -50,7 +52,7 @@ Stop when any holds:
 - **Terminal** — merged or closed.
 - **Looks ready** — `MERGEABLE`, `CLEAN`, all checks terminal, no open review threads, no currency blocker, zero `needs-human` items. With `merge:on`, run the merge (and `delete-branch:on` branch deletion if set) before treating this as a stop; the merge turns it into the **Terminal** stop.
 
-  **Merge hooks.** Immediately before merging, run `hooks.pr.before_merge` in declared order — one `worker` per hook, with the same brief every hook gets: plan path, changed files, artifact paths, base, branch, commit hash, and the PR URL plus head SHA. These run before the merge, so they must leave the tree clean. A missing skill or a `blocked` result means **do not merge**: report it and stop at Blocked. After a successful merge, run `hooks.pr.after_merge` the same way; these follow the merge, so they must leave the tree clean. In a workspace fan-out, everything is per PR.
+  **Merge hooks.** Immediately before merging, resolve `before_merge` for this PR's head and run each entry in declared order — one `worker` per hook, with the same brief every hook gets: plan path, changed files, artifact paths, base, branch, commit hash, and the PR URL plus head SHA. These run before the merge, so they must leave the tree clean. A missing skill or a `blocked` result means **do not merge**: report it and stop at Blocked. After a successful merge, resolve `after_merge` for this PR's head and run each entry the same way; these follow the merge, so they must leave the tree clean. In a workspace fan-out, everything is per PR.
 
   **Which merge hook fires.** `before_merge` needs a merge this run will perform. `after_merge` fires whenever this run observes the PR merged, including one that was already merged when the run started — so it must be idempotent.
 

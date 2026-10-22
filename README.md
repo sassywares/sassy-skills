@@ -133,8 +133,11 @@ knowledge:
   write: true                           # false = this project takes no learnings
 git:
   repo: origin                   # a remote name | workspace (repos below, none here) | none (no git)
-  # remote: org/backup           # workspace only: the snapshot mirror; required when repo: workspace
-  default_branch: main           # what branches are cut from and PRs target
+  base_map:                      # head branch -> the base it targets
+    "*": staging                 # ordinary work branches from and targets staging
+    staging: main                # staging releases to main
+  # remote: owner/backup         # workspace only: the snapshot mirror
+  # mirror_branch: main          # workspace only: the mirror's branch
 repos:                           # workspace only: each nested repo -> the base its PRs target
   fe: dev
 commit:
@@ -143,17 +146,20 @@ pr:
   babysit: true
   merge: false                   # true authorizes merging every babysat PR here
   delete_branch: false
-hooks:                           # project steps injected into the PR pipeline
+hooks:
   pr:
-    before_create: []            # after the commit, before the PR opens
-    after_create: []             # the moment the PR exists
-    before_merge: []             # this run is about to merge
-    after_merge: []              # this run observed the merge
+    "*":                         # keyed by the PR's HEAD branch
+      before_create: [tap2-version mode:auto]   # after the commit, before the PR opens
+      after_create: []           # the moment the PR exists
+      before_merge: []           # this run is about to merge
+      after_merge: []            # this run observed the merge
+    staging:                     # a per-point override for one head
+      before_create: []
 ```
 
 ### Extending the pipeline
 
-A project adds its own steps by naming a skill that lives in its own `.agents/skills/`. Nothing declared means nothing runs.
+A project adds its own steps by naming a skill that lives in its own `.agents/skills/`. Nothing declared means nothing runs. Keys are the **head** branch — the one a PR comes from — and every point can be overridden per head; entries may carry args (`<skill> <args…>`).
 
 | Hook | Runs | Typical use |
 |---|---|---|

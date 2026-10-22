@@ -157,8 +157,9 @@ feature/x  --base_map["*"]-->     staging  --base_map[staging]-->  main
 ```
 
 1. `base_map[<head>]` — the exact rung
-2. `base_map["*"]` — ordinary work
-3. stop and ask; never guess
+2. the longest matching family key (`release/*`) — a nested rung
+3. `base_map["*"]` — ordinary work
+4. stop and ask; never guess
 
 A rung is a release edge: standing on `staging`, a PR targets `main` without
 anyone passing `base:main`. Add a rung for any branch that releases elsewhere; a
@@ -168,6 +169,9 @@ exist — that is the rung everything falls back to.
 The probed remote default is only useful as a hint for `"*"`: it tells you where
 the repository considers work to land, not what every branch targets. Confirm it
 before writing.
+
+`--head <branch>` prints the resolution for one head: the base (repo topology)
+and all four hook points. Use it instead of merging maps by hand.
 
 In a `workspace`, `base_map` does not apply — there are no branches at the
 workspace level. Nested repos carry their own bases in `repos`, and a nested repo
@@ -230,9 +234,9 @@ Per point, independently:
 3. `"*"`
 
 The first rule that declares a value for that point wins and the rest are not
-merged. So a `staging` entry that sets only `before_create` still inherits
-`after_merge` from `"*"`. Declaring the same point in two families that both
-match one head is a configuration error, not a precedence puzzle.
+merged, so a `staging` entry that sets only `before_create` still inherits
+`after_merge` from `"*"`. When two families match one head, the longer prefix
+wins — `release/v2/*` beats `release/*`.
 
 ### Entries carry arguments
 

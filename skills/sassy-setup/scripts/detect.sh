@@ -6,6 +6,7 @@
 #
 # Usage:
 #   detect.sh [--root DIR]            print a proposed config to stdout
+#   detect.sh [--head BRANCH]         resolve the base and hooks for one head
 #   detect.sh [--root DIR] --check    compare the existing config to reality
 set -euo pipefail
 
@@ -290,6 +291,9 @@ if (( CHECK )); then
   fi
 
   if [[ "$TOPOLOGY" == "repo" ]]; then
+    if [[ -n "$(yflat "git${US}remote")" ]]; then
+      bad "git.remote is workspace-only — a repo config names its remote in git.repo"
+    fi
     if [[ -z "$(yflat "git${US}base_map${US}*")" ]]; then
       bad "git.base_map has no \"*\" entry — it is the base for ordinary work"
     else
@@ -454,7 +458,8 @@ EOF
     else
       printf '    "*": %s   # base for ordinary work; never guessed\n' "<confirm by hand>"
     fi
-    printf '    # staging: main   # uncomment when a branch releases somewhere else\n'
+    printf '    # staging: main    # uncomment when a branch releases somewhere else\n'
+    printf '    # release/*: main  # a family of heads, longest prefix wins\n'
     cat <<'EOF'
 
 # workspace only: each nested repo folder -> the base its PRs target

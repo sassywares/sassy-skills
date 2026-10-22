@@ -22,7 +22,7 @@ disable-model-invocation: true
 
 ## Steps (in order)
 
-1. **Review gate.** In `mode:manual` only: present a compact shipping summary — the plan or topic, the changes from the cycle results, the docs the close-out expects to write, the branch/PR target, the babysit options, and **the hooks this run will trigger, by point and name, or that none are declared** — and wait. In `mode:auto`, skip this gate.
+1. **Review gate.** In `mode:manual` only: present a compact shipping summary — the plan or topic, the changes from the cycle results, the docs the close-out expects to write, the branch/PR target, the babysit options, and **the hooks resolved for this run's head — point, skill, and args — or that none are declared** — and wait. In `mode:auto`, skip this gate.
 2. **Compound (conditional).** If the work produced a qualifying learning, dispatch a `worker` whose task is: *load the `sassy-compound` skill and follow it with `mode:auto`* — with a compact learnings brief (the solved problems, root causes, and solutions taken from the cycle results, not from re-reading the tree). It always gets `mode:auto` because ship's own gate already covered the approval. Skip cleanly when nothing qualifies, and skip entirely when `knowledge.write` is `false`.
 3. **Handbook (conditional).** If the feature is self-contained and independent enough that a teammate would benefit from a handover, dispatch a `worker` whose task is: *load the `sassy-handbook` skill and follow it* — with the plan path and topic. The worker reads the tree itself. Skip for small or tightly-coupled changes.
 4. **Commit or snapshot.** After the review gate — never before it — the docs and any remaining code become durable.
