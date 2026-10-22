@@ -313,11 +313,13 @@ pi install npm:@sassywares/skills
 
 ## Repository maintenance
 
-`scripts/sync.sh` commits skill changes, rebases on `origin/main`, and pushes. Any agent that changes a skill must run it immediately, without asking for confirmation. It installs nothing anywhere — consumers get a change when they run `npx skills update` after a push. `AGENTS.md` documents the workflow for agents working on this repo.
+`scripts/sync.sh` bumps the patch version, commits, pushes `main`, then tags and pushes the tag — so a change to a skill is released in one step. Any agent that changes a skill must run it immediately, without asking for confirmation. It installs nothing anywhere; consumers get a change when they run `npx skills update` after a push. `AGENTS.md` documents the workflow for agents working on this repo.
 
 ### Releases
 
 Publishing is tag-driven. The `Publish` workflow (`.github/workflows/publish.yml`) validates every `skills/*/SKILL.md`, checks that the tag matches `package.json`, and publishes `@sassywares/skills` to npm on a `v*` tag push.
+
+`scripts/sync.sh` does this for you on `main`. The manual sequence is the fallback for recovering a failed run:
 
 ```bash
 npm version patch --no-git-tag-version

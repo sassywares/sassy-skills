@@ -56,4 +56,4 @@ A settled in-context brief produced by `sassy-plan` when the user picks "start w
 
 ## Sync
 
-There is no background watcher. Any agent that changes a skill must run `scripts/sync.sh` immediately, without asking for confirmation. The sync script commits the change, rebases on `origin/main`, and pushes. It installs nothing: a changed skill reaches consumers only when a new version is released and a consumer bumps its pin.
+There is no background watcher. Any agent that changes a skill must run `scripts/sync.sh` immediately, without asking for confirmation. The sync script bumps the patch version, commits, pushes `main`, then tags and pushes the tag, which publishes to npm. It installs nothing: `npx skills add` reads this repo directly, and the npm package follows the tag the script creates.

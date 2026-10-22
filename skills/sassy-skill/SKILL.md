@@ -37,7 +37,7 @@ Ask which one, unless the request already made it obvious. The answer changes th
 
 | Location | Path | Who gets it | Extra work |
 |---|---|---|---|
-| **Internal** — part of this suite | `skills/<name>/` in the sassy-skills repo | Everyone, once pushed to `main` | Name it `sassy-<name>`, run `scripts/sync.sh`; the npm package follows the next tag |
+| **Internal** — part of this suite | `skills/<name>/` in the sassy-skills repo | Everyone, once pushed to `main` | Name it `sassy-<name>`, run `scripts/sync.sh` — it bumps the patch version, tags, and publishes |
 | **Project** — team workflow | `<repo>/.agents/skills/<name>/` | Everyone who clones that repo | Commit it; prefix the project (`tap2-…`) so it can't collide with a suite skill or a harness built-in |
 | **User** — personal workflow | `~/.agents/skills/<name>/` | Only this person, every repo on this machine | None — but nothing gates it either; never put something a teammate needs here |
 

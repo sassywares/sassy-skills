@@ -20,7 +20,7 @@ sassy-skills/
 ├── .pi/
 │   └── settings.json          # dev only: loads ./skills while working here
 ├── scripts/
-│   └── sync.sh
+│   └── sync.sh                  # bump, commit, push, tag, publish
 ├── .github/
 │   └── workflows/
 │       └── publish.yml        # publishes on v* tags
@@ -53,12 +53,14 @@ Keep `.github/workflows/publish.yml` in sync with the one in `sassy-pi-extension
 
 There is no background watcher. Any agent that adds, edits, or removes a skill **must run `scripts/sync.sh` immediately as part of the change, without asking the user for confirmation**.
 
-The sync script:
+The sync script, in one unattended step:
 
-1. Commits any repo changes with a `chore: sync skills <timestamp>` message.
-2. Rebases on `origin/main` and pushes.
+1. Bumps the patch version when anything consumers receive changed since the last tag — `skills/`, `README.md`, `CONCEPTS.md`, `LICENSE`, or `package.json`. A change to tooling, CI, or `AGENTS.md` commits without a version, because nothing a consumer installs changed.
+2. Commits every repo change with a `chore: sync skills <timestamp> (v<version>)` message.
+3. Pushes the branch, then tags and pushes `v<version>`.
+4. If the current version is already bumped but untagged — an interrupted run, or a hand-written bump — it tags that version instead of bumping again.
 
-It does not install anything anywhere. Consumers pick changes up when they bump the package version.
+Releases only happen on `main`. On any other branch the script commits and pushes without tagging, because a tag pushed from a feature branch would publish unmerged content to npm. It does not install anything anywhere.
 
 Sync command:
 
@@ -66,11 +68,13 @@ Sync command:
 ~/Documents/Workspace/Sassywares/sassy-skills/scripts/sync.sh
 ```
 
-If a push fails, the local commit remains and the next sync retries. Report the failure instead of leaving the change uncommitted.
+If a push fails, the local commit remains, the script exits non-zero, and the next sync retries. Because the bump is already in `package.json`, the retry tags that version rather than bumping twice. Report the failure instead of leaving the change uncommitted.
 
 ## Releasing
 
 Publishing is tag-driven. `publish.yml` validates every `skills/*/SKILL.md`, checks that the tag matches `package.json`, and publishes to npm. Never publish by hand.
+
+`scripts/sync.sh` does the whole release on `main`; run it and stop there. The manual sequence below is the fallback for recovering a run that failed between the commit and the tag — or for publishing without any file change:
 
 ```bash
 npm version patch --no-git-tag-version
@@ -83,8 +87,9 @@ git push origin --tags
 
 Rules:
 
-- Bump the patch version for any user-visible skill change. Bump minor for a new skill or a new required config key.
+- Bump the patch version for any user-visible skill change. Bump minor for a new skill or a new required config key. `scripts/sync.sh` applies the patch bump for you; a minor bump is still hand-written.
 - Tag only after the version bump is on `main`; the workflow fails when the tag and `package.json` disagree.
+- Never bump a version that is already bumped but untagged — tag it instead. A second bump makes the first release impossible to identify.
 - The first publish of a new package may need a manual `npm publish` bootstrap before the workflow can use trusted publishing.
 
 ## Conventions
