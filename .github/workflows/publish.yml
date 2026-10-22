@@ -77,18 +77,24 @@ jobs:
         if: steps.published.outputs.already-published != 'true'
         run: npm publish
 
+      # The registry accepts a publish before its packument reflects it, and the
+      # per-version document lags the packument by several minutes. A 2-minute
+      # window went red on 2026-10-22 against a publish that had in fact
+      # succeeded, so poll the packument for up to 10 minutes.
       - name: Verify the published version resolves
         if: steps.published.outputs.already-published != 'true'
         run: |
           version="$(node -p "require('./package.json').version")"
           package="$(node -p "require('./package.json').name")"
-          for attempt in 1 2 3 4 5 6 7 8; do
-            if npm view "${package}@${version}" version >/dev/null 2>&1; then
-              echo "verified ${package}@${version}"
+          url="https://registry.npmjs.org/${package/\//%2F}"
+          for attempt in $(seq 1 20); do
+            if curl -fsS "$url" 2>/dev/null \
+              | VERSION="$version" node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);process.exit(j.versions&&j.versions[process.env.VERSION]?0:1)}catch{process.exit(1)}})'; then
+              echo "verified ${package}@${version} in the registry packument"
               exit 0
             fi
-            echo "attempt ${attempt}: not resolvable yet, waiting"
-            sleep 15
+            echo "attempt ${attempt}: ${version} not in the packument yet, waiting"
+            sleep 30
           done
-          echo "::error::${package}@${version} published but never resolved from the registry"
+          echo "::error::${package}@${version} published but never appeared in the registry packument"
           exit 1
