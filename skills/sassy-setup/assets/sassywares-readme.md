@@ -23,11 +23,13 @@ If a skill tells you another skill is missing, run `npx skills add sassywares/sa
 
 ## Config
 
-`config.yaml` holds the project's paths, git topology, and PR defaults. Every key is documented inline, including its allowed values, and the full schema is in the `sassy-setup` skill's `references/config.md`. Verify the file still matches the tree:
+`config.yaml` holds the project's paths, git topology, and PR defaults. Every key is documented inline, including its allowed values, and the full schema is in the `sassy-setup` skill's `references/config.md`. Verify the setup still matches the tree — the config, the hooks it names, and the vendored pin:
 
 ```bash
 .agents/skills/sassy-setup/scripts/detect.sh --root . --check
 ```
+
+Or ask for `mode:check` on the setup skill, which runs the same check and reports it. Neither moves the pin: `npx skills check` is an alias of `update`.
 
 ## Hooks
 

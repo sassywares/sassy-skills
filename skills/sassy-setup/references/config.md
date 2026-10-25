@@ -354,9 +354,21 @@ per-PR say-so, because one switch would merge N PRs nobody re-read.
   `concepts`), must resolve inside the project, and must not be the root itself.
 - `git.repo` is `workspace`, `none`, or one existing remote name.
 - `git.remote` is required when `git.repo: workspace`; forbidden otherwise.
-- `repos` is allowed only when `git.repo: workspace`.
+  `git.mirror_branch` and `repos` are workspace-only too.
 - `hooks` is allowed only with the four keys under `hooks.pr`, each a list of
   skill names that resolve to `.agents/skills/<name>/SKILL.md`.
 - `commit.branch` is `current` or `new`; `pr.*` are `true` or `false`. Write
   booleans as `true`/`false`, never `on`/`off` — bare `on`/`off` are YAML 1.1
   booleans and parse inconsistently.
+- `knowledge.read` is an inline list (`read: [a, b]`). A block list is not read
+  by the config reader, so it would silently scout nothing.
+- An unknown key is an error, not a fallback: a typo parses, is ignored, and the
+  run uses a default this project never chose.
+
+`scripts/detect.sh --check` enforces all of the above and reports each breach as
+a `drift:` line, exiting non-zero. It also verifies the vendored pin offline:
+every `.agents/skills/sassy-*` folder is hashed with the `skills` CLI's own
+definition and compared to `computedHash` in `skills-lock.json`, the lock is
+checked against the installed set in both directions, and git-tracked state of
+the lock is reported. A stale, hand-edited, or half-installed suite is drift
+even when the config itself matches the tree.

@@ -8,7 +8,8 @@
 #   detect.sh [--root DIR]            print a proposed config to stdout
 #   detect.sh [--head BRANCH]         resolve the base and hooks for one head
 #   detect.sh --branch [--policy P]   resolve the branch decision for this run
-#   detect.sh [--root DIR] --check    compare the existing config to reality
+#   detect.sh [--root DIR] --check    compare the existing config, and the
+#                                    vendored pin, to reality
 #
 # --policy takes infer|current|new: the skill-level token. infer (the default)
 # defers to commit.branch in the config, and new is the fallback when the config
@@ -242,6 +243,16 @@ nested_repos() {
 
 path_exists() { [[ -e "$ROOT/$1" ]]; }
 
+# A configured path that leaves the project is a document written somewhere the
+# project does not own, so it fails closed rather than being created.
+escapes_root() {
+  local p="${1#./}"
+  case "$p" in
+    ..|../*|*/..|*/../*|*"/../"*) return 0 ;;
+  esac
+  return 1
+}
+
 pick_artifact() {
   local candidate="$1" fallback="$2"
   if path_exists "$candidate"; then printf '%s' "$candidate"; else printf '%s' "$fallback"; fi
@@ -303,6 +314,27 @@ if (( CHECK )); then
     esac
   fi
 
+  # A typo'd key is the quietest failure in the file: it parses, it is ignored,
+  # and the run silently falls back to a default the project never chose. The
+  # whitelist is the schema in references/config.md; every key there has a
+  # validator of its own below, so anything landing here is unknown.
+  while IFS=$'\t' read -r kpath _; do
+    [[ -n "$kpath" ]] || continue
+    key="${kpath//$US/.}"
+    case "$key" in
+      artifacts.plans|artifacts.solutions|artifacts.handbooks|artifacts.concepts) ;;
+      knowledge.read|knowledge.write) ;;
+      git.repo|git.remote|git.mirror_branch) ;;
+      git.default_branch) ;;                    # has its own message below
+      git.base_map.*) ;;
+      repos.*) ;;
+      commit.branch) ;;
+      pr.babysit|pr.merge|pr.delete_branch) ;;
+      hooks.pr.*) ;;                            # shape checked with the hooks
+      *) bad "unknown key '$key' — it is ignored, so the run uses the default" ;;
+    esac
+  done < <(yaml_flat "$CONFIG")
+
   if [[ -n "$(yflat "git${US}default_branch")" ]]; then
     if [[ "$TOPOLOGY" == "workspace" ]]; then
       bad "git.default_branch is gone — the mirror's branch is git.mirror_branch"
@@ -314,6 +346,9 @@ if (( CHECK )); then
   if [[ "$TOPOLOGY" == "repo" ]]; then
     if [[ -n "$(yflat "git${US}remote")" ]]; then
       bad "git.remote is workspace-only — a repo config names its remote in git.repo"
+    fi
+    if [[ -n "$(yflat "git${US}mirror_branch")" ]]; then
+      bad "git.mirror_branch is workspace-only — a repo routes branches in git.base_map"
     fi
     if [[ -z "$(yflat "git${US}base_map${US}*")" ]]; then
       bad "git.base_map has no \"*\" entry — it is the base for ordinary work"
@@ -342,6 +377,17 @@ if (( CHECK )); then
         note "  detached HEAD — pass --head <branch> to see the resolved base"
       fi
     fi
+  fi
+
+  # `repos` is the workspace inventory. In a repo config it is a dead map, and
+  # a reader would trust it over the base_map that actually applies.
+  if [[ "$configured_repo" != "workspace" ]]; then
+    while IFS= read -r rname; do
+      [[ -n "$rname" ]] || continue
+      bad "repos.$rname is workspace-only — git.repo is '${configured_repo:-unset}'"
+    done < <(yaml_flat "$CONFIG" \
+               | awk -F'\t' -v us="$US" '{n=split($1,a,us); if (n>=2 && a[1]=="repos") print a[2]}' \
+               | sort -u)
   fi
 
   if [[ "$TOPOLOGY" == "workspace" ]]; then
@@ -411,6 +457,22 @@ if (( CHECK )); then
     done
   done < <(hook_patterns)
 
+  # `hooks.pr.<head>.<point>` is the only shape, and the four points are the
+  # only moments a skill asks for. A fifth point name is a step that never fires.
+  while IFS=$'\t' read -r depth hpath; do
+    [[ -n "$depth" ]] || continue
+    if [[ "$depth" != "4" ]]; then
+      bad "hooks entry '${hpath//$US/.}' is not head -> point -> list"
+      continue
+    fi
+    point="${hpath##*$US}"
+    case "$point" in
+      before_create|after_create|before_merge|after_merge) ;;
+      *) bad "hooks point '$point' is not one of before_create|after_create|before_merge|after_merge" ;;
+    esac
+  done < <(yaml_flat "$CONFIG" \
+             | awk -F'\t' -v us="$US" '{n=split($1,a,us); if (n>=2 && a[1]=="hooks") print n "\t" $1}')
+
   # Resolve for one head, so nobody has to merge maps in their head.
   if [[ -n "$HEAD_ARG" ]]; then
     if [[ "$TOPOLOGY" == "repo" ]]; then
@@ -422,9 +484,65 @@ if (( CHECK )); then
     done
   fi
 
+  # artifacts is the one block that fails closed everywhere it is read, so a
+  # bad value here is drift, not a note: a typo must not write docs outside the
+  # project. Existence is not drift — the directory is created on first write.
   for key in plans solutions handbooks concepts; do
     val="$(block_value artifacts "$key" || true)"
-    [[ -n "$val" ]] && note "  artifacts.$key: $val"
+    [[ -n "$val" ]] || continue
+    case "$val" in
+      /*|~*) bad "artifacts.$key '$val' is not relative to the config" ;;
+      .|./) bad "artifacts.$key is the project root itself" ;;
+      *)
+        if escapes_root "$val"; then
+          bad "artifacts.$key '$val' walks outside the project"
+        elif [[ "$key" == "concepts" && "$val" == */ ]]; then
+          bad "artifacts.concepts '$val' is a directory — concepts is one file"
+        elif path_exists "$val"; then
+          note "  artifacts.$key: $val (exists)"
+        else
+          note "  artifacts.$key: $val (created on first write)"
+        fi
+        ;;
+    esac
+  done
+
+  # knowledge.read fails soft at read time by design, which is exactly why a
+  # broken value has to be visible here: nothing else will ever complain.
+  while IFS= read -r kline; do
+    [[ -n "$kline" ]] || continue
+    bad "knowledge.read must be an inline list — write read: [docs/solutions, CONCEPTS.md]"
+  done < <(sed -n '/^knowledge:/,/^[a-z]/p' "$CONFIG" | grep -E '^[[:space:]]*-[[:space:]]' || true)
+  readv="$(yflat "knowledge${US}read" || true)"
+  while IFS= read -r kpath; do
+    [[ -n "$kpath" ]] || continue
+    case "$kpath" in
+      /*|~*) bad "knowledge.read '$kpath' is not a path relative to the config" ;;
+      *) if escapes_root "$kpath"; then
+           bad "knowledge.read '$kpath' walks outside the project"
+         elif ! path_exists "$kpath"; then
+           note "  knowledge.read '$kpath' does not exist — skipped, not fatal"
+         fi ;;
+    esac
+  done < <(list_items "$readv")
+  val="$(yflat "knowledge${US}write" || true)"
+  if [[ -n "$val" ]]; then
+    case "$val" in
+      true|false) note "  knowledge.write: $val" ;;
+      *) bad "knowledge.write '$val' must be true|false" ;;
+    esac
+  fi
+
+  # pr.* answers a policy question, so a value that is neither boolean is a
+  # policy nobody decided. Bare on/off are YAML 1.1 booleans and parse
+  # inconsistently across readers.
+  for key in babysit merge delete_branch; do
+    val="$(block_value pr "$key" || true)"
+    [[ -n "$val" ]] || continue
+    case "$val" in
+      true|false) note "  pr.$key: $val" ;;
+      *) bad "pr.$key '$val' must be true|false, never on/off" ;;
+    esac
   done
 
   # commit.branch steers whether a run may touch a base branch, so an invalid
@@ -435,6 +553,33 @@ if (( CHECK )); then
       current|new) note "  commit.branch: $val" ;;
       *) bad "commit.branch '$val' is not current|new" ;;
     esac
+  fi
+
+  # The pin. A config can match the tree perfectly while the vendored suite is
+  # stale, edited, or half-installed, and every skill downstream then runs
+  # something other than what the lock says. Offline, no network.
+  if command -v node >/dev/null 2>&1; then
+    while IFS=$'\t' read -r kind msg; do
+      case "$kind" in
+        drift) bad "$msg" ;;
+        note)  note "  $msg" ;;
+      esac
+    done < <(node "$SKILL_DIR/scripts/lockcheck.mjs" --root "$ROOT" 2>/dev/null || true)
+  else
+    note "  node not found — the vendored pin is unverified (the skills CLI needs node)"
+  fi
+
+  if [[ "$TOPOLOGY" == "repo" ]]; then
+    # Tracked, not merely present: a clone has to get the pin without a network
+    # call, so an untracked lock is a setup that does not travel.
+    if [[ -n "$(git -C "$ROOT" ls-files -- skills-lock.json 2>/dev/null)" ]]; then
+      note "  skills-lock.json is tracked"
+    else
+      note "  skills-lock.json is not tracked yet — the setup commit carries it"
+    fi
+    if [[ -e "$ROOT/.claude/skills" ]] && ! git -C "$ROOT" check-ignore -q -- .claude/skills 2>/dev/null; then
+      note "  .claude/skills is not gitignored — install-time links may get committed"
+    fi
   fi
 
   if (( drift )); then exit 1; fi

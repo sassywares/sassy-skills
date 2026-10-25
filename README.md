@@ -115,7 +115,7 @@ Debugging:
 | Skill | What it does |
 |---|---|
 | **`sassy-skill`** | Creates, retunes, or restructures Agent Skills. |
-| **`sassy-setup`** | Detects the project topology and writes `.sassywares/config.yaml`; installs the snapshot tooling for a multi-repo workspace. |
+| **`sassy-setup`** | Detects the project topology and writes `.sassywares/config.yaml`; installs the snapshot tooling for a multi-repo workspace; commits the files it wrote. `mode:check` verifies an existing setup, including the vendored pin. |
 | **`sassy-compare`** | Runs one prompt against two models in isolated worktrees, with optional per-side thinking levels, and compares output, code changes, timing, tokens, and errors. |
 
 ## Project config
@@ -305,7 +305,9 @@ npx skills experimental_install   # restore exactly what the lock pins
 npx skills remove                 # take the suite out again
 ```
 
-`sassy-setup` does all of this for you, including the ignore line and the two package scripts.
+`npx skills check` is an alias for `update`: it moves the pin, it does not validate it. To check a project's setup without touching the pin, run `sassy-setup` with `mode:check`.
+
+`sassy-setup` does all of this for you — installing the suite, adding the ignore line, verifying the pin, and committing what it wrote.
 
 ### While editing the suite
 
