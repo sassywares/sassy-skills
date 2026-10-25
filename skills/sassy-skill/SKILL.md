@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 # Sassy Skill
 
-**Outcome:** a well-formed Agent Skill at a location the user chose, or an existing skill improved and re-verified. The harness loads it with no diagnostics.
+**Outcome:** a well-formed Agent Skill at a location the user chose, an existing skill improved and re-verified, or a report on one — and the harness loads it with no diagnostics.
 
 **Modes.** `mode:create` writes a new skill. `mode:retune` changes the smallest thing that fixes a named failure in an existing skill. `mode:verify` checks an existing skill against the checklist and reports — it edits nothing. Omitted, detect it from the argument: something that already resolves to a skill directory is `retune`, or `verify` when the user only asked whether it is any good; anything else is `create`. State the mode you picked and why; when both are plausible, ask instead of guessing.
 
@@ -20,11 +20,23 @@ disable-model-invocation: true
 
 **Scope:** skills only — not extensions, packages, or prompt templates.
 
+## One mode, one reference
+
+Each mode's mechanics live in its own file. Read the one you were dispatched to — **and only that one**. A `create` never reads `retune`'s failure map, and a `verify` never picks up a fix from it: that adjacency is exactly how a read-only check turns into an edit.
+
+| Mode | Load | It ends with |
+|---|---|---|
+| `create` | `references/create.md` | a new skill on disk, installed and verified |
+| `retune` | `references/retune.md` | the smallest edit that kills one named failure, re-verified |
+| `verify` | `references/verify.md` | a report, and no file touched |
+
+Everything below is shared by all three: the location table, pi's rules, the shape rule, the checklist, and the verification run. Read it once, then your one reference.
+
 ## pi's rules (the essentials)
 
 - A skill is a **directory containing `SKILL.md`**. Discovered recursively.
 - **Name:** lowercase letters, numbers, hyphens; no leading/trailing/consecutive hyphens; ≤64 chars. Match the directory name.
-- **Description:** required, ≤1024 chars. Pi advertises name + description at startup; the body loads only when the skill is used. The description decides whether the skill ever fires — write **what it does and when to use it**.
+- **Description:** required, ≤1024 chars. Pi advertises name + description at startup; the body loads only when the skill is used, so the description alone decides whether the skill ever fires. Write **what it does and when to use it**, with concrete verbs and the words a user would actually say — "can't trigger" is almost always a description that named the topic and never the moment.
 - **Frontmatter fields:** `name`, `description` (required); optional `license`, `compatibility`, `metadata`, `allowed-tools`, `disable-model-invocation`.
 - Use `disable-model-invocation: true` for skills that should run only via explicit `/skill:name`.
 - **Reference other skills by name, never by absolute path.** The suite can live in `~/.agents/skills/`, a project `.agents/skills/`, or inside `node_modules/`, so "load the sassy-commit skill" is portable where a `~/…` path is not. Name a bundled file as "the sassy-setup skill's `references/config.md`".
@@ -50,22 +62,15 @@ Paths in the table are the defaults. Harnesses also read `skills` arrays in sett
 ## Shape rule — split on outcomes, not on topics
 
 - **One `SKILL.md` is the default, but it is a decision, not a reflex.** Length never decides the shape; the paths do.
-- **Split whenever the skill branches into paths that end differently.** A mode, trigger, or branch that writes a different thing, forbids a different thing, or is never needed in the same run as its sibling gets its own `references/<path>.md` — **even at three paragraphs**. How small each path is does not matter: what matters is that a model running path A never reads path B's instructions next to A's. Divergent outcomes sharing one file bleed into each other, and the bleed looks like helpfulness until it has already written the wrong thing. Think ahead when you write it, not after the first misfire.
+- **Split whenever the skill branches into paths that end differently.** A mode, trigger, or branch that writes a different thing, forbids a different thing, or is never needed in the same run as its sibling gets its own `references/<path>.md` — **even at three paragraphs**. How small each path is does not matter: what matters is that a model running path A never reads path B's instructions next to A's. Divergent outcomes sharing one file bleed into each other, and the bleed looks like helpfulness until it has already written the wrong thing. Think ahead when you write it, not after the first misfire. This skill is shaped by its own rule.
 - **Never split a shared surface.** What every path needs — ids, board or table values, hard rules, API quirks, house style — stays in `SKILL.md`, or each path pays to load it and they drift apart. One reference per **outcome**, never one per **section**: `references/` holding five short topic files is the oversplit, and it makes routing vaguer, not sharper.
 - **`SKILL.md` becomes routing.** State the dispatch explicitly — a table naming exactly one reference per path, plus "read that one only". That sentence is what prevents the bleed; a pointer buried in a paragraph does not.
 - A reference that is read on *every* run saves nothing and may cost a little, so it belongs in the body.
 - Keep `SKILL.md` an index: outcome → hard rules → workflow → explicit pointers ("read `references/x.md` before doing Y"). Never bury path-specific detail in a monolithic file.
 
-## Workflow
-
-1. **Intake.** Settle the mode (above), then what the skill does, when it should trigger, and **where it lives** — internal, project, or user (see above). Ask; do not infer from the cwd. In `mode:retune`, read the existing skill and name the specific failure (won't trigger, too long, wrong steps, stale, wrong scope). In `mode:verify`, read it, run the checklist and Verify, report, and stop without writing.
-2. **Choose the shape — enumerate the outcome paths first.** List the ways a run can end (file / comment / move a state; plan / implement / ship; create / retune / verify). Every path that ends differently gets its own reference; what all paths share stays in the body. Then write the dispatch table that names exactly one reference per path. Splitting by outcome is cheap; a misfire because two outcomes shared a page is not.
-3. **Write the frontmatter.** A description that states both what and when.
-4. **Write the body.** Outcome, a hard-rules table, the workflow, and reference pointers. Plain English. Structured output where the skill returns a result. Match this setup's house style.
-5. **Self-check** against the checklist below.
-6. **Install and verify.** Place it at the right path, run `/reload`, confirm no startup diagnostics, and test `/skill:<name>`.
-
 ## Self-check checklist
+
+The gate for a new or edited skill, and the instrument in `mode:verify`.
 
 - [ ] `name`: lowercase/hyphens, ≤64, matches the directory.
 - [ ] `description`: states what **and** when, ≤1024, not vague.
@@ -76,22 +81,22 @@ Paths in the table are the defaults. Harnesses also read `skills` arrays in sett
 - [ ] The body is lean; no always-read detail needlessly hidden in a reference.
 - [ ] No secrets, and no capability the skill cannot actually use.
 
-## Retune
-
-In `mode:retune`, change the **smallest** thing that fixes the named failure:
-
-- **Won't trigger** → rewrite the description (what + when, concrete verbs).
-- **Too long / bloated** → extract conditional content to `references/`, or delete what never gets used.
-- **One path's rules bleed into another's** (a mode doing the neighbouring mode's job) → that is a shape bug, not a wording bug: split the divergent outcomes into `references/`, one file per path, and give the body a dispatch table that names exactly one file per mode.
-- **Wrong or stale steps** → correct the workflow against the current tree.
-- **Wrong scope** → move it between internal, project, and user. Moving into the suite is a release; moving out of it means the next release drops the skill for everyone.
-
-Re-verify after any retune.
-
-## Verify
-
-Run this at the end of `create` and `retune`, and as the whole job in `mode:verify`.
+## Verification — how every mode ends
 
 - `/reload`.
 - Check pi's startup output for warnings about the skill.
 - Run `/skill:<name>` and confirm it loads and behaves.
+
+`create` and `retune` are not finished until this passes; `verify` exists to run it and report.
+
+## Hard rules
+
+| Rule | Requirement |
+|------|-------------|
+| Ask before writing | The location — internal, project, or user — is the user's call, never the cwd's. State the mode you inferred. |
+| Verify writes nothing | `mode:verify` ends with a report. If you spot a fix while verifying, name it and let the user ask for the retune. |
+| Retune is minimal | One named failure, the smallest change that kills it. No drive-by rewrites, no tidy-ups nobody asked for. |
+| Split by outcome | Divergent paths get their own reference even when tiny; shared surfaces stay in the body. |
+| Name skills, not paths | Reference another skill by name so the suite stays portable across install locations. |
+| Internal is a release | Putting a skill in the suite ships it to every consumer on `main`. Never choose it silently. |
+| Nothing untestable | No secrets, and no capability the skill cannot actually perform. |
