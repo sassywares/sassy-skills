@@ -53,6 +53,7 @@ START="$(cd "$START" && pwd -P)"
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ASSET_SNAPSHOT="$SKILL_DIR/assets/snapshot"
+ASSET_WORKSPACE="$SKILL_DIR/assets/workspace"
 
 # The nearest config wins, walking up. Report where it is if one exists.
 CONFIG=""
@@ -405,6 +406,29 @@ if (( CHECK )); then
       fi
     else
       bad "missing .sassywares/workspace/snapshot"
+    fi
+
+    # The git helpers are optional as a set, but a half-installed or stale set is
+    # drift: they read `repos:` from this config, so a version skew means the
+    # project is running a reader written for a different map.
+    installed_lib="$ROOT/.sassywares/workspace/_lib.sh"
+    if [[ -f "$installed_lib" ]]; then
+      lib_v="$(sed -n 's/^# workspace-git-version: //p' "$installed_lib" | head -n 1)"
+      asset_lib_v="$(sed -n 's/^# workspace-git-version: //p' "$ASSET_WORKSPACE/_lib.sh" | head -n 1)"
+      if [[ -z "$lib_v" ]]; then
+        bad "installed .sassywares/workspace/_lib.sh has no workspace-git-version line"
+      elif [[ -n "$asset_lib_v" && "$lib_v" != "$asset_lib_v" ]]; then
+        bad "installed workspace git helpers are v${lib_v}, this skill ships v${asset_lib_v} — re-run setup"
+      else
+        note "  workspace-git v${lib_v}"
+      fi
+      for helper in branches pull checkout-bases; do
+        if [[ ! -x "$ROOT/.sassywares/workspace/$helper" ]]; then
+          bad "missing or not executable: .sassywares/workspace/$helper"
+        fi
+      done
+    else
+      note "  no workspace git helpers installed (optional)"
     fi
     while IFS= read -r name; do
       [[ -n "$name" ]] || continue

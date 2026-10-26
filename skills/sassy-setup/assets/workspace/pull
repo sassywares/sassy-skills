@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Fetch every repo in `repos:`, then fast-forward the checked-out branch.
+#
+# Nothing is discarded: dirty trees are kept, a branch without an upstream is
+# fetched only, and a divergent branch is reported instead of merged. Switching
+# branches is checkout-bases' job, not this one.
+#
+# Usage: .sassywares/workspace/pull [--version]
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./_lib.sh
+source "$SCRIPT_DIR/_lib.sh"
+
+usage() {
+  cat <<EOF
+Usage: .sassywares/workspace/pull [--version]
+
+For each repo in the config's \`repos:\` map:
+  1. git fetch --prune $REMOTE
+  2. git pull --ff-only when the checked-out branch has an upstream
+
+Does not switch branches. Uncommitted changes are left as-is. A repo whose base
+is missing from the remote is reported, never fixed here.
+EOF
+}
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+  --version) printf '%s\n' "$WORKSPACE_GIT_VERSION"; exit 0 ;;
+  "") ;;
+  *) die "unknown argument: $1 (try --help)" ;;
+esac
+
+need_git
+
+found=0
+failed=0
+
+while IFS=$'\t' read -r name base; do
+  [[ -n "$name" ]] || continue
+  path="$ROOT/$name"
+  if ! repo_has_git "$path"; then
+    warn "$name: missing .git — skip"
+    continue
+  fi
+  found=1
+  branch="$(current_branch "$path")"
+  log "$name ($branch)"
+  if is_dirty "$path"; then
+    warn "dirty working tree on $branch — pulling anyway (uncommitted changes kept)"
+  fi
+
+  if ! out="$(git -C "$path" fetch --prune "$REMOTE" 2>&1)"; then
+    warn "$name: fetch failed — $(git_err "$out")"
+    failed=1
+    continue
+  fi
+
+  if git -C "$path" show-ref --verify --quiet "refs/remotes/$REMOTE/$base"; then
+    ok "fetched $REMOTE/$base"
+  else
+    warn "$REMOTE/$base missing"
+  fi
+
+  upstream="$(git -C "$path" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || true)"
+  if [[ -z "$upstream" ]]; then
+    warn "no upstream for $branch — fetched only"
+    if [[ "$branch" == "$base" ]]; then
+      git -C "$path" branch --set-upstream-to="$REMOTE/$base" "$base" >/dev/null 2>&1 || true
+      upstream="$REMOTE/$base"
+    else
+      continue
+    fi
+  fi
+
+  if out="$(git -C "$path" pull --ff-only 2>&1)"; then
+    ok "pulled $branch ← $upstream"
+  else
+    warn "ff-only pull failed on $branch — $(git_err "$out")"
+    warn "  .sassywares/workspace/checkout-bases puts it back on $base"
+    failed=1
+  fi
+done < <(workspace_repos)
+
+(( found > 0 )) || die "no git repos found under repos: — is the config complete?"
+
+if (( failed != 0 )); then
+  die "one or more repos could not be fast-forwarded"
+fi
+
+ok "pull done"

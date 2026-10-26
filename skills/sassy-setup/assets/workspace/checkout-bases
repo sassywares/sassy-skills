@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Check out each repo's base branch from `repos:`.
+#
+# Only switches a repo that is on some other branch. A dirty tree that git would
+# clobber stops that repo with an error; nothing is stashed, reset, or forced.
+#
+# Usage: .sassywares/workspace/checkout-bases [--version]
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./_lib.sh
+source "$SCRIPT_DIR/_lib.sh"
+
+usage() {
+  cat <<EOF
+Usage: .sassywares/workspace/checkout-bases [--version]
+
+For each repo in the config's \`repos:\` map, check out its base branch:
+
+  - base exists locally      → git checkout <base>
+  - base missing locally     → fetch, then track $REMOTE/<base>
+  - already on the base      → reported, untouched
+
+Uncommitted changes are never discarded. Does not fetch or pull a repo it
+already has on the base — run .sassywares/workspace/pull for that.
+EOF
+}
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+  --version) printf '%s\n' "$WORKSPACE_GIT_VERSION"; exit 0 ;;
+  "") ;;
+  *) die "unknown argument: $1 (try --help)" ;;
+esac
+
+need_git
+
+checkout_one() {
+  local name="$1" base="$2" path="$3"
+  log "$name → $base"
+
+  if [[ "$(current_branch "$path")" == "$base" ]]; then
+    ok "already on $base ($(short_head "$path"))"
+    return 0
+  fi
+
+  if git -C "$path" show-ref --verify --quiet "refs/heads/$base"; then
+    if ! out="$(git -C "$path" checkout "$base" 2>&1)"; then
+      warn "$name: could not check out $base — $(git_err "$out")"
+      return 1
+    fi
+  else
+    if ! out="$(git -C "$path" fetch --prune "$REMOTE" 2>&1)"; then
+      warn "$name: fetch failed — $(git_err "$out")"
+      return 1
+    fi
+    if ! git -C "$path" show-ref --verify --quiet "refs/remotes/$REMOTE/$base"; then
+      warn "$name: $REMOTE/$base does not exist"
+      return 1
+    fi
+    if ! out="$(git -C "$path" checkout -B "$base" "$REMOTE/$base" 2>&1)"; then
+      warn "$name: could not create $base — $(git_err "$out")"
+      return 1
+    fi
+    git -C "$path" branch --set-upstream-to="$REMOTE/$base" "$base" >/dev/null 2>&1 || true
+  fi
+
+  ok "on $base ($(short_head "$path"))"
+}
+
+found=0
+failed=0
+
+while IFS=$'\t' read -r name base; do
+  [[ -n "$name" ]] || continue
+  path="$ROOT/$name"
+  if ! repo_has_git "$path"; then
+    warn "$name: missing .git — skip"
+    continue
+  fi
+  found=1
+  checkout_one "$name" "$base" "$path" || failed=1
+done < <(workspace_repos)
+
+(( found > 0 )) || die "no git repos found under repos: — is the config complete?"
+
+if (( failed != 0 )); then
+  die "one or more repos could not be put on their base"
+fi
+
+ok "checkout-bases done"

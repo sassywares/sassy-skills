@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Show the current branch (and a dirty marker) for every repo in `repos:`.
+#
+# Repos that exist on disk but have no `repos:` entry are listed as unmapped —
+# add them to .sassywares/config.yaml rather than letting a base be guessed.
+#
+# Usage: .sassywares/workspace/branches [--version]
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./_lib.sh
+source "$SCRIPT_DIR/_lib.sh"
+
+usage() {
+  cat <<EOF
+Usage: .sassywares/workspace/branches [--version]
+
+Print the current branch for each repo in the config's \`repos:\` map, with a
+trailing * when the tree is dirty and \`(base: …)\` when it is not on its base.
+
+Repos without a \`repos:\` entry are listed as unmapped; setup fills that map in.
+EOF
+}
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+  --version) printf '%s\n' "$WORKSPACE_GIT_VERSION"; exit 0 ;;
+  "") ;;
+  *) die "unknown argument: $1 (try --help)" ;;
+esac
+
+need_git
+
+found=0
+while IFS=$'\t' read -r name base; do
+  [[ -n "$name" ]] || continue
+  path="$ROOT/$name"
+  if ! repo_has_git "$path"; then
+    printf '%-22s (missing)\n' "$name"
+    continue
+  fi
+  found=1
+  branch="$(current_branch "$path")"
+  dirty=""
+  if is_dirty "$path"; then dirty=" *"; fi
+  if [[ "$branch" == "$base" ]]; then
+    printf '%-22s %s%s\n' "$name" "$branch" "$dirty"
+  else
+    printf '%-22s %s%s  (base: %s)\n' "$name" "$branch" "$dirty" "$base"
+  fi
+done < <(workspace_repos)
+
+while IFS= read -r name; do
+  printf '%-22s %s\n' "$name" "(unmapped — add it to repos: in .sassywares/config.yaml)"
+done < <(unmapped_repos)
+
+(( found > 0 )) || die "no git repos found under repos: — is the config complete?"

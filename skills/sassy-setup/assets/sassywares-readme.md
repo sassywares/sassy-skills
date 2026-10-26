@@ -31,6 +31,23 @@ If a skill tells you another skill is missing, run `npx skills add sassywares/sa
 
 Or ask for `mode:check` on the setup skill, which runs the same check and reports it. Neither moves the pin: `npx skills check` is an alias of `update`.
 
+## Workspace scripts
+
+In a `workspace` project, `.sassywares/workspace/` holds the scripts that work
+across the sibling repos, next to the `snapshot` that versions the glue:
+
+```bash
+.sassywares/workspace/branches          # branch + dirty marker per repo
+.sassywares/workspace/pull              # fetch, then ff-only per repo
+.sassywares/workspace/checkout-bases    # put each repo on its base
+.sassywares/workspace/snapshot          # commit + push the glue
+```
+
+They read the repo inventory and the PR bases from `repos:` in `config.yaml`, so
+there is no second base map to keep in step. They are this project's files:
+extend them freely — just run the snapshot afterwards, since they live in the
+mirrored tree. The `sassy-*` skills do their own git and never call them.
+
 ## Hooks
 
 `hooks.pr` names project skills that run inside the PR pipeline, keyed by the PR's **head** branch: `"*"` for every PR, an exact branch, or a family such as `release/*`, overriding per point (`before_create`, `after_create`, `before_merge`, `after_merge`). An entry is `<skill> <args…>`; the args mean whatever that skill says they mean — `mode:auto` pre-authorizes the step. Hooks are ordinary skills in `.agents/skills/`, which makes them **code**: review them like code, and never point a hook at a copy of a suite skill.

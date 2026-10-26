@@ -1,6 +1,6 @@
 {
   "name": "@sassywares/skills",
-  "version": "0.5.13",
+  "version": "0.5.14",
   "description": "Lean, explicit-invocation Agent Skills for shipping fast: plan, work, review, validate, ship.",
   "type": "module",
   "license": "MIT",
