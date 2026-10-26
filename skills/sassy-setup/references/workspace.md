@@ -27,6 +27,8 @@ lives under one directory:
   `_lib.sh`'s `workspace-git-version` (or `branches --version`) the same way.
   **Ask before overwriting any of them when they already exist** — from the first
   install on they are the project's files, and extending them is expected.
+- **Aliases.** One `workspace:<script>` entry per installed script, in the
+  project's own manifest. See below.
 - **Excludes.** Write `.sassywares/workspace/.gitignore` for excluded paths
   (vendored trees, generated dirs, `.run/`). One pattern per line, `.gitignore`
   style. Skip it when there is nothing to exclude; the sync works without it. The
@@ -35,6 +37,57 @@ lives under one directory:
   exists. A workspace's only ignore file is the one in `workspace/`.
 - Do **not** run the snapshot during setup. It clones and pushes; that is the
   user's call. Offer `--dry-run` and run it only if they ask.
+
+## Script aliases
+
+The scripts should be reachable from the project's own runner, so setup wires one
+alias per installed script:
+
+```json
+"scripts": {
+  "workspace:branches": ".sassywares/workspace/branches",
+  "workspace:pull": ".sassywares/workspace/pull",
+  "workspace:checkout-bases": ".sassywares/workspace/checkout-bases",
+  "workspace:snapshot": ".sassywares/workspace/snapshot"
+}
+```
+
+Find the file that carries named commands — at the **workspace root only**, never
+inside a repo:
+
+| File at the root | Write the aliases to |
+| --- | --- |
+| `package.json` | its `scripts` |
+| `deno.json` / `deno.jsonc` | its `tasks` |
+| `composer.json` | its `scripts` |
+| `go.mod`, `pyproject.toml`, `Cargo.toml`, `Gemfile`, `Makefile`, `justfile`, … | nothing: create `package.json` as below |
+
+`go.mod` and friends name dependencies, not commands, and a make/just target
+cannot carry the `workspace:` form. Never invent a `Makefile` or `justfile` to
+avoid `package.json` — one naming convention across projects is worth more than
+one file fewer.
+
+- **Name and value are fixed**: `workspace:<script>` → `.sassywares/workspace/<script>`.
+  No `./`, no absolute paths, no `bin/`.
+- **Merge, never rewrite**: existing scripts and every other field stay as they
+  are; new keys go at the end of the scripts block; keep the file's indentation.
+  Never touch dependencies, `postinstall`, or `skills:*`.
+- **Idempotent**: a matching alias is left alone, a stale value is corrected, and
+  an alias the project added itself is never removed.
+- **No manifest at all?** Look at what the repos are — Node, Go, Python, a mix —
+  and say so. Then create a minimal `package.json`:
+
+  ```json
+  {
+    "private": true,
+    "scripts": { … }
+  }
+  ```
+
+  `private: true` keeps it unpublishable; no `name`, no `version`, no
+  dependencies. It exists so the aliases have a home. **Say that in the report** —
+  created versus already there — and skip the aliases entirely when the project
+  has removed the scripts they point at.
 
 ## What the git helpers are for
 

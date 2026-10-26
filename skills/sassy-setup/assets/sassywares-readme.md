@@ -43,6 +43,11 @@ across the sibling repos, next to the `snapshot` that versions the glue:
 .sassywares/workspace/snapshot          # commit + push the glue
 ```
 
+Each one also has an alias in the project manifest (`workspace:branches`,
+`workspace:pull`, `workspace:checkout-bases`, `workspace:snapshot`), so
+`npm run workspace:pull` — or the equivalent for the runner this project uses —
+works from the root.
+
 They read the repo inventory and the PR bases from `repos:` in `config.yaml`, so
 there is no second base map to keep in step. They are this project's files:
 extend them freely — just run the snapshot afterwards, since they live in the

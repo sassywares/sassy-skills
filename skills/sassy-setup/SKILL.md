@@ -52,7 +52,7 @@ A check run never edits the config and never rewrites the tree: it prints what `
    - **Write `.sassywares/README.md`** from `assets/sassywares-readme.md` when absent. Never overwrite it — it may carry project notes.
    - **Tell the user to `/reload`.** The skills are invisible to the harness until it rescans.
 
-6. **Install the workspace tooling, `workspace` only.** The snapshot plus the `branches` / `pull` / `checkout-bases` git helpers. Read `references/workspace.md` and follow it.
+6. **Install the workspace tooling, `workspace` only.** The snapshot plus the `branches` / `pull` / `checkout-bases` git helpers, and one `workspace:<script>` alias per script in the project's own manifest. Read `references/workspace.md` and follow it.
 7. **Verify.** Run `scripts/detect.sh --root <path> --check`. It validates the config against the tree — topology and remotes, `base_map` shape and cycles, `repos` against each nested repo, hooks, artifacts paths, `knowledge`, `pr.*` booleans, `commit.branch`, any unknown key, and in `workspace` mode the installed snapshot's version — plus the vendored pin: every `.agents/skills/sassy-*` folder hashed against `skills-lock.json`, the lock's coverage both ways, and whether git carries the lock. Report every `drift:` line verbatim, or that the config matches the tree. Drift blocks step 8.
 8. **Commit what setup owns.** `repo` topology only, and only when step 7 is clean. The file list is exactly what setup wrote or found unwritten:
 
@@ -65,7 +65,7 @@ A check run never edits the config and never rewrites the tree: it prints what `
    - **`workspace`** — nothing to commit: the root is not a repo, and `references/workspace.md` forbids running the snapshot here. Say the root config and the pin land with the project's next snapshot.
    - **`none`** — nothing to commit, deliberately.
 
-9. **Report.** The config path, the topology, the resolved artifact and knowledge paths, the commit (hash and branch) or why there is none, and in `workspace` mode what was installed, with versions (`snapshot vN`, `workspace-git vN`). Remind: `/reload` so the harness rescans. Close with what is left over — at most dirt setup deliberately did not commit — and nothing else: a clean setup leaves the user good to go.
+9. **Report.** The config path, the topology, the resolved artifact and knowledge paths, the commit (hash and branch) or why there is none, and in `workspace` mode what was installed, with versions (`snapshot vN`, `workspace-git vN`), and the manifest the `workspace:*` aliases went into — naming it as created when there was no script surface to begin with. Remind: `/reload` so the harness rescans. Close with what is left over — at most dirt setup deliberately did not commit — and nothing else: a clean setup leaves the user good to go.
 
 ## Hard rules
 
@@ -78,8 +78,8 @@ A check run never edits the config and never rewrites the tree: it prints what `
 | No silent overwrite | An existing config or an existing `.sassywares/workspace/snapshot` is shown and asked about, never replaced blind. |
 | Version is reported | Setup names the snapshot and `workspace-git` versions it installed; `--check` flags an installed copy older than the skill's. |
 | Skills come from upstream | Install with `npx skills add`; never hand-copy skill files or maintain the links yourself. |
-| Never edit the manifest | No dependencies, no scripts, no `postinstall`. Setup installs the suite; the project decides how it updates. |
-| Write boundary | Only `.sassywares/`, the vendored `.agents/skills/sassy-*`, `skills-lock.json`, and one `.gitignore` line — and the same list is step 8's commit. Never `package.json`, never a root `.gitignore` in a workspace. Workspace git helpers land in `.sassywares/workspace/`, never in a project's `bin/`. |
+| Never edit the manifest | No dependencies, no `postinstall`, no `skills:*` scripts. The one exception is step 6's `workspace:*` aliases in `workspace` topology: appended or corrected, never removed, and nothing else in the file touched. Setup installs the suite; the project decides how it updates. |
+| Write boundary | Only `.sassywares/`, the vendored `.agents/skills/sassy-*`, `skills-lock.json`, and one `.gitignore` line — and the same list is step 8's commit. Never `package.json` outside step 6's `workspace:*` aliases, never a root `.gitignore` in a workspace. Workspace git helpers land in `.sassywares/workspace/`, never in a project's `bin/`. |
 | Detect, don't guess | An unknown base branch stays unknown and gets asked about. A probed value is reported as probed. |
 | Comments are part of the file | Every key keeps its description and allowed values. A stripped config is an incomplete config. |
 | Hooks are named, not written | Setup records hook skill names. Creating those skills is the project's work. |

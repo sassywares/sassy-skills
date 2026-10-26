@@ -430,6 +430,28 @@ if (( CHECK )); then
     else
       note "  no workspace git helpers installed (optional)"
     fi
+
+    # Aliases live in the project's own manifest; setup only ever adds them.
+    manifest=""
+    for candidate in package.json deno.json deno.jsonc composer.json; do
+      if [[ -f "$ROOT/$candidate" ]]; then
+        manifest="$candidate"
+        break
+      fi
+    done
+    if [[ -n "$manifest" ]]; then
+      missing_aliases=()
+      for script in branches pull checkout-bases snapshot; do
+        grep -q "\"workspace:${script}\"" "$ROOT/$manifest" || missing_aliases+=("$script")
+      done
+      if [[ ${#missing_aliases[@]} -eq 0 ]]; then
+        note "  workspace:* aliases in ${manifest}"
+      elif [[ ${#missing_aliases[@]} -lt 4 ]]; then
+        bad "${manifest} is missing $(printf '`workspace:%s` ' "${missing_aliases[@]}")— half-wired aliases; re-run setup"
+      else
+        note "  no workspace:* aliases in ${manifest} (optional)"
+      fi
+    fi
     while IFS= read -r name; do
       [[ -n "$name" ]] || continue
       base="$(detect_base "$ROOT/$name")"
