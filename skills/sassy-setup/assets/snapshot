@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# snapshot-version: 1
+# snapshot-version: 2
 #
 # Snapshot workspace glue into a side git mirror, without making this folder a
 # git repository.
@@ -10,7 +10,7 @@
 # Usage: .sassywares/workspace/snapshot [-m MSG] [--dry-run] [--no-push] [--version]
 set -euo pipefail
 
-SNAPSHOT_VERSION="1"
+SNAPSHOT_VERSION="2"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -104,6 +104,23 @@ resolve_remote() {
     return 0
   fi
   die "no mirror remote: set git.remote in $CONFIG, or pass SASSY_WORKSPACE_REMOTE"
+}
+
+# `owner/name` is a GitHub shorthand the config accepts; git clone wants a URL.
+norm_remote() {
+  local remote="$1"
+  case "$remote" in
+    *://*|*@*)       printf '%s\n' "$remote"; return 0 ;;  # URL or scp-style
+    /*|./*|../*|~*)  printf '%s\n' "$remote"; return 0 ;;  # local path
+  esac
+  local rest slashes
+  rest="${remote#*/}"
+  slashes="$(printf '%s' "$rest" | tr -cd '/' | wc -c | tr -d ' ')"
+  if [[ "$remote" == */* && "$slashes" == "0" ]]; then
+    printf 'https://github.com/%s.git\n' "${remote%.git}"
+    return 0
+  fi
+  printf '%s\n' "$remote"
 }
 
 resolve_branch() {
@@ -256,6 +273,7 @@ commit_and_push() {
 }
 
 resolve_remote
+REMOTE="$(norm_remote "$REMOTE")"
 resolve_branch
 ensure_mirror
 sync_into_mirror

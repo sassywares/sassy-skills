@@ -247,7 +247,10 @@ An ancestry check that fails means the branch was cut from the wrong base —
 recreate it. Never leave a PR aimed at the wrong base.
 
 **Mirror remote**, in order: `SASSY_WORKSPACE_REMOTE` → the mirror's own
-`origin` → `git.remote` → stop and say setup is incomplete.
+`origin` → `git.remote` → stop and say setup is incomplete. The value may be an
+`owner/name` shorthand, a URL, an scp-style remote, or a local path; the
+shorthand expands to `https://github.com/owner/name.git`, everything else is
+used verbatim.
 
 **Mirror branch**: `SASSY_WORKSPACE_BRANCH` → the mirror's own
 `refs/remotes/origin/HEAD` → `git.mirror_branch` → `main`.
