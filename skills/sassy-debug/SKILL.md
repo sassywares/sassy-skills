@@ -73,7 +73,7 @@ Load the `sassy-plan` skill with the issue and the root-cause context. Plan runs
 
 ### Option 3 — Hand off
 
-Load the `sassy-handoff` skill with the root-cause chain and proposed fix, then stop.
+Load the `sassy-handoff` skill in `mode:write` with the root-cause chain and proposed fix, then stop.
 
 ### Option 4 — Stop here
 

@@ -85,7 +85,7 @@ Debugging:
 | **`sassy-lfg`** | Executes every phase of a plan, or one in-context brief, then closes out via `sassy-ship` after code approval. |
 | **`sassy-cycle`** | Runs one unit of work through implement → review → validate → fix → re-check. |
 | **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-cycle`, then ships after code approval. Debug takes no mode and always leaves ship's review gate in place unless you invoke ship yourself with `mode:auto`. |
-| **`sassy-handoff`** | Writes a self-contained handoff file to `/tmp/sassywares/<harness>/handoffs/` and gives you its path plus a one-line prompt to paste into a fresh session, in any harness. |
+| **`sassy-handoff`** | `mode:write` (default) writes a self-contained handoff file to `/tmp/sassywares/<harness>/handoffs/` and gives you a `sassy-handoff mode:read <path>` command for a fresh session; `mode:read` explains what the handoff did, why, and where things stand now, then asks what to do next. Works in any harness. |
 
 ### Code quality
 

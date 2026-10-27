@@ -67,7 +67,7 @@ Always gate before committing. One worker fixes findings, one re-check, then pre
 
    Do not hand off or close out until the commit or snapshot succeeds.
 8. **On commit success:**
-   - **A next phase exists** → load the `sassy-handoff` skill with the goal *Execute phase <next> of <plan> by invoking `sassy-work <plan> phase:<next>`*. It writes the handoff file and gives the user its path and a one-line prompt; the next phase starts when they paste it into a fresh session.
+   - **A next phase exists** → load the `sassy-handoff` skill in `mode:write` with the goal *Execute phase <next> of <plan> by invoking `sassy-work <plan> phase:<next>`*. It writes the handoff file and gives the user a `sassy-handoff mode:read <path>` command; the next phase starts when they run it in a fresh session and pick it.
 
    - **This was the last phase** → run the close-out: load the `sassy-ship` skill and follow it.
 

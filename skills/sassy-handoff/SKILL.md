@@ -1,78 +1,66 @@
 ---
 name: sassy-handoff
 description: >-
-  Write a self-contained handoff file under /tmp/sassywares so a fresh session —
-  in any harness — can continue the work, then give the user its path and a
-  one-line prompt to paste. Use at a phase boundary, when context is getting
-  long, or when the user asks to hand off.
-argument-hint: "[goal for the next session]"
+  Hand work between sessions in any harness. mode:write (default) writes a
+  self-contained handoff file under /tmp/sassywares and gives the user a
+  command to continue in a fresh session; mode:read takes a handoff file,
+  explains what was done, why, and where things stand, then asks what to do
+  next. Use at a phase boundary, when context is getting long, when the user
+  asks to hand off, or to pick up a handoff file.
+argument-hint: "[mode:write|read] [goal for the next session | handoff file path]"
 disable-model-invocation: true
 ---
 
 # Sassy Handoff
 
-**Outcome:** a handoff file on disk that a fresh session can act on with no access to this one, plus its absolute path and a paste-ready prompt for the user. This skill never starts or replaces a session; the user does.
+**Outcome:** in `write`, a handoff file a fresh session can act on with no access to this one, plus the command that continues from it. In `read`, a grounded summary of that file — what was done, why, and the current state — and the user's choice of what happens next. This skill never starts or replaces a session; the user does.
 
 **Harness.** Commands you hand the user, and the temp-file rules, follow the `sassy-setup` skill's `references/harness.md`.
 
-## Steps
+## Modes
 
-1. **Determine the continuation goal.**
-   - At a sassy plan phase boundary: the next phase that is not `Done`, continued by invoking `sassy-work <plan> phase:<n>`.
-   - After a `sassy-plan` run that kept the work in a brief instead of writing a plan: continue from that brief. There is no plan path, so the brief itself — goal, decisions, constraints, done-when — goes in the file.
-   - Otherwise: the user's stated objective for the next session.
-   - If the goal is genuinely unclear, ask. Do not fabricate a handoff.
+| Mode | Load | It ends with |
+|---|---|---|
+| `write` (default) | `references/write.md` | a handoff file on disk and the continue command |
+| `read` | `references/read.md` | a summary and a question to the user — nothing changed |
 
-2. **Save state before writing.** The new session sees only the file, so:
-   - Update the plan's Phase tracking (and any other source-of-truth file).
-   - Confirm nothing that matters exists only in this conversation.
-   - Redact secrets, credentials, and unrelated personal data.
+Resolve the mode: an explicit `mode:write` or `mode:read` wins. With no mode, an argument that is a path to an existing handoff file is `read`; anything else is `write`. Read the one reference for that mode **and only that one**.
 
-3. **Write the file.** One file per handoff, in `/tmp/sassywares/<harness>/handoffs/` — create the directory with the `references/harness.md` snippet, `<purpose>` = `handoffs`:
+## The handoff file
 
-   ```bash
-   FILE="$DIR/$(date -u +%Y%m%dT%H%M%SZ)-<kebab-goal>.md"
-   ```
+Written by `write`, parsed by `read`. Files live in `/tmp/sassywares/<harness>/handoffs/`, named `<UTC timestamp>-<kebab-goal>.md`:
 
-   Use this shape, and keep every section short:
+```md
+# Handoff: <goal in one line>
 
-   ```md
-   # Handoff: <goal in one line>
+- **Repo / cwd:** <absolute path> · **Branch:** <branch> @ <short sha> · **Written:** <ISO time>
+- **Plan:** <plan path + next phase, or "none — brief below">
 
-   - **Repo / cwd:** <absolute path> · **Branch:** <branch> @ <short sha> · **Written:** <ISO time>
-   - **Plan:** <plan path + next phase, or "none — brief below">
+## Goal
+What the next session must achieve, and its done-when.
 
-   ## Goal
-   What the next session must achieve, and its done-when.
+## Done
+What this session did, and why — the reasoning a reader cannot recover from the diff.
 
-   ## State
-   What is done, what is in progress, what is untouched. Uncommitted work, if any, named by path.
+## State
+What is finished, in progress, and untouched. Uncommitted work, if any, named by path.
 
-   ## Decisions
-   Settled choices (`D1: …`) with the reason, so the next session does not reopen them.
+## Decisions
+Settled choices (`D1: …`) with the reason, so the next session does not reopen them.
 
-   ## Key files
-   `path:line` — why it matters. Pointers, not contents.
+## Key files
+`path:line` — why it matters. Pointers, not contents.
 
-   ## Next steps
-   1. The first concrete action, including the exact skill invocation when one applies.
+## Next steps
+1. The first concrete action, including the exact skill invocation when one applies.
 
-   ## Open questions and risks
-   Anything unresolved, and anything the next session must not do.
-   ```
-
-4. **Hand it to the user.** Report the absolute path, then one fenced, copyable prompt for the fresh session:
-
-   ```text
-   Read <absolute path> and continue from it.
-   ```
-
-   Tell them to start a fresh session in their harness and paste it. When the next step is a skill, the file's **Next steps** names the invocation in that harness's syntax.
+## Open questions and risks
+Anything unresolved, and anything the next session must not do.
+```
 
 ## Rules
 
-- **Pointer-first.** Name the plan path, phase, key files, and decisions rather than reproducing them. The plan is the source of truth; the file points at it.
-- **Self-contained.** The fresh session cannot see this conversation. When there is no plan file, the brief goes in the handoff file in full.
-- **Outside the repo.** The file lives under `/tmp/sassywares/` only — never committed, never inside the working tree. `/tmp` clearing on reboot is the intended lifetime.
-- **Do not invent a continuation.** If the next step is a real fork with mutually exclusive options, list them under **Next steps**; do not silently pick.
-- **The skill does not switch sessions.** Never claim it did; the user starts the fresh session.
+- **Pointer-first.** Plan paths, phases, files, and decisions are named, not reproduced. The plan is the source of truth; the file points at it.
+- **Outside the repo.** Handoff files live under `/tmp/sassywares/` only — never committed, never inside the working tree.
+- **No secrets.** A handoff file never carries credentials, tokens, or unrelated personal data, and `read` never echoes one.
+- **The skill does not switch sessions.** Never claim it did.
