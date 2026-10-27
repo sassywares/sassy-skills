@@ -10,7 +10,7 @@ A directory containing `SKILL.md`, discovered by a harness from a project skills
 
 ## Agent
 
-A specialized subagent defined under `~/.pi/agent/agents/`. Skills delegate bounded work to agents such as `scout`, `worker`, `reviewer`, and `validator`.
+A specialized subagent from [sassy-agents](https://github.com/sassywares/sassy-agents), installed per harness (`~/.pi/agent/agents/`, `~/.claude/agents/`, or a project `.pi/agents/` / `.claude/agents/`) by `sassy-setup`. Skills delegate bounded work to agents such as `scout`, `worker`, `reviewer`, and `validator`.
 
 ## Orchestrator
 

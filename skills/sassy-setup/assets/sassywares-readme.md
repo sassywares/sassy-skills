@@ -19,6 +19,18 @@ The vendored skills and the lock are committed; `.claude/skills` is a link and i
 
 `.agents/skills/` is read by pi and Cursor; Claude Code reads `.claude/skills/` only, which is why that symlink exists. After any change, `/reload` your harness.
 
+## Agents
+
+The skills dispatch four subagents by name — `scout`, `worker`, `reviewer`,
+`validator` — from [sassy-agents](https://github.com/sassywares/sassy-agents),
+one folder per harness (`pi/`, `claude/`). They live either in the harness's
+user directory (`~/.pi/agent/agents/`, `~/.claude/agents/`, linked by
+`sassy-agents/scripts/install.sh <harness>`) or in this project's
+`.pi/agents/` / `.claude/agents/`. `sassy-setup` checks for them and offers to
+install them when missing.
+
+## Missing skills
+
 If a skill tells you another skill is missing, run `npx skills add sassywares/sassy-skills` (or `npx skills experimental_install` to restore exactly what the lock pins) and restart.
 
 ## Config
