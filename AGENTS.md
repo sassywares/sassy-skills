@@ -95,7 +95,7 @@ Rules:
 ## Conventions
 
 - **Lean first.** Skills are indexes and workflows, not documentation dumps. Move only conditionally read detail into `references/`.
-- **Explicit invocation.** All current skills use `disable-model-invocation: true`.
+- **Explicit invocation.** Every skill except `sassy-ship` uses `disable-model-invocation: true`. Ship is the close-out a session runs once the user has approved the work, so the model may invoke it directly; its own `mode:manual` gate still waits before anything is written, committed, pushed, or opened.
 - **Source of truth.** Do not store skill content outside this repo.
 - **No secrets.** Never put credentials, tokens, or private keys in a skill.
 - **Distribution.** The repo is the distribution: `npx skills add` reads it, so a push to `main` is installable immediately. The npm package mirrors it for package-installing harnesses and still needs a version bump.

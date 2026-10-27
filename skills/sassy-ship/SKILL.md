@@ -7,7 +7,6 @@ description: >-
   waits before anything is written, committed, pushed, or opened. `mode:auto`
   runs the close-out with no review.
 argument-hint: "<plan path or topic> [steps:compound,handbook,commit,pr,babysit] [base:<branch>] [merge:on|off] [delete-branch:on|off] [mode:manual|auto]"
-disable-model-invocation: true
 ---
 
 # Sassy Ship
