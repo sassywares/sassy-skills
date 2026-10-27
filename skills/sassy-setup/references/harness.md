@@ -30,4 +30,23 @@ For any other harness, give the skill name and its arguments and let the user in
 
 ## Temp files
 
-Per-user temp files live under `/tmp/sassy-<purpose>-$(id -u)/`, created `0700`, never inside the repo. A symlinked root aborts rather than being followed. Two use it today: the grounding brief (`/tmp/sassy-grounding-<uid>/`, written by `scout`) and handoff files (`/tmp/sassy-handoff-<uid>/<harness>/`, written by `sassy-handoff`).
+Every file a skill or agent writes outside the repo goes under **`/tmp/sassywares/<harness>/<purpose>/`** — never loose in `/tmp`, never inside the working tree. Each harness gets its own folder; the harness is detected from its environment (`CLAUDECODE` → `claude`, `PI_CODING_AGENT` → `pi`, else `other`), and `SASSY_HARNESS` overrides it. Directories are `0700`; a symlinked directory, or a `/tmp/sassywares` owned by someone else, aborts rather than being followed.
+
+```bash
+SW=/tmp/sassywares
+HARNESS="${SASSY_HARNESS:-$(if [ -n "${CLAUDECODE:-}" ]; then echo claude; elif [ -n "${PI_CODING_AGENT:-}" ]; then echo pi; else echo other; fi)}"
+DIR="$SW/$HARNESS/<purpose>"
+for d in "$SW" "$SW/$HARNESS" "$DIR"; do [ -L "$d" ] && { echo "unsafe symlink: $d" >&2; exit 1; }; done
+(umask 077; mkdir -p "$DIR")
+[ -O "$SW" ] || { echo "not owned by you: $SW" >&2; exit 1; }
+```
+
+| Purpose | Folder | Written by |
+|---|---|---|
+| Grounding briefs | `grounding/` | `scout` (read by every agent) |
+| Handoff files | `handoffs/` | `sassy-handoff` |
+| Commit messages | `commits/` | `sassy-commit` |
+| PR bodies | `prs/` | `sassy-commit-push-pr` |
+| Anything else — clones, captured output, drafts | `scratch/` | any skill or agent |
+
+Name files so a run can find its own: a UTC timestamp plus a short slug (`20261027T101500Z-fix-checkout.txt`). Delete scratch you no longer need; `/tmp` clearing on reboot covers the rest. A new purpose gets a new row here, not a new top-level folder.

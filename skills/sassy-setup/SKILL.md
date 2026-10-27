@@ -66,7 +66,7 @@ A check run never edits the config and never rewrites the tree: it prints what `
      **Installed** means all four `<name>.md` files exist in the user scope or the project scope. If they do, report which scope and move on. If any are missing, ask once where to install, recommending user scope:
 
      - **User scope** — every project on this machine, updated by `git pull`. Reuse the user's sassy-agents checkout if they have one; otherwise ask where to clone it (`git clone https://github.com/sassywares/sassy-agents.git <dir>`). Then run `<dir>/scripts/install.sh <folder>`, which symlinks the folder into the user scope and never overwrites a differing file.
-     - **Project scope** — only this project, pinned with it. Shallow-clone into a temp directory, copy `<folder>/*.md` into the project scope directory, delete the clone. Never overwrite an existing agent file that differs: show it and ask. The copies join step 8's commit list.
+     - **Project scope** — only this project, pinned with it. Shallow-clone into `/tmp/sassywares/<harness>/scratch/` (per `references/harness.md`), copy `<folder>/*.md` into the project scope directory, delete the clone. Never overwrite an existing agent file that differs: show it and ask. The copies join step 8's commit list.
 
    - **Tell the user to `/reload`** (or restart the harness). The skills and agents are invisible to the harness until it rescans.
 

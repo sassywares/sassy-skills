@@ -54,7 +54,7 @@ Treat the reads as a snapshot; re-read branch and staged set right before commit
 5. **Message** — imperative subject naming the outcome, not the file list. Body only when the motivation is not obvious.
    - Bad: `Update checkout.rb`
    - Good: `Fix double-submit on checkout`
-6. **Stage and commit** — stage **named files only** (never `git add -A` or `git add .`). Write the full message to a file outside the repo, then:
+6. **Stage and commit** — stage **named files only** (never `git add -A` or `git add .`). Write the full message to `/tmp/sassywares/<harness>/commits/<UTC timestamp>-<slug>.txt` (directory per the `sassy-setup` skill's `references/harness.md`), then:
    ```
    git add file1 file2 file3
    git commit -F <message-file> -- file1 file2 file3

@@ -33,10 +33,12 @@ disable-model-invocation: true
 
 ## The brief
 
-The scout writes it under a per-user temp directory, keyed by the worktree root:
+The scout writes it under `/tmp/sassywares/<harness>/grounding/` (see `references/harness.md` in the `sassy-setup` skill), keyed by the worktree root:
 
 ```bash
-ROOT="/tmp/sassy-grounding-$(id -u)"
+SW=/tmp/sassywares
+HARNESS="${SASSY_HARNESS:-$(if [ -n "${CLAUDECODE:-}" ]; then echo claude; elif [ -n "${PI_CODING_AGENT:-}" ]; then echo pi; else echo other; fi)}"
+ROOT="$SW/$HARNESS/grounding"
 ROOT_ABS=$(cd "$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")" && pwd -P)
 KEY=$(printf '%s' "$ROOT_ABS" | shasum -a 256 | cut -d' ' -f1)
 BRIEF="$ROOT/$KEY.md"

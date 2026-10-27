@@ -57,6 +57,6 @@ Only an exit-0 empty list means "no open PR". A non-zero exit means **unknown** 
    - Title: outcome-stating, concise.
    - Body: what changed, why, and how it was verified. Preserve any existing `Related:` / `Fixes` line on an update.
    - If no PR exists, compose fresh; if one does, edit its body.
-6. **Apply** — re-check PR presence. With a matching PR: `gh pr edit <url> --body-file <path>`. With none: `gh pr create --base <base> --title <title> --body-file <path>`. Always pass the body via `--body-file`, never stdin, and always name the base.
+6. **Apply** — re-check PR presence. With a matching PR: `gh pr edit <url> --body-file <path>`. With none: `gh pr create --base <base> --title <title> --body-file <path>`. Always pass the body via `--body-file`, never stdin, and always name the base. The body file lives in `/tmp/sassywares/<harness>/prs/` (per `references/harness.md`), named `<UTC timestamp>-<branch>.md`.
 7. **`after_create` hooks.** Only when this run **created** the PR — an update does not fire them, say so in one line. Same resolution and ordering as step 2, with the PR URL added to the brief. These must leave the tree clean: anything they write is reported, not committed.
 8. **Babysit** — with `babysit:on` (default), load `sassy-babysit` and follow it for the PR just opened or updated, forwarding `checkpoint`, `merge:`, and `delete-branch:` unchanged. Report the PR URL and the babysit status; for a continuous watch beyond this run, point the user at `sassy-babysit`. With `babysit:off`, report the PR URL only.

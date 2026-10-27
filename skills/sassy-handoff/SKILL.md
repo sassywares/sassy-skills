@@ -1,7 +1,7 @@
 ---
 name: sassy-handoff
 description: >-
-  Write a self-contained handoff file to a temp directory so a fresh session —
+  Write a self-contained handoff file under /tmp/sassywares so a fresh session —
   in any harness — can continue the work, then give the user its path and a
   one-line prompt to paste. Use at a phase boundary, when context is getting
   long, or when the user asks to hand off.
@@ -28,12 +28,9 @@ disable-model-invocation: true
    - Confirm nothing that matters exists only in this conversation.
    - Redact secrets, credentials, and unrelated personal data.
 
-3. **Write the file.** One file per handoff, under the harness's handoff directory:
+3. **Write the file.** One file per handoff, in `/tmp/sassywares/<harness>/handoffs/` — create the directory with the `references/harness.md` snippet, `<purpose>` = `handoffs`:
 
    ```bash
-   DIR="/tmp/sassy-handoff-$(id -u)/<harness>"   # pi, claude, … — the harness you are running in
-   [ -L "/tmp/sassy-handoff-$(id -u)" ] && { echo "unsafe symlink" >&2; exit 1; }
-   (umask 077; mkdir -p "$DIR")
    FILE="$DIR/$(date -u +%Y%m%dT%H%M%SZ)-<kebab-goal>.md"
    ```
 
@@ -76,6 +73,6 @@ disable-model-invocation: true
 
 - **Pointer-first.** Name the plan path, phase, key files, and decisions rather than reproducing them. The plan is the source of truth; the file points at it.
 - **Self-contained.** The fresh session cannot see this conversation. When there is no plan file, the brief goes in the handoff file in full.
-- **Outside the repo.** The file lives in the temp directory only — never committed, never inside the working tree. `/tmp` clearing on reboot is the intended lifetime.
+- **Outside the repo.** The file lives under `/tmp/sassywares/` only — never committed, never inside the working tree. `/tmp` clearing on reboot is the intended lifetime.
 - **Do not invent a continuation.** If the next step is a real fork with mutually exclusive options, list them under **Next steps**; do not silently pick.
 - **The skill does not switch sessions.** Never claim it did; the user starts the fresh session.
