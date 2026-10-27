@@ -20,6 +20,8 @@ disable-model-invocation: true
 
 **Scope:** skills only — not extensions, packages, or prompt templates.
 
+**Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
+
 ## One mode, one reference
 
 Each mode's mechanics live in its own file. Read the one you were dispatched to — **and only that one**. A `create` never reads `retune`'s failure map, and a `verify` never picks up a fix from it: that adjacency is exactly how a read-only check turns into an edit.
@@ -30,18 +32,21 @@ Each mode's mechanics live in its own file. Read the one you were dispatched to 
 | `retune` | `references/retune.md` | the smallest edit that kills one named failure, re-verified |
 | `verify` | `references/verify.md` | a report, and no file touched |
 
-Everything below is shared by all three: the location table, pi's rules, the shape rule, the checklist, and the verification run. Read it once, then your one reference.
+Everything below is shared by all three: the location table, the Agent Skills rules, the shape rule, the checklist, and the verification run. Read it once, then your one reference.
 
-## pi's rules (the essentials)
+## Agent Skills rules (the essentials)
+
+The suite targets the **Agent Skills specification** (agentskills.io), so a skill works in any harness that loads it — pi, Claude Code, and others. Write to the spec, not to one harness.
 
 - A skill is a **directory containing `SKILL.md`**. Discovered recursively.
 - **Name:** lowercase letters, numbers, hyphens; no leading/trailing/consecutive hyphens; ≤64 chars. Match the directory name.
-- **Description:** required, ≤1024 chars. Pi advertises name + description at startup; the body loads only when the skill is used, so the description alone decides whether the skill ever fires. Write **what it does and when to use it**, with concrete verbs and the words a user would actually say — "can't trigger" is almost always a description that named the topic and never the moment.
+- **Description:** required, ≤1024 chars. The harness advertises name + description up front; the body loads only when the skill is used, so the description alone decides whether the skill ever fires. Write **what it does and when to use it**, with concrete verbs and the words a user would actually say — "can't trigger" is almost always a description that named the topic and never the moment.
 - **Frontmatter fields:** `name`, `description` (required); optional `license`, `compatibility`, `metadata`, `allowed-tools`, `disable-model-invocation`.
-- Use `disable-model-invocation: true` for skills that should run only via explicit `/skill:name`.
+- Use `disable-model-invocation: true` for skills that should run only when the user invokes them. Some harnesses (Claude Code) then hide the skill from the model entirely, so a skill that loads another must read its `SKILL.md` — the `sassy-setup` skill's `references/harness.md` defines that.
 - **Reference other skills by name, never by absolute path.** The suite can live in `~/.agents/skills/`, a project `.agents/skills/`, or inside `node_modules/`, so "load the sassy-commit skill" is portable where a `~/…` path is not. Name a bundled file as "the sassy-setup skill's `references/config.md`".
-- Pi **validates at startup**; malformed or descriptionless skills warn. `/reload` applies changes.
-- Pi implements the **Agent Skills specification** (agentskills.io). For the full spec, pi's own `docs/skills.md` is authoritative — read it when the rules here are not enough.
+- Harnesses **validate when they load skills**; a malformed or descriptionless skill warns or is skipped. Reloading applies changes (the command per harness is in `references/harness.md`).
+- The spec at agentskills.io is authoritative when the rules here are not enough. Never rely on a field or behavior only one harness supports.
+- **No harness-only machinery.** No harness-specific commands, extensions, tools, or paths in the workflow. Where harnesses genuinely differ, point at `references/harness.md` instead of naming one.
 
 ## Where the skill lives
 
@@ -57,7 +62,7 @@ Recommend by audience: the team needs it → **project**; only the requester →
 
 Internal is the only one that ships to everyone. Never choose it silently: once it lands on `main`, every consumer gets it on their next `npx skills update`. Say that out loud when you do.
 
-Paths in the table are the defaults. Harnesses also read `skills` arrays in settings and installed packages, so a skill may live elsewhere — write down where it actually went.
+Paths in the table are the defaults. `.agents/skills/` is read by pi and others; Claude Code reads only `.claude/skills/` (project) and `~/.claude/skills/` (user), so a hand-placed skill there also needs a link in those directories — `npx skills add` creates them for installed skills. Harnesses also read `skills` arrays in settings and installed packages, so a skill may live elsewhere — write down where it actually went.
 
 ## Shape rule — split on outcomes, not on topics
 
@@ -83,9 +88,9 @@ The gate for a new or edited skill, and the instrument in `mode:verify`.
 
 ## Verification — how every mode ends
 
-- `/reload`.
-- Check pi's startup output for warnings about the skill.
-- Run `/skill:<name>` and confirm it loads and behaves.
+- Reload the harness (command per `references/harness.md`).
+- Confirm the harness lists the skill with no load warning.
+- Invoke it with the harness's syntax and confirm it loads and behaves.
 
 `create` and `retune` are not finished until this passes; `verify` exists to run it and report.
 

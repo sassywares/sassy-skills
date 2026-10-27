@@ -27,6 +27,8 @@ An explicit token always beats the config.
 
 **One PR per run.** This skill watches the PR resolved from the argument or the current branch. A workspace fan-out is N runs, one per PR, and `pr.merge` never merges a fan-out — that needs an explicit say-so per PR.
 
+**Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
+
 ## Step 1 — Resolve and arm
 
 1. `gh repo view` must succeed, else say GitHub-only and stop.

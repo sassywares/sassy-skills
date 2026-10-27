@@ -15,6 +15,8 @@ disable-model-invocation: true
 
 **Orchestrator only.** Never edit code yourself. The `reviewer` finds; the `worker` fixes.
 
+**Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
+
 ## Review dimensions
 
 The `reviewer` covers all four. Do not drop any of them.

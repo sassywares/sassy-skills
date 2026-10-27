@@ -12,6 +12,8 @@ disable-model-invocation: true
 
 **Outcome:** Each logical change committed with an explicit file list and a message stating the outcome, and `git status` clean of those changes.
 
+**Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
+
 ## Context
 
 Gather this first, each command as its own shell call (no `;`, `&&`, `|`, or redirects):

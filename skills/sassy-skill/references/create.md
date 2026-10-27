@@ -1,6 +1,6 @@
 # Mode: create — write a new skill
 
-Read the skill's shared sections first (locations, pi's rules, shape rule, checklist). This file is the write side only.
+Read the skill's shared sections first (locations, Agent Skills rules, shape rule, checklist). This file is the write side only.
 
 ## 1. Intake
 
@@ -24,7 +24,7 @@ Two paragraphs of route-specific instruction are worth their own file; a shared 
 
 ## 3. Frontmatter
 
-`name` matches the directory. `description` states what and when, ≤1024 chars, in the user's vocabulary. Add `disable-model-invocation: true` when the skill should only run via `/skill:<name>`, and an `argument-hint` when it takes one.
+`name` matches the directory. `description` states what and when, ≤1024 chars, in the user's vocabulary. Add `disable-model-invocation: true` when the skill should only run when the user invokes it, and an `argument-hint` when it takes one.
 
 Do not put workflow detail in the description — it decides triggering, not execution.
 
@@ -43,6 +43,6 @@ Plain English, no filler. Where the skill returns a result, give the shape of th
 
 - **Internal:** `skills/<name>/` in the sassy-skills repo, named `sassy-<name>`; then `scripts/sync.sh` — it commits, bumps the patch version, tags, and publishes. Say that this ships to everyone before you do it.
 - **Project:** `<repo>/.agents/skills/<name>/`, prefixed with the project so it cannot collide with a suite skill or a harness built-in; then commit it.
-- **User:** `~/.agents/skills/<name>/`. Nothing gates it, so check it actually works before trusting it.
+- **User:** `~/.agents/skills/<name>/` (plus a `~/.claude/skills/<name>` link for Claude Code). Nothing gates it, so check it actually works before trusting it.
 
-Then run the skill's Verification section: `/reload`, no startup warnings, `/skill:<name>` behaves. A skill that has never been invoked has not been written.
+Then run the skill's Verification section: reload, no load warning, invoking it behaves. A skill that has never been invoked has not been written.

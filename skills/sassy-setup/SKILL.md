@@ -20,6 +20,8 @@ disable-model-invocation: true
 
 **Never a repo by force.** Setup records topology, it does not change it. No `git init`, ever.
 
+**Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow `references/harness.md`; the agent wiring in step 5 uses its tables.
+
 ## Modes
 
 | Mode | What it does |

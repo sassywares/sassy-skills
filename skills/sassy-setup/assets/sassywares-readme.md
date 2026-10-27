@@ -17,7 +17,7 @@ Refreshing the suite is this project's decision — nothing here updates itself.
 
 The vendored skills and the lock are committed; `.claude/skills` is a link and is not.
 
-`.agents/skills/` is read by pi and Cursor; Claude Code reads `.claude/skills/` only, which is why that symlink exists. After any change, `/reload` your harness.
+`.agents/skills/` is read by pi and Cursor; Claude Code reads `.claude/skills/` only, which is why that symlink exists. After any change, reload your harness (`/reload` in pi, a new session in Claude Code).
 
 ## Agents
 

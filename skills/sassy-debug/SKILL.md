@@ -19,6 +19,8 @@ Find the root cause of a failure, get approval for the fix, fix it through the s
 
 **Escalate rather than persist:** 2–3 hypotheses exhausted without confirmation, or 3 failed fix attempts, means diagnose *why* instead of trying again. One hypothesis, one change at a time — never shotgun-debug. Before escalating, re-search the prior learnings with the keywords of what you just ruled out: an exhausted hypothesis list is often a documented trap.
 
+**Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
+
 ## Phase 0 — Triage
 
 Establish the exact input, the observed symptom, the expected behavior, and how to reproduce it. If an issue/ticket is given, carry its identifier and URL through to the end. If only a stack trace or description is given, there is no issue of record — that is fine; never manufacture one.

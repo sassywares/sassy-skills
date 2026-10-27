@@ -16,6 +16,8 @@ disable-model-invocation: true
 
 **Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. Plans live under `artifacts.plans`; `git.repo` decides how the close-out persists; `commit.branch` decides whether the run needs its own branch.
 
+**Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
+
 ## Input
 
 Detect the shape from the argument:
@@ -46,7 +48,7 @@ A brief has no QA table, so its gate is code approval alone. Never invent, enabl
 4. **The gate.** After the last phase, report: the plan path, each phase's status, what changed per phase, and the validator/reviewer summaries. Then give every phase's QA checklist verbatim — row ID, check, how to run it, what passing looks like — with unreported rows `Pending`. Ask for both decisions: code approval and the QA result per row. Wait. Do not commit.
 5. **Resolve the gate.** Three outcomes:
    - **Code approved and every QA row passes** → mark the rows `Done` with the user's notes, mark the phases `Done`, then run the close-out below.
-   - **Code approved, QA still pending** → tick nothing, mark nothing `Done`, commit nothing, ship nothing. Report which rows are outstanding and how to resume (`/skill:sassy-lfg <plan>`), and stop.
+   - **Code approved, QA still pending** → tick nothing, mark nothing `Done`, commit nothing, ship nothing. Report which rows are outstanding and how to resume (invoke `sassy-lfg <plan>` in the harness's syntax), and stop.
    - **Any QA row fails** → run one more `sassy-cycle` on that phase with the failing rows as the intent reference, then present the gate again. A row that still fails is `Blocked` with the reason and stops the run.
 6. **Close-out.** On both gates passing, load the `sassy-ship` skill and follow it. Do only the close-out steps the user approves. Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship` to `sassy-babysit`. The branch from step 2 already carries the work, so ship commits and opens the PR on it; ship never creates the branch.
 

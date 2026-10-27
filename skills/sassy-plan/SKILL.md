@@ -17,6 +17,8 @@ disable-model-invocation: true
 
 **Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. Plans land in `artifacts.plans`.
 
+**Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
+
 ## Phase A — Discuss (brainstorm)
 
 Have one focused discussion to turn the idea into something plannable.

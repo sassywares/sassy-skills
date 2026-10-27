@@ -19,6 +19,8 @@ disable-model-invocation: true
 
 **Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `git.repo` decides what the phase commit does, `artifacts.plans` decides where the plan lives, and `commit.branch` decides whether this run needs its own branch.
 
+**Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
+
 ## Input
 
 Detect the shape from the argument:
@@ -65,17 +67,11 @@ Always gate before committing. One worker fixes findings, one re-check, then pre
 
    Do not hand off or close out until the commit or snapshot succeeds.
 8. **On commit success:**
-   - **A next phase exists** → hand off so it starts in a fresh session:
-
-     ```text
-     /handoff Execute phase <next> of <plan>. Run /skill:sassy-work <plan> phase:<next>
-     ```
-
-     The user submits the seeded prompt once, and the next phase starts in the fresh session.
+   - **A next phase exists** → load the `sassy-handoff` skill with the goal *Execute phase <next> of <plan> by invoking `sassy-work <plan> phase:<next>`*. It writes the handoff file and gives the user its path and a one-line prompt; the next phase starts when they paste it into a fresh session.
 
    - **This was the last phase** → run the close-out: load the `sassy-ship` skill and follow it.
 
-**Why a command:** session replacement is only available from an interactive command handler, so a skill cannot switch sessions by itself. Running `/handoff` is the single trigger; the extension does the summary and opens the fresh session.
+**Why a fresh session:** one phase per context keeps every phase's context small. A skill cannot start a session itself, so the handoff file is the bridge and the user opens the session.
 
 ## Brief input
 

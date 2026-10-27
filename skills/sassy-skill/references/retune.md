@@ -1,6 +1,6 @@
 # Mode: retune — the smallest fix for one named failure
 
-Read the skill's shared sections first (locations, pi's rules, shape rule, checklist). This file is the failure map.
+Read the skill's shared sections first (locations, Agent Skills rules, shape rule, checklist). This file is the failure map.
 
 ## 1. Name the failure before touching anything
 
@@ -30,4 +30,4 @@ If the request names no failure, ask for one. A retune without a failure is a re
 
 - Internal skill → `scripts/sync.sh` (commit, bump, tag, publish; say so before running it).
 - Project or user skill → committed or written in place, as its location requires.
-- Then run the skill's Verification section: `/reload`, no startup warnings, `/skill:<name>` behaves. A retune that was never invoked has not been verified.
+- Then run the skill's Verification section: reload, no load warning, invoking it behaves. A retune that was never invoked has not been verified.

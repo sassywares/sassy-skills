@@ -22,6 +22,8 @@ disable-model-invocation: true
 
 **Keys are the head branch.** Resolve per head: the exact head, then the longest matching family (`release/*`), then `"*"`. Each point overrides independently. An entry is `<skill> <args…>` — split on the first whitespace and pass the args verbatim.
 
+**Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
+
 ## Context
 
 Each `git`/`gh` probe is its own argv-form shell call; a non-zero exit is control flow, not something to suppress.

@@ -20,6 +20,8 @@ disable-model-invocation: true
 
 **Subagent-maximal by design.** The orchestrator delegates every heavy step (docs, tree reads, git, gh) to subagents and only receives compact summaries. It never reads diffs, file contents, or the tree itself.
 
+**Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
+
 ## Steps (in order)
 
 1. **Review gate.** In `mode:manual` only: present a compact shipping summary — the plan or topic, the changes from the cycle results, the docs the close-out expects to write, the branch/PR target, the babysit options, and **the hooks resolved for this run's head — point, skill, and args — or that none are declared** — and wait. In `mode:auto`, skip this gate.

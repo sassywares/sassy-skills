@@ -1,6 +1,6 @@
 # Mode: verify — read, judge, report, change nothing
 
-Read the skill's shared sections first (locations, pi's rules, shape rule, checklist). This file is the read-only sweep.
+Read the skill's shared sections first (locations, Agent Skills rules, shape rule, checklist). This file is the read-only sweep.
 
 **No writes. Not one.** No edits, no renames, no moving files between locations, no version bumps, no `scripts/sync.sh`. A verify run that "just fixes a typo while it is there" has become a retune without a named failure, and the user loses the report they asked for.
 
@@ -21,7 +21,7 @@ Walk the shared **Self-check checklist** item by item. For each, the evidence is
 
 ## 3. Run the skill, if it is installed
 
-`/reload`, then check pi's startup output for warnings, then `/skill:<name>`. Quote what it did. If it cannot be invoked here — different harness, uninstalled, needs credentials — say that plainly instead of implying a pass.
+Reload the harness, confirm it lists the skill with no load warning, then invoke it (syntax per the `sassy-setup` skill's `references/harness.md`). Quote what it did. If it cannot be invoked here — different harness, uninstalled, needs credentials — say that plainly instead of implying a pass.
 
 ## 4. Report in one shape
 

@@ -17,6 +17,8 @@ disable-model-invocation: true
 
 **Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Handbooks land in `artifacts.handbooks`.
 
+**Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
+
 ## When to run
 
 - After a plan or multi-phase change needs a **human handover** (what landed, what is left, how to extend it).

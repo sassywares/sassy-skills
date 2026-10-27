@@ -15,6 +15,8 @@ disable-model-invocation: true
 
 **Orchestrator only.** Do not read the repo yourself. One `scout` dispatch per independent area, in parallel when the areas do not overlap.
 
+**Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
+
 ## When to use
 
 - Before planning a change, to ground files, patterns, prior art, and any prior learning already written about the area.
@@ -34,7 +36,7 @@ disable-model-invocation: true
 The scout writes it under a per-user temp directory, keyed by the worktree root:
 
 ```bash
-ROOT="/tmp/pi-grounding-$(id -u)"
+ROOT="/tmp/sassy-grounding-$(id -u)"
 ROOT_ABS=$(cd "$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")" && pwd -P)
 KEY=$(printf '%s' "$ROOT_ABS" | shasum -a 256 | cut -d' ' -f1)
 BRIEF="$ROOT/$KEY.md"

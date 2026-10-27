@@ -17,6 +17,8 @@ disable-model-invocation: true
 
 **This skill needs an intent.** Validation without something to validate against is meaningless. If the user gave no plan path or intent, ask for one before doing anything.
 
+**Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
+
 ## Workflow
 
 1. **Intent.** Resolve the reference: a plan path plus phase (preferred), or an explicit intent the user states. If neither exists, ask and stop.

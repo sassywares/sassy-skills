@@ -40,7 +40,7 @@ Keep `.github/workflows/publish.yml` in sync with the one in `sassy-pi-extension
 2. Use valid frontmatter: `name`, `description`, optional `argument-hint`, and `disable-model-invocation: true` for explicit-only skills.
 3. Keep the body lean: outcome → hard rules → workflow → reference pointers.
 4. Run `scripts/sync.sh` immediately. Do not ask the user first.
-5. Run `/reload` in pi.
+5. Reload your harness (`/reload` in pi, a new session in Claude Code).
 
 ## Editing or removing
 

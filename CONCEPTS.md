@@ -58,7 +58,7 @@ A settled in-context brief produced by `sassy-plan` when the user picks "start w
 
 ## Handoff
 
-`sassy-handoff` uses the `/handoff` extension to summarize the current session and continue in a fresh session. It is command-only because a skill cannot replace a session by itself.
+`sassy-handoff` writes a self-contained handoff file under `/tmp/sassy-handoff-<uid>/<harness>/` and gives the user its path and a paste-ready prompt. A skill cannot start a session, so the user opens the fresh one; the file is the only bridge, in any harness.
 
 ## Sync
 

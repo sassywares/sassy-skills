@@ -2,7 +2,7 @@
 
 **Lean and mean skills for shipping fast — with full control and 100% reliability.**
 
-Sassy Skills is a suite of explicit-invocation Agent Skills. It follows the Agent Skills format, so it works with any harness that can load `SKILL.md` workflows.
+Sassy Skills is a suite of explicit-invocation Agent Skills. It follows the Agent Skills format, so it works with any harness that can load `SKILL.md` workflows. Where harnesses differ — how one skill loads another, how agents are dispatched, which command the user types — the skills follow one shared reference, `sassy-setup`'s `references/harness.md`, instead of assuming a harness. The subagents they dispatch come from [sassy-agents](https://github.com/sassywares/sassy-agents), one folder per harness.
 
 It covers the whole path from a rough idea to a shipped PR, and from a bug report to a verified fix — without giving up human control at the moments that matter.
 
@@ -85,7 +85,7 @@ Debugging:
 | **`sassy-lfg`** | Executes every phase of a plan, or one in-context brief, then closes out via `sassy-ship` after code approval. |
 | **`sassy-cycle`** | Runs one unit of work through implement → review → validate → fix → re-check. |
 | **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-cycle`, then ships after code approval. Debug takes no mode and always leaves ship's review gate in place unless you invoke ship yourself with `mode:auto`. |
-| **`sassy-handoff`** | Summarizes the session and opens a fresh one via `/handoff`, with the continuation prompt seeded in the editor for you to submit. |
+| **`sassy-handoff`** | Writes a self-contained handoff file to a temp directory and gives you its path plus a one-line prompt to paste into a fresh session, in any harness. |
 
 ### Code quality
 
@@ -115,8 +115,7 @@ Debugging:
 | Skill | What it does |
 |---|---|
 | **`sassy-skill`** | Creates, retunes, or restructures Agent Skills. |
-| **`sassy-setup`** | Detects the project topology and writes `.sassywares/config.yaml`; installs the snapshot tooling for a multi-repo workspace; commits the files it wrote. `mode:check` verifies an existing setup, including the vendored pin. |
-| **`sassy-compare`** | Runs one prompt against two models in isolated worktrees, with optional per-side thinking levels, and compares output, code changes, timing, tokens, and errors. |
+| **`sassy-setup`** | Detects the project topology and writes `.sassywares/config.yaml`; installs the sassy-agents subagents for your harness when missing; installs the snapshot tooling for a multi-repo workspace; commits the files it wrote. `mode:check` verifies an existing setup, including the vendored pin. |
 
 ## Project config
 
