@@ -79,7 +79,7 @@ Debugging:
 
 | Skill | What it does |
 |---|---|
-| **`sassy-plan`** | Brainstorms and settles the work in one discussion, then offers three choices: write the plan, start working now, or take it all the way to a PR. |
+| **`sassy-plan`** | Grills you one question at a time through every branch of the work — pushing back, assuming nothing, sketching UI on request — until nothing is open, then offers three choices: write the plan, start working now, or take it all the way to a PR. |
 | **`sassy-scout`** | Grounds an area on demand and writes the shared grounding brief other agents read instead of re-exploring. |
 | **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, commits after code approval, then hands off the next phase — a brief stops before ship. |
 | **`sassy-lfg`** | Executes every phase of a plan, or one in-context brief, then closes out via `sassy-ship` after code approval. |

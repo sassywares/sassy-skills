@@ -2,6 +2,10 @@
 
 Read this before writing the plan file.
 
+## No open questions
+
+The plan has no open-questions section. Every branch the interview found is a decision, a deferred item, or an assumption — copy the ledger as it stood at the confirmed read-back. If you find an open branch while writing, stop and ask it before the file lands.
+
 ## Phase splitting rules
 
 1. **Vertical first.** Prefer "ship a thin slice of feature X across all its layers" over "do all the database, then all the API, then all the UI".
@@ -29,11 +33,24 @@ The user may ask in plain language to omit QA tables for this plan, in which cas
 One short paragraph: what we are building and why.
 
 ## Decisions
-- D1: …
-- D2: …
+- D1: … (user-directed, over <alternative>: <reason>)
+- D2: … (from code: `path/to/file.ts:12`)
+
+Every decision carries its provenance from the interview ledger.
 
 ## Constraints
 Anything that must not change, non-goals, and risks. (Omit if none.)
+
+## Deferred
+- F1: … (user-deferred — <when or by whom>)
+- F2: … (implementation-time — <what only the code will answer>)
+
+(Omit if none.)
+
+## Assumptions
+- A1: … (user-delegated)
+
+Items the user handed to the agent's recommendation, or left open when they ended the interview. (Omit if none.)
 
 ## Phase tracking
 
