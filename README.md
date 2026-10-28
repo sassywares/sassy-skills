@@ -98,7 +98,7 @@ Debugging:
 
 | Skill | What it does |
 |---|---|
-| **`sassy-ship`** | Compound learnings, optional handbook, commit, PR, and babysit. Review gate in `mode:manual` (default), skipped by `mode:auto`. |
+| **`sassy-ship`** | Compound learnings, optional handbook, commit, PR, and babysit (under `commit.branch: current`: commit and push, no PR). Review gate in `mode:manual` (default), skipped by `mode:auto`. |
 | **`sassy-commit`** | Creates a local commit with a clear message. No push, no PR. |
 | **`sassy-commit-push-pr`** | Commits, pushes, opens or updates a PR, and babysits by default. |
 | **`sassy-babysit`** | Watches a PR until it looks merge-ready or blocked. |
@@ -264,7 +264,7 @@ The artifact decides QA: a plan document carries manual QA tables that gate phas
 
 A base is **any `base_map` value**, not just the remote default: in a repo whose `"*"` targets `staging`, standing on `staging` counts as standing on a base. That distinction is the whole point of the key — see [`skills/sassy-setup/references/branching.md`](skills/sassy-setup/references/branching.md).
 
-The three skills take `branch:infer|current|new` to override the config for one run: `infer` (default) means the config decides, `new` forces a branch, `current` commits where you stand. `sassy-ship` never creates a branch; finding the head on a base branch with unpublished commits is a stop-and-ask.
+The three skills take `branch:infer|current|new` to override the config's branching for one run (the no-PR close-out follows the config `commit.branch: current` regardless of the token): `infer` (default) means the config decides, `new` forces a branch, `current` commits where you stand; it does not skip the PR. Only `commit.branch: current` in the config makes the close-out push to the upstream with no PR, hooks, or babysit. `sassy-ship` never creates a branch; finding the head on a base branch with unpublished commits is a stop-and-ask, except under `commit.branch: current`, where they are pushed along.
 
 ## Repository layout
 

@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 # Sassy LFG
 
-**Outcome:** every phase in the plan run through `sassy-cycle`, then one gate that carries the code approval and every phase's manual QA checklist, phases marked `Done` only when both pass, then `sassy-ship` closes it out (compound, handbook, commit, PR, babysit). A brief runs one cycle through the same gate, then ships.
+**Outcome:** every phase in the plan run through `sassy-cycle`, then one gate that carries the code approval and every phase's manual QA checklist, phases marked `Done` only when both pass, then `sassy-ship` closes it out (compound, handbook, commit, PR, babysit; under `commit.branch: current`, commit and push with no PR). A brief runs one cycle through the same gate, then ships.
 
 **The orchestrator does not do work.** Read the plan, dispatch `sassy-cycle` per phase, then `sassy-ship`. Never edit application code. Keep the main context small — all heavy work happens in subagents.
 
@@ -50,7 +50,7 @@ A brief has no QA table, so its gate is code approval alone. Never invent, enabl
    - **Code approved and every QA row passes** → mark the rows `Done` with the user's notes, mark the phases `Done`, then run the close-out below.
    - **Code approved, QA still pending** → tick nothing, mark nothing `Done`, commit nothing, ship nothing. Report which rows are outstanding and how to resume (invoke `sassy-lfg <plan>` in the harness's syntax), and stop.
    - **Any QA row fails** → run one more `sassy-cycle` on that phase with the failing rows as the intent reference, then present the gate again. A row that still fails is `Blocked` with the reason and stops the run.
-6. **Close-out.** On both gates passing, load the `sassy-ship` skill and follow it. Do only the close-out steps the user approves. Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship` to `sassy-babysit`. The branch from step 2 already carries the work, so ship commits and opens the PR on it; ship never creates the branch.
+6. **Close-out.** On both gates passing, load the `sassy-ship` skill and follow it. Do only the close-out steps the user approves. Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship` to `sassy-babysit`. The branch from step 2 already carries the work, so ship commits and opens the PR on it; ship never creates the branch. Under `commit.branch: current` ship commits and pushes the checked-out branch to its upstream and skips the PR, `hooks.pr.*`, babysit, and merge.
 
 ## Brief constraints
 

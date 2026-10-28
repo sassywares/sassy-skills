@@ -88,8 +88,10 @@ than forced.
 
 Only reachable with `policy: current`, which is an explicit statement that
 committing on the base branch is intended. Proceed, and say in the run's gate
-summary that the commits are landing on `<head>` and that `pr-base` is
-`<pr-base>`. Never infer this from a skill default.
+summary that the commits are landing on `<head>`. When the config says
+`commit.branch: current`, the close-out commits and pushes `<head>` to its upstream with **no PR** — no
+`sassy-commit-push-pr`, no `hooks.pr.*`, no babysit, no merge. `pr-base` is
+irrelevant here. Never infer this from a skill default.
 
 ### `stop-and-ask`
 
@@ -122,11 +124,15 @@ policies.
 
 ## After the branch exists
 
-Downstream steps forward `branch:current` to `sassy-commit`, because the decision
-has already been made and the commits belong on that branch. `sassy-ship` never
+With the token alone, this is a commit only; the push-and-no-PR close-out comes
+from the config. Downstream steps forward `branch:current` to `sassy-commit`,
+because the decision has already been made and the commits belong on that branch. `sassy-ship` never
 creates the branch — by the time it runs, the branch carries the work. If it ever
 finds the run's head on a base branch with unpublished commits, that is a
-mis-run: stop and ask, never relocate commits silently.
+mis-run: stop and ask, never relocate commits silently. The exception is a
+config with `commit.branch: current`, where unpublished commits on the head are
+simply pushed along. Only that config skips the PR. A typed `branch:current`
+token, and the `branch:current` forwarded to `sassy-commit`, do not.
 
 Report the branch and its start point in every gate summary. A decision the user
 cannot see is a decision they cannot correct.

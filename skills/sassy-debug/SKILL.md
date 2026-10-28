@@ -95,7 +95,7 @@ Leave everything uncommitted. Present the result: the causal chain, the fix, the
 
 ## Phase 5 — Ship via `sassy-ship`
 
-On code approval, load the `sassy-ship` skill and follow it, leaving ship's default `mode:manual` review gate in place. Do not pass a mode yourself. Ship presents its shipping summary and waits. It compounds any learnings, commits, opens or updates the PR, and babysits it via `sassy-babysit`. Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship`. Run only the steps the user approves.
+On code approval, load the `sassy-ship` skill and follow it, leaving ship's default `mode:manual` review gate in place. Do not pass a mode yourself. Ship presents its shipping summary and waits. It compounds any learnings, commits, opens or updates the PR, and babysits it via `sassy-babysit` (under `commit.branch: current` it commits and pushes the checked-out branch instead, with no PR, hooks, or babysit). Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship`. Run only the steps the user approves.
 
 If the fix gate ended in **Write a plan**, **Hand off**, or **Stop here**, this skill stops there — never commit.
 

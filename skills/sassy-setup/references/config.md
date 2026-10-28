@@ -91,7 +91,7 @@ hooks:
 | `git.remote` | mirror of `git.repo` | Workspace only: mirror remote (URL or `owner/name`) |
 | `git.mirror_branch` | `main` | Workspace only: the branch the mirror pushes to |
 | `repos` | `{}` | Workspace only: repo dir name → the base its PRs target |
-| `commit.branch` | `new` | Resolved once per run, before the first change. `new` never commits on a base branch: `sassy-work`, `sassy-lfg`, and `sassy-debug` cut a branch first. `current` commits where you stand, base branch included |
+| `commit.branch` | `new` | Resolved once per run, before the first change. `new` never commits on a base branch: `sassy-work`, `sassy-lfg`, and `sassy-debug` cut a branch first. `current` commits where you stand, base branch included, and the close-out pushes it to its upstream with no PR |
 | `pr.babysit` | `true` | Whether close-out babysits the PR it opened |
 | `pr.merge` | `false` | `true` authorizes merging a single babysat PR |
 | `pr.delete_branch` | `false` | Delete the head branch once merged |
@@ -168,7 +168,7 @@ branch from `origin/<base>` then leaves them behind entirely.
 
 | Value | Meaning |
 |-------|---------|
-| `current` | Commit where you stand, even on a base branch. An explicit statement that this repo's work in progress is acceptable |
+| `current` | Commit where you stand, even on a base branch, then push the branch to its upstream (never forced) with no PR. An explicit statement that this repo's work in progress is acceptable |
 | `new` (default) | Never commit on a base branch. Cut one first, then stay on it for the rest of the run |
 
 A branch that is already checked out and is **not** a base is reused, whatever
@@ -181,8 +181,15 @@ default alone. In the config above `staging` is a base because `"*"` targets it,
 even though `origin/HEAD` is `main`. Comparing only against `origin/HEAD` is how
 phase work once got committed straight onto `staging`.
 
+Under `current` the close-out skips the PR pipeline: `pr.*` and `hooks.pr.*`
+are ignored (`before_create`, `after_create`, `before_merge`, `after_merge` never
+run), and there is no babysit or merge. A non-fast-forward push stops the run.
+Only this config value triggers it. A typed `branch:current` token, or the one
+skills forward to `sassy-commit`, does not suppress the PR.
+
 The `branch:infer|current|new` token on those skills overrides this key for one
-run; `infer` means this key decides. In a workspace the key is resolved from the
+run, for branching only; the no-PR close-out follows the config
+`commit.branch: current` regardless of the token; `infer` means this key decides. In a workspace the key is resolved from the
 workspace config for the whole run, one branch name in every repo; a nested
 repo whose own `commit.branch` disagrees is drift, because one run cannot follow
 two policies.
@@ -329,7 +336,7 @@ hooks — the run says so in one line rather than skipping silently.
 
 ## Multi-repo runs
 
-A run that touches N repos produces N commits, N PRs, and one snapshot:
+A run that touches N repos produces N commits, N PRs (no PRs under `current`), and one snapshot:
 
 | Artifact | Where |
 |----------|-------|

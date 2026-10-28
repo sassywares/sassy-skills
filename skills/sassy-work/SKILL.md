@@ -69,7 +69,7 @@ Always gate before committing. One worker fixes findings, one re-check, then pre
 8. **On commit success:**
    - **A next phase exists** → load the `sassy-handoff` skill in `mode:write` with the goal *Execute phase <next> of <plan> by invoking `sassy-work <plan> phase:<next>`*. It writes the handoff file and gives the user a `sassy-handoff mode:read <path>` command; the next phase starts when they run it in a fresh session and pick it.
 
-   - **This was the last phase** → run the close-out: load the `sassy-ship` skill and follow it.
+   - **This was the last phase** → run the close-out: load the `sassy-ship` skill and follow it (under `commit.branch: current` ship commits and pushes, with no PR).
 
 **Why a fresh session:** one phase per context keeps every phase's context small. A skill cannot start a session itself, so the handoff file is the bridge and the user opens the session.
 

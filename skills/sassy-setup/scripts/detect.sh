@@ -947,7 +947,8 @@ esac
 cat <<'EOF'
 
 # --- Commit ---------------------------------------------------------------
-# current: commit on the checked-out branch, even on a base branch.
+# current: commit on the checked-out branch, even on a base branch, then push
+#          it to its upstream. No PR: pr.* and hooks.pr are ignored.
 # new: never commit on a base branch — sassy-work, sassy-lfg, and sassy-debug
 #      cut a branch at the start of the run and stay on it.
 commit:
