@@ -81,7 +81,7 @@ When the argument is not a plan path, it is one settled brief:
 2. Run one `sassy-cycle` with the brief as the work brief and its decisions / done-when as the intent reference. Do not split it into multiple cycles.
 3. Present the code approval gate with no QA checklist, and wait. Changes requested → a rework cycle with the changes as findings and the brief's decisions / done-when as the intent reference, then this gate again; `blocked` stops.
 4. On code approval, persist the brief's changes the same way the plan path does: a `sassy-commit` delegation with `branch:current` in a remote repo, or the workspace snapshot in a workspace.
-5. Stop and report. Shipping is a separate step (`sassy-ship`), or `sassy-lfg` would have taken it all the way. Never create or update a plan file.
+5. Stop and report. Shipping is a separate step (`sassy-ship`), or `sassy-lfg` would have built and shipped it. Never create or update a plan file.
 
 ## Hard rules
 

@@ -54,7 +54,7 @@ A durable document under `docs/plans/` with intent, decisions, constraints, phas
 
 ## Brief
 
-A settled in-context brief produced by `sassy-plan` when the user picks "start working now" or "take it all the way". It carries the goal, decisions, constraints, work, and done-when, but no plan file and no QA tables.
+A settled in-context brief produced by `sassy-plan` when the user picks "build it, commit, and stop" (`sassy-work`) or "build it and ship" (`sassy-lfg`). It carries the goal, decisions, constraints, work, and done-when, but no plan file and no QA tables.
 
 ## Handoff
 

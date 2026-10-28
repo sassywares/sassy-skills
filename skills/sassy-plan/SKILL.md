@@ -3,7 +3,8 @@ name: sassy-plan
 description: >-
   Grill the user relentlessly about a piece of work, walking every branch of the
   decision tree until nothing is assumed or open, then let the user choose:
-  write a plan document, start working now, or take it all the way to a PR.
+  write a plan document, build and commit (sassy-work), or build and ship
+  (sassy-lfg).
   Sketches UI on request. No modes, no QA flags. Use when asked to brainstorm,
   scope, plan, or create a phased plan.
 argument-hint: "[feature description, requirements, or idea to scope]"
@@ -12,7 +13,7 @@ disable-model-invocation: true
 
 # Sassy Plan
 
-**Outcome:** a decision ledger with zero open items — every branch of the work resolved by the user, explicitly delegated by them, or explicitly deferred by them — then the user's explicit choice from three options: write a plan document, start working now, or take it all the way to a PR.
+**Outcome:** a decision ledger with zero open items — every branch of the work resolved by the user, explicitly delegated by them, or explicitly deferred by them — then the user's explicit choice from three options: write a plan document, build and commit via `sassy-work`, or build and ship via `sassy-lfg`.
 
 **Does not implement.** Planning never implements. Execution belongs to `sassy-work` or `sassy-lfg`, and only after the user picks.
 
@@ -46,9 +47,9 @@ Only when the read-back is confirmed with zero open items, present exactly these
 
 ```text
 Settled. Pick one:
-1. Write it to <artifacts.plans>/<slug>.md
-2. Start working now — stop before ship
-3. Take it all the way — run it, ship it, babysit the PR
+1. Write the plan — <artifacts.plans>/<slug>.md, run it later phase by phase
+2. Build it, commit, and stop — runs sassy-work, no PR
+3. Build it and ship — runs sassy-lfg: commit, PR, babysit
 ```
 
 The user must pick explicitly. There is no default and no auto-selection. If no human is present to answer (rare, e.g. a scripted invocation), take option 2 and say so; every branch you resolved without the user is recorded as an assumption, never as a decision.
@@ -57,11 +58,11 @@ The user must pick explicitly. There is no default and no auto-selection. If no 
 
 Read `references/plan-format.md` and write the plan, including the per-phase manual QA tables that format defines. Then report the absolute path and STOP. No second menu, no "what next" prompt. Do not implement or commit.
 
-### Option 2 — Start working now
+### Option 2 — Build it, commit, and stop (`sassy-work`)
 
 Load the `sassy-work` skill with the settled brief as the work brief and its decisions / done-when as the intent reference. No plan file is written. It stops before ship.
 
-### Option 3 — Take it all the way
+### Option 3 — Build it and ship (`sassy-lfg`)
 
 Load the `sassy-lfg` skill the same way: the settled brief as the work brief, its decisions / done-when as the intent reference. No plan file is written.
 

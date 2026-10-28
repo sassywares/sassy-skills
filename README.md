@@ -46,9 +46,9 @@ That discussion settles the work, then offers a pick:
 
 ```text
 Settled. Pick one:
-1. Write it to docs/plans/<slug>.md
-2. Start working now — stop before ship
-3. Take it all the way — run it, ship it, babysit the PR
+1. Write the plan — docs/plans/<slug>.md, run it later phase by phase
+2. Build it, commit, and stop — runs sassy-work, no PR
+3. Build it and ship — runs sassy-lfg: commit, PR, babysit
 ```
 
 Pick 1 to get a plan file, then run one phase at a time:
@@ -82,7 +82,7 @@ Debugging:
 
 | Skill | What it does |
 |---|---|
-| **`sassy-plan`** | Grills you one question at a time through every branch of the work — pushing back, assuming nothing, sketching UI on request — until nothing is open, then offers three choices: write the plan, start working now, or take it all the way to a PR. |
+| **`sassy-plan`** | Grills you one question at a time through every branch of the work — pushing back, assuming nothing, sketching UI on request — until nothing is open, then offers three choices: write the plan, build and commit via `sassy-work`, or build and ship via `sassy-lfg`. |
 | **`sassy-scout`** | Grounds an area on demand and writes the shared grounding brief other agents read instead of re-exploring. |
 | **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, commits after code approval, then hands off the next phase — a brief stops before ship. |
 | **`sassy-lfg`** | Executes every phase of a plan, or one in-context brief, then closes out via `sassy-ship` after code approval. |
@@ -197,8 +197,8 @@ flowchart LR
   B --> C[Discussion]
   C --> D{3-option picker}
   D -->|1. plan document| E[docs/plans/slug.md]
-  D -->|2. start working| F[sassy-work]
-  D -->|3. take it all the way| G[sassy-lfg]
+  D -->|2. build, commit, stop| F[sassy-work]
+  D -->|3. build and ship| G[sassy-lfg]
   E --> F
   E --> G
   F --> H[sassy-cycle]
