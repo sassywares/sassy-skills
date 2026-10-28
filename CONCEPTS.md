@@ -6,7 +6,7 @@ The repo's `skills/` directory is the only copy of the skills. Consumers install
 
 ## Skill
 
-A directory containing `SKILL.md`, discovered by a harness from a project skills directory, a user skills directory, or an installed package. Skills are explicit workflows, not always-on instructions. The model may invoke any of them; the user can also invoke one directly with `/skill:<name>`.
+A directory containing `SKILL.md`, discovered by a harness from a project skills directory, a user skills directory, or an installed package. Skills are explicit workflows, not always-on instructions. The model may invoke any of them, and the user can invoke one directly through their harness (the `sassy-setup` skill's `references/harness.md` lists each harness's command).
 
 ## Agent
 
