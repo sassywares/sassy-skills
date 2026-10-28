@@ -25,8 +25,8 @@ scopes installed, Claude Code runs the user-scope copy.
 
 ## Agents
 
-The skills dispatch four subagents by name — `scout`, `worker`, `reviewer`,
-`validator` — from [sassy-agents](https://github.com/sassywares/sassy-agents),
+The skills dispatch five subagents by name — `scout`, `worker`, `reviewer`,
+`simplifier`, `validator` — from [sassy-agents](https://github.com/sassywares/sassy-agents),
 one folder per harness (`pi/`, `claude/`). They live either in the harness's
 user directory (`~/.pi/agent/agents/`, `~/.claude/agents/`, linked by
 `sassy-agents/scripts/install.sh <harness>`) or in this project's

@@ -60,7 +60,7 @@ A check run never edits the config and never rewrites the tree: it prints what `
      **Do not wire updates.** How and when the suite is refreshed is the user's or the project's decision, not setup's: no `skills:*` scripts, no `postinstall` edit. Mention the update command for the chosen scope and stop there. Note for yourself that `npx skills check` is an alias of `update` — it is not a validator, and running it here would silently move the pin.
 
    - **Write `.sassywares/README.md`** from `assets/sassywares-readme.md` when absent. Never overwrite it — it may carry project notes.
-   - **Agents.** The skills dispatch four subagents by name — `scout`, `worker`, `reviewer`, `validator` — from [`sassy-agents`](https://github.com/sassywares/sassy-agents), which keeps one folder per harness. Use the row for the harness you are running in:
+   - **Agents.** The skills dispatch five subagents by name — `scout`, `worker`, `reviewer`, `simplifier`, `validator` — from [`sassy-agents`](https://github.com/sassywares/sassy-agents), which keeps one folder per harness. Use the row for the harness you are running in:
 
      | Harness | sassy-agents folder | User scope | Project scope |
      |---|---|---|---|
@@ -69,7 +69,7 @@ A check run never edits the config and never rewrites the tree: it prints what `
 
      A harness with no row has no folder in sassy-agents: say so, skip the agents, and name it in the report. Never translate another harness's folder by hand.
 
-     **Installed** means all four `<name>.md` files exist in the user scope or the project scope. If they do, report which scope and move on. If any are missing, ask once where to install, recommending user scope:
+     **Installed** means all five `<name>.md` files exist in the user scope or the project scope. If they do, report which scope and move on. If any are missing, ask once where to install, recommending user scope:
 
      - **User scope** — every project on this machine, updated by `git pull`. Reuse the user's sassy-agents checkout if they have one; otherwise ask where to clone it (`git clone https://github.com/sassywares/sassy-agents.git <dir>`). Then run `<dir>/scripts/install.sh <folder>`, which symlinks the folder into the user scope and never overwrites a differing file.
      - **Project scope** — only this project, pinned with it. Shallow-clone into `/tmp/sassywares/<harness>/scratch/` (per `references/harness.md`), copy `<folder>/*.md` into the project scope directory, delete the clone. Never overwrite an existing agent file that differs: show it and ask. The copies join step 8's commit list.

@@ -10,7 +10,7 @@ A directory containing `SKILL.md`, discovered by a harness from a project skills
 
 ## Agent
 
-A specialized subagent from [sassy-agents](https://github.com/sassywares/sassy-agents), installed per harness (`~/.pi/agent/agents/`, `~/.claude/agents/`, or a project `.pi/agents/` / `.claude/agents/`) by `sassy-setup`. Skills delegate bounded work to agents such as `scout`, `worker`, `reviewer`, and `validator`.
+A specialized subagent from [sassy-agents](https://github.com/sassywares/sassy-agents), installed per harness (`~/.pi/agent/agents/`, `~/.claude/agents/`, or a project `.pi/agents/` / `.claude/agents/`) by `sassy-setup`. Skills delegate bounded work to agents such as `scout`, `worker`, `reviewer`, `simplifier`, and `validator`.
 
 ## Orchestrator
 
@@ -18,7 +18,7 @@ A skill that mostly coordinates. It reads compact results, writes briefs, and av
 
 ## Cycle
 
-`sassy-cycle` runs one unit of work through implement → review → validate → fix → verify. Verify is a reviewer scoped to the fix, confirming each finding resolved and checking the fix for new ones; at most two fix passes, then anything open is `blocked`. Reviewer suggestions never block; they go to the gate. Given findings instead of a brief — requested changes, failed QA rows — it reworks existing work through the same fix → verify loop. It never commits. Work and LFG run it; debug fixes through work.
+`sassy-cycle` runs one unit of work through implement → review + simplify + validate (in parallel) → fix → verify. Simplifications are applied and verified but never block. Verify is a reviewer scoped to the fix, confirming each finding resolved and checking the fix for new ones; at most two fix passes, then anything open is `blocked`. Reviewer suggestions never block; they go to the gate. Given findings instead of a brief — requested changes, failed QA rows — it reworks existing work through the same fix → verify loop. It never commits. Work and LFG run it; debug fixes through work.
 
 ## Gates
 
@@ -37,9 +37,10 @@ A gate is a deliberate stop or pass/fail condition.
 
 ## Modes
 
-Two mode tokens: `mode:manual` (default) and `mode:auto`. `mode:manual` asks at the skill's gate; `mode:auto` means pre-authorized, no review.
+Three mode tokens: `mode:manual` (default) asks at the skill's gate; `mode:auto` means pre-authorized, no review; `mode:return` reports and changes nothing.
 
-- `sassy-ship` and `sassy-compound` accept both. Ship reviews the whole close-out in `mode:manual` and forwards `mode:auto` to compound once its own gate is answered.
+- `sassy-ship` and `sassy-compound` accept `manual` and `auto`. Ship reviews the whole close-out in `mode:manual` and forwards `mode:auto` to compound once its own gate is answered.
+- `sassy-review`, `sassy-simplify`, and `sassy-validate` accept all three: `manual` asks which findings to fix, `auto` fixes them without asking, `return` hands the findings back to the caller.
 - `sassy-debug` accepts no mode. It always leaves ship's review gate in place.
 - `sassy-work` and `sassy-lfg` accept no mode.
 

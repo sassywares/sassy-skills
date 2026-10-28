@@ -27,8 +27,8 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 
 - **Lean.** Skills are indexes and workflows, not documentation dumps. Detail moves into `references/` only when it is conditionally needed.
 - **Explicit.** Every skill but `sassy-ship` runs only when you invoke it; ship may be started by the agent once you approve the work, and its review gate still waits. No silent background behavior.
-- **Controlled.** Code approval, manual QA, and ship review are visible gates that all run in sequence. There are two mode tokens, `mode:manual` (default) and `mode:auto`, accepted by `sassy-ship` and `sassy-compound` only; every other skill takes no mode.
-- **Reliable.** Work runs through `sassy-cycle` with isolated subagents for implementation, review, validation, and fixes.
+- **Controlled.** Code approval, manual QA, and ship review are visible gates that all run in sequence. Mode tokens are opt-in per skill: `mode:manual` (default) and `mode:auto` on `sassy-ship` and `sassy-compound`, plus `mode:return` on `sassy-review`, `sassy-simplify`, and `sassy-validate`; work, lfg, and debug take no mode.
+- **Reliable.** Work runs through `sassy-cycle` with isolated subagents for implementation, review, simplification, validation, and verified fixes.
 - **Context-efficient.** Orchestrators coordinate; subagents do the heavy reading and return compact results.
 - **Never surprising.** Nothing is committed just because a step finished. Shipping is its own phase.
 
@@ -86,7 +86,7 @@ Debugging:
 | **`sassy-scout`** | Grounds an area on demand and writes the shared grounding brief other agents read instead of re-exploring. |
 | **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, commits after code approval, then hands off the next phase — a brief stops before ship. |
 | **`sassy-lfg`** | Executes every phase of a plan, or one in-context brief, then closes out via `sassy-ship` after code approval. |
-| **`sassy-cycle`** | Runs one unit of work through implement → review → validate → fix → verify, with at most two verified fix passes. Also reworks finished work from requested changes or failed QA rows. |
+| **`sassy-cycle`** | Runs one unit of work through implement → review + simplify + validate → fix → verify, with at most two verified fix passes. Also reworks finished work from requested changes or failed QA rows. |
 | **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-work` (cycle, code approval, commit), then ships. Debug takes no mode and always leaves ship's review gate in place unless you invoke ship yourself with `mode:auto`. |
 | **`sassy-handoff`** | `mode:write` (default) writes a self-contained handoff file to `/tmp/sassywares/<harness>/handoffs/` and gives you a `sassy-handoff mode:read <path>` command for a fresh session; `mode:read` explains what the handoff did, why, and where things stand now, then asks what to do next. Works in any harness. |
 
@@ -94,8 +94,11 @@ Debugging:
 
 | Skill | What it does |
 |---|---|
-| **`sassy-review`** | Reviews a diff, branch, PR, or files for bugs, project-rule conformance, and design-system conformance, then offers to fix findings. |
-| **`sassy-validate`** | Checks whether work matches a plan or stated intent, then offers to close gaps. |
+| **`sassy-review`** | Reviews a diff, branch, PR, or files for bugs, security, project-rule conformance, and design-system conformance, then fixes the findings you pick. |
+| **`sassy-simplify`** | Finds behavior-preserving simplifications — reuse, quality, efficiency — then applies the ones you pick. |
+| **`sassy-validate`** | Checks whether work matches a plan or stated intent, then closes the gaps you pick. |
+
+Each does one job and takes `mode:manual` (default: ask which to fix), `mode:auto` (fix without asking), or `mode:return` (report only). Fixes run through `sassy-cycle`, so they are verified. Inside work, lfg, and debug, the cycle runs all three agents in parallel itself.
 
 ### Shipping
 
@@ -217,7 +220,7 @@ Option 1 produces a durable plan with phased slices and manual QA tables. Option
 
 `sassy-work` handles one phase and hands off the next. `sassy-lfg` drains the whole plan in one session. Both delegate to `sassy-cycle` and stop at one gate carrying code approval plus the manual QA checklist; nothing is `Done`, committed, or shipped until both pass. With an in-context brief there are no QA rows, so the gate is code approval alone.
 
-Inside the cycle, every finding is fixed and then **verified**: a reviewer scoped to the fix confirms each finding resolved, and checks the fix itself for anything new. Whatever is still open gets a second fix pass; anything open after that comes back `blocked` rather than looping. Critical findings and warnings are fixed automatically; the reviewer's suggestions are listed at the gate for you to pick. Changes you request at the gate and QA rows that fail go through the same loop as findings, then the gate comes back.
+Inside the cycle, every finding is fixed and then **verified**: a reviewer scoped to the fix confirms each finding resolved, and checks the fix itself for anything new. Whatever is still open gets a second fix pass; anything open after that comes back `blocked` rather than looping. Critical findings, warnings, and validator gaps are fixed automatically; the simplifier's findings are applied in the same pass but never block; the reviewer's suggestions are listed at the gate for you to pick. Changes you request at the gate and QA rows that fail go through the same loop as findings, then the gate comes back.
 
 The branch is cut once, before the first change, by `sassy-work` or `sassy-lfg` — never at commit time — and `sassy-ship` never creates it. `commit.branch` (default `new`) decides whether the run cuts one at all; see [Branching](#branching).
 
