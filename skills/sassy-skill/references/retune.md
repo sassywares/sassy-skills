@@ -15,7 +15,7 @@ Read the skill and say which of these it is, in one line. "It feels long" is not
 | **One path's rules bleed into another's** (a mode doing the neighbouring mode's job) | A shape bug, not a wording bug: split the divergent outcomes into `references/`, one file per path, and give the body a dispatch table naming exactly one file per mode. Rewording the paragraph does not fix adjacency. |
 | **Too long / bloated** | Extract conditional content to `references/`, or delete what never gets used. Never delete a hard rule to save lines. |
 | **Wrong or stale steps** | Correct the workflow against the current tree — read the files the steps name before trusting them. |
-| **Wrong scope** | Move it between internal, project, and user. Moving into the suite is a release; moving out means the next release drops the skill for everyone. |
+| **Wrong scope** | Move it between project and user: into the project when the team needs it, out to the user when only one person does. |
 | **Oversplit** (five topic files, vague routing) | Fold shared surfaces back into the body and keep one reference per outcome. |
 
 If the request names no failure, ask for one. A retune without a failure is a rewrite with extra steps.
@@ -26,8 +26,7 @@ If the request names no failure, ask for one. A retune without a failure is a re
 - Re-read the surrounding lines so the fix does not contradict a rule elsewhere in the file.
 - If the fix moves content into `references/`, the body must dispatch to it by name and say to read only that one.
 
-## 4. Ship and re-verify
+## 4. Save and re-verify
 
-- Internal skill → `scripts/sync.sh` (commit, bump, tag, publish; say so before running it).
-- Project or user skill → committed or written in place, as its location requires.
+- Project skill → commit it. User skill → it is written in place.
 - Then run the skill's Verification section: reload, no load warning, invoking it behaves. A retune that was never invoked has not been verified.

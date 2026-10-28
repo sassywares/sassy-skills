@@ -1,9 +1,9 @@
 ---
 name: sassy-skill
 description: >-
-  Create, retune, or improve an Agent Skill. Asks where the skill should live —
-  inside this suite, in a project, or for one user — then writes it there with
-  the rules and release steps that location requires. Use when asked to create a
+  Create, retune, or improve an Agent Skill for the user. Places it in the
+  project (preferred) or the user's own skills, asking when it can't infer
+  which, then writes it there with the rules that location requires. Use when asked to create a
   skill, turn a workflow into a skill, fix a description or triggering,
   restructure a bloated skill, or retune an existing one.
 argument-hint: "[mode:create|retune|verify] [name, idea, or skill path]"
@@ -16,7 +16,7 @@ disable-model-invocation: true
 
 **Modes.** `mode:create` writes a new skill. `mode:retune` changes the smallest thing that fixes a named failure in an existing skill. `mode:verify` checks an existing skill against the checklist and reports — it edits nothing. Omitted, detect it from the argument: something that already resolves to a skill directory is `retune`, or `verify` when the user only asked whether it is any good; anything else is `create`. State the mode you picked and why; when both are plausible, ask instead of guessing.
 
-**Locations are not interchangeable** — they decide who gets the skill, how it ships, and what it may be called. Ask before writing.
+**Locations are not interchangeable** — they decide who gets the skill and what it may be called. Infer it when the request makes it clear; otherwise ask, recommending the project.
 
 **Scope:** skills only — not extensions, packages, or prompt templates.
 
@@ -50,17 +50,16 @@ The suite targets the **Agent Skills specification** (agentskills.io), so a skil
 
 ## Where the skill lives
 
-Ask which one, unless the request already made it obvious. The answer changes the name, the sharing, and whether a release is needed.
+Infer it when the request makes it obvious; otherwise ask, recommending **project**. The answer changes the name and who gets it.
 
 | Location | Path | Who gets it | Extra work |
 |---|---|---|---|
-| **Internal** — part of this suite | `skills/<name>/` in the sassy-skills repo | Everyone, once pushed to `main` | Name it `sassy-<name>`, bump the minor version by hand (a new skill), then run `scripts/sync.sh` — it commits, tags, and publishes; edits to an existing skill take its automatic patch bump |
 | **Project** — team workflow | `<repo>/.agents/skills/<name>/` | Everyone who clones that repo | Commit it; prefix the project (`tap2-…`) so it can't collide with a suite skill or a harness built-in |
 | **User** — personal workflow | `~/.agents/skills/<name>/` | Only this person, every repo on this machine | None — but nothing gates it either; never put something a teammate needs here |
 
-Recommend by audience: the team needs it → **project**; only the requester → **user**; it belongs to every project using this suite → **internal**.
+Recommend by audience: the team needs it, or the audience is unclear → **project**; only the requester → **user**.
 
-Internal is the only one that ships to everyone. Never choose it silently: once it lands on `main`, every consumer gets it on their next `npx skills update`. Say that out loud when you do.
+Never prefix a skill `sassy-`: that namespace belongs to the suite, and a matching name collides with it.
 
 Paths in the table are the defaults. `.agents/skills/` is read by pi and others; Claude Code reads only `.claude/skills/` (project) and `~/.claude/skills/` (user), so a hand-placed skill there also needs a link in those directories — `npx skills add` creates them for installed skills. Harnesses also read `skills` arrays in settings and installed packages, so a skill may live elsewhere — write down where it actually went.
 
@@ -98,10 +97,9 @@ The gate for a new or edited skill, and the instrument in `mode:verify`.
 
 | Rule | Requirement |
 |------|-------------|
-| Ask before writing | The location — internal, project, or user — is the user's call, never the cwd's. State the mode you inferred. |
+| Location is clear before writing | Project or user — inferred from the request, never from the cwd alone; ask when unclear, recommending project. State the mode and location you picked. |
 | Verify writes nothing | `mode:verify` ends with a report. If you spot a fix while verifying, name it and let the user ask for the retune. |
 | Retune is minimal | One named failure, the smallest change that kills it. No drive-by rewrites, no tidy-ups nobody asked for. |
 | Split by outcome | Divergent paths get their own reference even when tiny; shared surfaces stay in the body. |
 | Name skills, not paths | Reference another skill by name so the suite stays portable across install locations. |
-| Internal is a release | Putting a skill in the suite ships it to every consumer on `main`. Never choose it silently. |
 | Nothing untestable | No secrets, and no capability the skill cannot actually perform. |

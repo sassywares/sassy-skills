@@ -8,7 +8,7 @@ Settle three things by asking, not inferring:
 
 - **What it does** — the one outcome, stated as a result ("a merged PR", "a filed ticket", "a plan on disk"), not as an activity.
 - **When it fires** — the words a user will actually say. These become the description's *when* half.
-- **Where it lives** — internal, project, or user, per the location table. Ask; the cwd proves nothing.
+- **Where it lives** — project or user, per the location table. Infer it from the request; when unclear, ask and recommend the project. The cwd alone proves nothing.
 
 If any of the three is missing, ask before writing a file. A skill authored on a guess is the one that gets retuned next week.
 
@@ -41,7 +41,6 @@ Plain English, no filler. Where the skill returns a result, give the shape of th
 
 ## 5. Place and install
 
-- **Internal:** `skills/<name>/` in the sassy-skills repo, named `sassy-<name>`; link it globally as that repo's `AGENTS.md` describes, bump the minor version by hand (a new skill is a minor release), then run `scripts/sync.sh` — it commits, tags, and publishes. Say that this ships to everyone before you do it.
 - **Project:** `<repo>/.agents/skills/<name>/`, prefixed with the project so it cannot collide with a suite skill or a harness built-in; then commit it.
 - **User:** `~/.agents/skills/<name>/` (plus a `~/.claude/skills/<name>` link for Claude Code). Nothing gates it, so check it actually works before trusting it.
 

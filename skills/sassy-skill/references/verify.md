@@ -8,7 +8,7 @@ Read the skill's shared sections first (locations, Agent Skills rules, shape rul
 
 - `SKILL.md`, then every file under `references/` — you cannot judge routing without seeing what it routes to.
 - Check the frontmatter parses and the directory name matches `name`.
-- If it ships from the suite or a package, note the pinned version: verification is against what consumers actually got.
+- If it was installed from a package or another repo, note the pinned version: verification is against what was actually installed.
 
 ## 2. Run the checklist
 
