@@ -41,10 +41,12 @@ Snapshot the PR state first, then act in this order:
 
 1. **Terminal** — `MERGED`/`CLOSED` → if it is `MERGED` and `after_merge` resolves for this PR's head, run those hooks once (see Step 3) before stopping.
 2. **Capture the head SHA** — a later push invalidates this snapshot's CI.
-3. **Feedback before CI** — fetch open review threads (`gh pr view --json reviewThreads,comments`). Address each actionable thread: reply, then fix. Use `sassy-debug` for a real defect. Never wait for a reviewer who is "still reviewing" before acting on feedback already posted.
+3. **Feedback before CI** — fetch open review threads (`gh pr view --json reviewThreads,comments`). Fix every actionable thread (see **Fixing** below), then reply on each with what changed and the commit. A thread that is not actionable gets a reply saying why. Never wait for a reviewer who is "still reviewing" before acting on feedback already posted.
 4. **Stale-SHA cancellation** — if the head moved since step 2, skip the CI work for this snapshot.
-5. **CI** — `gh pr checks`. One pass for all failures. Flaky/infra → `gh run rerun <run-id> --failed`. Real failure → fix it (via `sassy-debug`). Mark each check handled; unfixed checks stay red.
+5. **CI** — `gh pr checks`. One pass for all failures. Flaky/infra → `gh run rerun <run-id> --failed`. Real failure → fix it (see **Fixing**). Mark each check handled; unfixed checks stay red.
 6. **Branch currency** — if the branch is `BEHIND` or `DIRTY`, update it (`gh pr update-branch <ref>`, or ask for a local rebase). Do not update just because the base moved; only when the status actually requires it.
+
+**Fixing.** Load the `sassy-cycle` skill on rework with the threads and failing checks as findings and the PR's changed files as the scope hint; it fixes and verifies, at most two passes. Then load `sassy-commit` with `branch:current` and `git push`. A finding the cycle leaves open, or a failure you cannot diagnose from the log and the diff, is `needs-human`. Never load `sassy-debug` or `sassy-ship` from here — they commit, open PRs, and babysit on their own, which nests a second watch over this PR.
 
 After a tick with no true stop, wait and run the next tick. Checkpoint mode: run one tick and report paused with the resume command.
 

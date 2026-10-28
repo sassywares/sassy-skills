@@ -13,7 +13,7 @@ disable-model-invocation: true
 
 **Outcome:** a grounding brief on disk for the area you asked about, and a 3–5 line gist back in this context. Nothing else.
 
-**Orchestrator only.** Do not read the repo yourself. One `scout` dispatch per independent area, in parallel when the areas do not overlap.
+**Orchestrator only.** Do not read the repo yourself. One `scout` dispatch per run: the brief is one file per worktree, so a second scout replaces the first one's brief. When several areas matter, scope them into that one dispatch.
 
 **Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
 
@@ -26,7 +26,7 @@ disable-model-invocation: true
 
 ## Workflow
 
-1. **Scope.** Reduce the request to one question the brief will answer, in one line. If it is really two questions, use two dispatches.
+1. **Scope.** Reduce the request to the question the brief will answer, in one line — naming every area downstream needs, since there is only one brief.
 2. **Dispatch `scout`** with that scope, what the caller intends to do with it, and the paths or areas you already suspect. The brief also carries matching docs from the project's knowledge paths (`knowledge.read` in `.sassywares/config.yaml`, nearest walking up) — pass that section on to the caller rather than dropping it.
 3. **Keep the gist.** Read the returned gist; do not pull the brief's bulk into this context.
 4. **Report the brief path** to the caller, so downstream agents read it instead of scouting again.
@@ -50,7 +50,7 @@ It is fresh only while its `head` and `dirty` lines match the working tree. Afte
 
 | Rule | Requirement |
 |------|-------------|
-| One question | A brief answers one scoped question. Split, do not sprawl. |
+| One brief | One dispatch, one brief per worktree. Cover every area the work needs in its scope; never run scouts side by side. |
 | Gist only | Return the gist and the brief path. Never paste the brief. |
 | No edits | Scouting is read-only. It never changes code or commits. |
 | Learnings are listed, not judged | Prior learnings come back as path and title. The consumer decides whether one applies; scout never ranks or recommends them. |

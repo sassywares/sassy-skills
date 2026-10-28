@@ -41,7 +41,7 @@ Plain English, no filler. Where the skill returns a result, give the shape of th
 
 ## 5. Place and install
 
-- **Internal:** `skills/<name>/` in the sassy-skills repo, named `sassy-<name>`; then `scripts/sync.sh` — it commits, bumps the patch version, tags, and publishes. Say that this ships to everyone before you do it.
+- **Internal:** `skills/<name>/` in the sassy-skills repo, named `sassy-<name>`; link it globally as that repo's `AGENTS.md` describes, bump the minor version by hand (a new skill is a minor release), then run `scripts/sync.sh` — it commits, tags, and publishes. Say that this ships to everyone before you do it.
 - **Project:** `<repo>/.agents/skills/<name>/`, prefixed with the project so it cannot collide with a suite skill or a harness built-in; then commit it.
 - **User:** `~/.agents/skills/<name>/` (plus a `~/.claude/skills/<name>` link for Claude Code). Nothing gates it, so check it actually works before trusting it.
 

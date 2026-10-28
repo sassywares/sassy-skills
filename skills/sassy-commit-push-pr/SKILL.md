@@ -2,7 +2,7 @@
 name: sassy-commit-push-pr
 description: >-
   Commit, push, and open a PR, then babysit it by default. Use when asked to
-  ship/open a PR, or for a PR-description-only flow (writing, rewriting, or
+  open or update a PR, or for a PR-description-only flow (writing, rewriting, or
   describing a PR body).
 argument-hint: "[PR ref] [branch:new|current] [base:<branch>] [babysit:on|off] [checkpoint] [merge:on|off] [delete-branch:on|off]"
 disable-model-invocation: true
