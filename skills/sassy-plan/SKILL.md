@@ -56,7 +56,15 @@ The user must pick explicitly. There is no default and no auto-selection. If no 
 
 ### Option 1 — Write the plan
 
-Read `references/plan-format.md` and write the plan, including the per-phase manual QA tables that format defines. Then report the absolute path and STOP. No second menu, no "what next" prompt. Do not implement or commit.
+Read `references/plan-format.md` and write the plan, including the per-phase manual QA tables that format defines. Then report the absolute path and offer the remaining two options, now run on the plan file:
+
+```text
+Plan written to <absolute path>. Pick one, or stop here:
+1. Start working via /sassy-work
+2. Implement and ship it via /sassy-lfg
+```
+
+Wait for the user. A pick loads that skill with the plan path as its argument — `sassy-work` runs the next phase, `sassy-lfg` runs every phase and ships. Anything else, or no human present, ends here with the plan written. Do not recommend one, and do not implement or commit before a pick.
 
 ### Option 2 — Start working via `sassy-work`
 

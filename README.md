@@ -51,13 +51,13 @@ Settled. Pick one:
 3. Implement and ship it via /sassy-lfg
 ```
 
-Pick 1 to get a plan file, then run one phase at a time:
+Pick 1 to get a plan file. Plan then asks again with just the other two — start working on it, or implement and ship it — or you stop there and run it later, one phase at a time:
 
 ```text
 /sassy-work docs/plans/add-workspace-invitations.md
 ```
 
-Or take the whole plan through one session:
+Or the whole plan through one session:
 
 ```text
 /sassy-lfg docs/plans/add-workspace-invitations.md
@@ -199,8 +199,8 @@ flowchart LR
   D -->|1. plan document| E[docs/plans/slug.md]
   D -->|2. start working| F[sassy-work]
   D -->|3. implement and ship| G[sassy-lfg]
-  E --> F
-  E --> G
+  E -->|then: start working| F
+  E -->|then: implement and ship| G
   F --> H[sassy-cycle]
   G --> H
   H --> I{Code approval}
