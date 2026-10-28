@@ -6,7 +6,6 @@ description: >-
   it through sassy-ship. Never auto-commits. Use when asked to
   debug or fix a failure.
 argument-hint: "[issue reference, error message, test path, or description] [branch:infer|current|new]"
-disable-model-invocation: true
 ---
 
 # Sassy Debug

@@ -7,7 +7,6 @@ description: >-
   skill, turn a workflow into a skill, fix a description or triggering,
   restructure a bloated skill, or retune an existing one.
 argument-hint: "[mode:create|retune|verify] [name, idea, or skill path]"
-disable-model-invocation: true
 ---
 
 # Sassy Skill

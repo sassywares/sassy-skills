@@ -6,7 +6,7 @@ The suite runs in any harness that loads Agent Skills — pi, Claude Code, and o
 
 "Load the `sassy-x` skill and follow it" means: read `sassy-x/SKILL.md` from the same skills directory as the skill you are running (its sibling, `../sassy-x/SKILL.md`), then follow it. "The `sassy-x` skill's `references/y.md`" is `../sassy-x/references/y.md`.
 
-Read the file; do not rely on the harness's skill-invocation tool. Suite skills set `disable-model-invocation: true`, and some harnesses (Claude Code) enforce that by hiding them from the model entirely. Reading the sibling file works everywhere.
+Read the file; do not rely on the harness's skill-invocation tool. Not every harness exposes one, and those that do differ in how they resolve names. Reading the sibling file works everywhere.
 
 A missing sibling means the suite is incomplete: stop and point at `sassy-setup`.
 

@@ -8,7 +8,6 @@ description: >-
   Sketches UI on request. No modes, no QA flags. Use when asked to brainstorm,
   scope, plan, or create a phased plan.
 argument-hint: "[feature description, requirements, or idea to scope]"
-disable-model-invocation: true
 ---
 
 # Sassy Plan

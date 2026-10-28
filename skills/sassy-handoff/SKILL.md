@@ -8,7 +8,6 @@ description: >-
   next. Use at a phase boundary, when context is getting long, when the user
   asks to hand off, or to pick up a handoff file.
 argument-hint: "[mode:write|read] [goal for the next session | handoff file path]"
-disable-model-invocation: true
 ---
 
 # Sassy Handoff

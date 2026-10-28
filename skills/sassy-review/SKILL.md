@@ -7,7 +7,6 @@ description: >-
   (default) asks which to fix, mode:auto fixes all actionable, mode:return only
   reports. Use when asked to review code. Leaves changes uncommitted.
 argument-hint: "[PR ref, branch, files, or blank for current changes] [mode:manual|auto|return]"
-disable-model-invocation: true
 ---
 
 # Sassy Review

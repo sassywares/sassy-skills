@@ -6,7 +6,6 @@ description: >-
   it was the last). Also runs one settled in-context brief and stops before ship.
   The orchestrator only coordinates.
 argument-hint: "<plan path | brief> [phase:<n>] [branch:infer|current|new]"
-disable-model-invocation: true
 ---
 
 # Sassy Work

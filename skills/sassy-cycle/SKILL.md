@@ -9,7 +9,6 @@ description: >-
   Never commits. Built for context and token
   efficiency — the orchestrator only writes briefs and reads compact results.
 argument-hint: "<work brief | findings> [intent reference]"
-disable-model-invocation: true
 ---
 
 # Sassy Cycle

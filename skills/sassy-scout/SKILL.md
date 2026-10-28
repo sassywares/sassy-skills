@@ -6,7 +6,6 @@ description: >-
   gist plus the brief path, never a wall of file contents. Use when a plan, fix,
   or review needs verified project evidence before it starts.
 argument-hint: "[the area or question to ground]"
-disable-model-invocation: true
 ---
 
 # Sassy Scout

@@ -8,7 +8,6 @@ description: >-
   Use when asked to set up or configure a project, or to check an existing
   setup (`mode:check`).
 argument-hint: "[path] [mode:init|check]"
-disable-model-invocation: true
 ---
 
 # Sassy Setup

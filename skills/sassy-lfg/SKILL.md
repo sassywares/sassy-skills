@@ -5,7 +5,6 @@ description: >-
   then close out via sassy-ship after code approval. The orchestrator only
   coordinates. Best for small plans that one context can hold.
 argument-hint: "<plan path | brief> [branch:infer|current|new]"
-disable-model-invocation: true
 ---
 
 # Sassy LFG

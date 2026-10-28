@@ -7,7 +7,6 @@ description: >-
   applies all, mode:return only reports. Use when asked to simplify, tidy, or
   refactor recent changes. Leaves changes uncommitted.
 argument-hint: "[files, branch, or blank for current changes] [mode:manual|auto|return]"
-disable-model-invocation: true
 ---
 
 # Sassy Simplify

@@ -5,7 +5,6 @@ description: >-
   open or update a PR, or for a PR-description-only flow (writing, rewriting, or
   describing a PR body).
 argument-hint: "[PR ref] [branch:new|current] [base:<branch>] [babysit:on|off] [checkpoint] [merge:on|off] [delete-branch:on|off]"
-disable-model-invocation: true
 ---
 
 # Sassy Commit, Push, PR

@@ -5,7 +5,6 @@ description: >-
   a PR over time — not for a one-shot comment fix or a single CI failure. GitHub
   (incl. Enterprise) only.
 argument-hint: "[PR number|URL|blank=current branch] [checkpoint] [merge:on|off] [delete-branch:on|off]"
-disable-model-invocation: true
 ---
 
 # Sassy Babysit

@@ -7,7 +7,6 @@ description: >-
   mode:return only reports. Use when asked to verify conformance to a plan or
   intent. Leaves changes uncommitted.
 argument-hint: "[plan path + phase, or the intent to validate against] [mode:manual|auto|return]"
-disable-model-invocation: true
 ---
 
 # Sassy Validate

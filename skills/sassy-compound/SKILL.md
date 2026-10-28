@@ -6,7 +6,6 @@ description: >-
   maintains the project's concepts file and a pointer in AGENTS.md when useful.
   Lean on purpose.
 argument-hint: "[optional context] [mode:manual|auto]"
-disable-model-invocation: true
 ---
 
 # Sassy Compound

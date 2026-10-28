@@ -5,7 +5,6 @@ description: >-
   to commit or save staged/unstaged changes with a repo-appropriate message.
   Local commit only — no push, no PR.
 argument-hint: "[branch:current|new <name>]"
-disable-model-invocation: true
 ---
 
 # Sassy Commit

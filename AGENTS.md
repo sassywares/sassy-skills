@@ -39,7 +39,7 @@ Keep `.github/workflows/publish.yml` in sync with the one in `sassy-pi-extension
 ## Adding a skill
 
 1. Create `skills/<name>/SKILL.md`.
-2. Use valid frontmatter: `name`, `description`, optional `argument-hint`, and `disable-model-invocation: true` for explicit-only skills.
+2. Use valid frontmatter: `name`, `description`, and optional `argument-hint`.
 3. Keep the body lean: outcome → hard rules → workflow → reference pointers.
 4. Link it globally — see [Global symlinks](#global-symlinks-maintainer-machine).
 5. Sync — see [Sync behavior](#sync-behavior).
@@ -114,7 +114,7 @@ Rules:
 ## Conventions
 
 - **Lean first.** Skills are indexes and workflows, not documentation dumps. Move only conditionally read detail into `references/`.
-- **Explicit invocation.** Every skill except `sassy-ship` uses `disable-model-invocation: true`. Ship is the close-out a session runs once the user has approved the work, so the model may invoke it directly; its own `mode:manual` gate still waits before anything is written, committed, pushed, or opened.
+- **Model invocation.** No suite skill sets `disable-model-invocation`; the model may invoke any of them. Skills that write, commit, push, or open anything keep their own gates (e.g. `sassy-ship`'s `mode:manual`).
 - **Source of truth.** Do not store skill content outside this repo.
 - **No secrets.** Never put credentials, tokens, or private keys in a skill.
 - **Distribution.** The repo is the distribution: `npx skills add` reads it, so a push to `main` is installable immediately, per project or globally. The npm package is a secondary channel that mirrors it for package-installing harnesses and still needs a version bump.

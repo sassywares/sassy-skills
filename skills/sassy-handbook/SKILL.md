@@ -6,7 +6,6 @@ description: >-
   information only, with mermaid diagrams. Use when asked for a handbook,
   handover notes, a team reference, or to turn a plan into a readable guide.
 argument-hint: "[plan path, topic, or brief context]"
-disable-model-invocation: true
 ---
 
 # Sassy Handbook
