@@ -33,7 +33,7 @@ Every item closes into exactly one bucket, with provenance:
 | `user-deferred` | The user chose to decide later. Lands in Deferred, with when or by whom. |
 | `from code` | The repo answered it. Cite `file:line`. Shown to the user, never closed off-screen. |
 
-Nothing you inferred alone gets a label. "Sounds good" to a passing mention is at most `user-approved`, never `user-directed`. If you cannot name what an item was chosen over, it was not examined — it is still open.
+Decisions the user made earlier in the conversation with the trade-off in view enter the ledger as settled, with their provenance — never re-ask them. Nothing you inferred alone gets a label. "Sounds good" to a passing mention is at most `user-approved`, never `user-directed`. If you cannot name what an item was chosen over, it was not examined — it is still open.
 
 ## Asking
 

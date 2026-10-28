@@ -22,26 +22,23 @@ disable-model-invocation: true
 
 ## Hard rules
 
-- **Assume nothing.** Your inference is not a decision until the user confirms it. No silent defaults, no "I'll go with X unless you object". A branch is closed only when the user decided it, told you to use your recommendation, or chose to defer it — and each closure is recorded.
-- **One question per turn.** Pick the single question whose answer unblocks the most of the tree. Stacked questions get diluted answers.
-- **Always recommend.** Every question carries your recommended answer and why, so the user can confirm in one word. Recommending is not deciding.
-- **Explore before asking.** If the codebase, config, docs, or a prior learning can answer it, look it up and show the answer with its `file:line` instead of asking. Ask only what the user alone can settle.
-- **Push back.** Challenge thin reasoning, contradictions, and unexamined solution shapes with evidence. Disagree when you disagree. Concede only to an argument or to the user's explicit call — never to fatigue.
-- **No exit with open branches.** "Settled enough" is not settled. The only exits are a ledger with zero open items or the user explicitly ending the interview, in which case every open item becomes a named, user-acknowledged assumption.
+- **Assume nothing.** Your inference is not a decision until the user confirms it. No silent defaults.
+- **One question per turn, always with your recommended answer.** Recommending is not deciding.
+- **Explore before asking.** What the repo can answer, look up and cite.
+- **Push back** with evidence. Concede to an argument or the user's explicit call, never to fatigue.
+- **No exit with open branches.** Only a ledger with zero open items, or the user explicitly ending the interview, reaches the picker.
 
 ## Phase A — Grill
 
-**Read `references/interview.md` first.** It is the decision-tree protocol, the pushback lenses, the coverage sweep, and the ledger format; this section is only the order.
+**Read `references/interview.md` first.** It owns the ledger, how to ask, the pushback lenses, the coverage sweep, and the read-back; this is only the order.
 
-1. **Frame.** Restate the goal in one or two sentences and ask the user to confirm or correct it. Ask what they are already thinking before offering your own ideas.
-2. **Ground.** Use `sassy-scout` to ground the area: relevant files, existing patterns, prior art, and prior learnings. It writes a grounding brief and returns a gist plus the brief path; do not read the whole repo yourself. A relevant learning is a constraint — record it as a decision (`D3: …`) so the plan cites it; one that contradicts the user's direction is a pushback, raised now.
-3. **Map the tree.** Lay out the decision tree — every branch you can see, in dependency order — as the open ledger, and show it. The user can add, cut, or reorder branches.
-4. **Walk it.** Resolve branches one question per turn, parents before children. Each answer can open new branches; add them to the ledger as they appear. Apply the pushback lenses as gaps show up, not as a gauntlet.
-5. **Approaches.** When a branch has more than one plausible direction, present 2–3 concrete approaches — at least one non-obvious — with trade-offs, all before your recommendation.
-6. **Sweep.** Before declaring anything settled, run the coverage sweep: flows, states, edge and failure paths, permissions, data, integration seams, rollout, verification. Every item ends decided or marked not applicable with a reason. Then run the integration check for consequences of decisions combined.
-7. **Read back.** Show the full ledger — decisions with provenance, constraints, non-goals, deferred items, assumptions — and ask the user to confirm it is complete and correct. A correction reopens that branch.
+1. **Frame.** Restate the goal in one or two sentences; ask the user to confirm or correct it, and what they are already thinking.
+2. **Ground.** Use `sassy-scout` on the area; it returns a gist and a brief path. A relevant prior learning becomes a decision the plan cites, or a pushback if it contradicts the user's direction.
+3. **Map.** Show the decision tree as the open ledger, in dependency order. The user can add, cut, or reorder.
+4. **Walk.** Resolve branches parents first, adding new ones as answers open them. Where a branch has several plausible directions, present 2–3 approaches — one non-obvious — before recommending.
+5. **Sweep and read back.** Run the coverage sweep and integration check, then the read-back.
 
-**UI work.** When a decision is about layout, navigation, states, flow, or interaction shape and the user asks to see it, read `references/sketches.md` and draw it. Say once, at the first such decision, that a sketch is available.
+**UI work.** At the first layout, state, flow, or interaction-shape decision, say once that you can sketch it; when the user asks, read `references/sketches.md`.
 
 ## The picker
 
@@ -76,4 +73,4 @@ The plan document carries manual QA tables per `references/plan-format.md`. Thos
 
 If the user points at an existing sassy plan, update phases and tables in place. If they point at a raw plan from elsewhere, reshape it into this format without discarding its settled decisions — but grill whatever it leaves open or merely asserts. An existing plan is already the document.
 
-Decisions the user already made earlier in the conversation, with the trade-off in view, are settled: carry them forward and never re-ask. A bare assertion nobody examined gets exactly one challenge per `references/interview.md`.
+Decisions already settled earlier in the conversation carry forward per `references/interview.md`; never re-ask them.
