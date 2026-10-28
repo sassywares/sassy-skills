@@ -2,7 +2,7 @@
 
 Read the skill's shared sections first (locations, Agent Skills rules, shape rule, checklist). This file is the read-only sweep.
 
-**No writes. Not one.** No edits, no renames, no moving files between locations, no version bumps, no `scripts/sync.sh`. A verify run that "just fixes a typo while it is there" has become a retune without a named failure, and the user loses the report they asked for.
+**No writes. Not one.** No edits, no renames, no moving files between locations, no commits. A verify run that "just fixes a typo while it is there" has become a retune without a named failure, and the user loses the report they asked for.
 
 ## 1. Read the whole skill as the harness will
 
