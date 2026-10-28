@@ -2,8 +2,8 @@
 name: sassy-debug
 description: >-
   Diagnose a bug to root cause, get approval for the proposed fix, then fix it
-  through sassy-cycle (fix, review, validate), and finally ship it
-  through sassy-ship after code approval. Never auto-commits. Use when asked to
+  through sassy-work (quality cycle, code approval, commit), and finally ship
+  it through sassy-ship. Never auto-commits. Use when asked to
   debug or fix a failure.
 argument-hint: "[issue reference, error message, test path, or description] [branch:infer|current|new]"
 disable-model-invocation: true
@@ -25,7 +25,7 @@ Find the root cause of a failure, get approval for the fix, fix it through the s
 
 Establish the exact input, the observed symptom, the expected behavior, and how to reproduce it. If an issue/ticket is given, carry its identifier and URL through to the end. If only a stack trace or description is given, there is no issue of record — that is fine; never manufacture one.
 
-Trivial bugs whose cause is readable from the input may skip the scout, but still state the causal chain and pass the fix gate before changing code, then run the fix through `sassy-cycle`.
+Trivial bugs whose cause is readable from the input may skip the scout, but still state the causal chain and pass the fix gate before changing code, then run the fix through `sassy-work`.
 
 **Search prior learnings first.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. For every existing path in `knowledge.read`, search the docs for the symptom's keywords, the module, and the failure type. A matching doc **seeds or confirms** a hypothesis — it never replaces the causal chain or the reproduction. Name the docs you consulted, and say plainly when none matched: no match is not evidence that nothing similar has happened.
 
@@ -61,11 +61,17 @@ This gate is mandatory even when the original request said "fix the bug". Do not
 
 ### Option 1 — Fix it now
 
-Load the `sassy-work` skill with the fix brief as the work brief and the diagnosis from Phase 1 as the intent reference, forwarding this run's `branch:` token if it was given. Work runs one cycle, presents its own code approval gate, commits, and stops before ship.
+Load the `sassy-work` skill on its brief path, forwarding this run's `branch:` token if it was given, with:
+
+- work brief = "Fix the root cause: <causal chain>. Apply the smallest change; add or strengthen the regression test first."
+- intent reference = the diagnosis from Phase 1
+- scope hint = the files the fix touches
+
+Work owns the fix from here: one `sassy-cycle` (fix, review, validate, verified fix passes), its code approval gate — where the result shows the causal chain next to the fix — the rework loop for any changes the user asks for, and the commit. It stops before ship. Do not dispatch `sassy-cycle` or present a second code approval gate yourself.
 
 The branch decision belongs to work, not to this phase: diagnosis writes nothing, so cutting a branch before the fix gate would leave an empty branch every time the gate ends in *Write a plan*, *Hand off*, or *Stop here*. Work resolves it per `sassy-setup`'s `references/branching.md` before it touches code, so the fix is on its own branch from the first edit and still never lands on a base branch.
 
-Continue to Phase 3.
+When work committed the fix, continue to Phase 3. When it ended `Blocked`, stop and report the open findings — nothing ships.
 
 ### Option 2 — Write a plan
 
@@ -79,23 +85,9 @@ Load the `sassy-handoff` skill in `mode:write` with the root-cause chain and pro
 
 Report the diagnosis and stop. Nothing is committed.
 
-## Phase 3 — Fix via `sassy-cycle`
+## Phase 3 — Ship via `sassy-ship`
 
-Runs only after the user picked **Fix it now** at the fix gate. Load the `sassy-cycle` skill and follow it, with:
-
-- work brief = "Fix the root cause: <causal chain>. Apply the smallest change; add or strengthen the regression test first."
-- intent reference = the diagnosis from Phase 1
-- scope hint = the files the fix touches
-
-This runs fix → review → validate → fix findings, all in subagents. Do **not** commit.
-
-## Phase 4 — Code approval gate
-
-Leave everything uncommitted. Present the result: the causal chain, the fix, the quality result (validator grade, reviewer findings), and the files changed. Wait for the user's approval. Do **not** commit before approval.
-
-## Phase 5 — Ship via `sassy-ship`
-
-On code approval, load the `sassy-ship` skill and follow it, leaving ship's default `mode:manual` review gate in place. Do not pass a mode yourself. Ship presents its shipping summary and waits. It compounds any learnings, commits, opens or updates the PR, and babysits it via `sassy-babysit` (under `commit.branch: current` it commits and pushes the checked-out branch instead, with no PR, hooks, or babysit). Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship`. Run only the steps the user approves.
+After work's code approval and commit, load the `sassy-ship` skill and follow it, leaving ship's default `mode:manual` review gate in place. Do not pass a mode yourself. Ship presents its shipping summary and waits. It compounds any learnings, commits, opens or updates the PR, and babysits it via `sassy-babysit` (under `commit.branch: current` it commits and pushes the checked-out branch instead, with no PR, hooks, or babysit). Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship`. Run only the steps the user approves.
 
 If the fix gate ended in **Write a plan**, **Hand off**, or **Stop here**, this skill stops there — never commit.
 

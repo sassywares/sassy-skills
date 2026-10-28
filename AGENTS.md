@@ -2,12 +2,14 @@
 
 ## What this repo is
 
-This repo is the source of truth for the Sassy Skills suite under `skills/`. Consumers install it with `npx skills add sassywares/sassy-skills`, which reads this repo directly — there is no global skills directory to keep in sync.
+This repo is the source of truth for the Sassy Skills suite under `skills/`.
 
 - Local: `~/Documents/Workspace/Sassywares/sassy-skills`
 - Remote: `sassywares/sassy-skills`
 
-Consumers install with `npx skills add sassywares/sassy-skills`, which vendors `skills/` into their project and pins content hashes in their `skills-lock.json`. Nothing here is installed globally, and there is no `~/.agents/skills` symlink to maintain. Editing happens through this repo's own `.pi/settings.json`, which loads `./skills`.
+Consumers install it with `npx skills add sassywares/sassy-skills`, which reads this repo directly — per project (vendored into `.agents/skills/`, pinned in `skills-lock.json`) or globally with `-g` (into `~/.agents/skills/`). README.md's Installation section is the consumer-facing guide; keep it the only place those steps are spelled out.
+
+While editing, this repo's `.pi/settings.json` loads `./skills`, and the maintainer's global symlinks (below) expose the working copy to every project on this machine.
 
 ## Layout
 
@@ -30,7 +32,7 @@ sassy-skills/
 └── package.json               # npm/pi package manifest
 ```
 
-The npm package is `@sassywares/skills`. `package.json` lists `skills/` under `pi.skills`, and `files` ships `skills/`, `README.md`, `CONCEPTS.md`, and `LICENSE` — nothing else. The npm package is a secondary channel for harnesses that install packages; the primary distribution is `npx skills add` against this repo.
+The npm package is `@sassywares/skills`. `package.json` lists `skills/` under `pi.skills`, and `files` ships `skills/`, `README.md`, `CONCEPTS.md`, and `LICENSE` — nothing else.
 
 Keep `.github/workflows/publish.yml` in sync with the one in `sassy-pi-extensions`; it is intentionally near-identical.
 
@@ -39,15 +41,32 @@ Keep `.github/workflows/publish.yml` in sync with the one in `sassy-pi-extension
 1. Create `skills/<name>/SKILL.md`.
 2. Use valid frontmatter: `name`, `description`, optional `argument-hint`, and `disable-model-invocation: true` for explicit-only skills.
 3. Keep the body lean: outcome → hard rules → workflow → reference pointers.
-4. Run `scripts/sync.sh` immediately. Do not ask the user first.
-5. Reload your harness (`/reload` in pi, a new session in Claude Code).
+4. Link it globally — see [Global symlinks](#global-symlinks-maintainer-machine).
+5. Sync — see [Sync behavior](#sync-behavior).
+6. Reload your harness (`/reload` in pi, a new session in Claude Code).
 
 ## Editing or removing
 
-- Edit the files under `skills/`.
-- Remove the skill directory under `skills/`.
-- Run `scripts/sync.sh` immediately. Do not ask the user first.
-- Do not create per-skill symlinks in user directories. Distribution is `npx skills add` against this repo.
+- Edit the files under `skills/`; the global links pick the change up with no reinstall.
+- To remove a skill, delete its directory under `skills/` and both of its global links.
+- Sync — see [Sync behavior](#sync-behavior).
+
+## Global symlinks (maintainer machine)
+
+Each `skills/<name>` is symlinked into `~/.agents/skills/<name>` (pi and `.agents`-convention harnesses) and `~/.claude/skills/<name>` (Claude Code), so edits here are live everywhere without a reinstall.
+
+- The loop below is idempotent: rerun it after adding a skill. A removed skill's links dangle until you delete them.
+- Do not also run `npx skills add sassywares/sassy-skills -g` on this machine: it installs the published copies into the same paths the links occupy.
+- Leave `~/.claude/skills/synced/` alone; Claude Code manages it.
+- Claude Code resolves same-name skills as personal > project, so these global links override a project's vendored copy of the same skill. Other harnesses apply their own collision rules.
+
+```bash
+R=~/Documents/Workspace/Sassywares/sassy-skills/skills
+for d in ~/.agents/skills ~/.claude/skills; do
+  mkdir -p "$d"
+  for s in "$R"/*/; do n=$(basename "$s"); [ -e "$d/$n" ] || ln -s "$R/$n" "$d/$n"; done
+done
+```
 
 ## Sync behavior
 
@@ -98,5 +117,5 @@ Rules:
 - **Explicit invocation.** Every skill except `sassy-ship` uses `disable-model-invocation: true`. Ship is the close-out a session runs once the user has approved the work, so the model may invoke it directly; its own `mode:manual` gate still waits before anything is written, committed, pushed, or opened.
 - **Source of truth.** Do not store skill content outside this repo.
 - **No secrets.** Never put credentials, tokens, or private keys in a skill.
-- **Distribution.** The repo is the distribution: `npx skills add` reads it, so a push to `main` is installable immediately. The npm package mirrors it for package-installing harnesses and still needs a version bump.
-- **Reference skills by name, never by path.** A consumer's copy may live in `node_modules/`, a project `.agents/skills/`, or wherever a harness installs packages.
+- **Distribution.** The repo is the distribution: `npx skills add` reads it, so a push to `main` is installable immediately, per project or globally. The npm package is a secondary channel that mirrors it for package-installing harnesses and still needs a version bump.
+- **Reference skills by name, never by path.** A consumer's copy may live in a project `.agents/skills/`, the global `~/.agents/skills/`, `node_modules/`, or wherever a harness installs packages.

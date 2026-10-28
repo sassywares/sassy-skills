@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-The repo's `skills/` directory is the only copy of the skills. Consumers install from it with `npx skills add sassywares/sassy-skills`, which vendors the files into their project and pins content hashes in `skills-lock.json`; the sync service handles git commit and push.
+The repo's `skills/` directory is the only copy of the skills. Consumers install from it with `npx skills add sassywares/sassy-skills` — per project, which vendors the files and pins content hashes in `skills-lock.json`, or globally with `-g`, into `~/.agents/skills/`. See README.md's Installation section.
 
 ## Skill
 
@@ -18,7 +18,7 @@ A skill that mostly coordinates. It reads compact results, writes briefs, and av
 
 ## Cycle
 
-`sassy-cycle` runs one unit of work through implement → review → validate → fix → re-check. It never commits. Work, LFG, and debug all use it.
+`sassy-cycle` runs one unit of work through implement → review → validate → fix → verify. Verify is a reviewer scoped to the fix, confirming each finding resolved and checking the fix for new ones; at most two fix passes, then anything open is `blocked`. Reviewer suggestions never block; they go to the gate. Given findings instead of a brief — requested changes, failed QA rows — it reworks existing work through the same fix → verify loop. It never commits. Work and LFG run it; debug fixes through work.
 
 ## Gates
 
@@ -62,4 +62,4 @@ A settled in-context brief produced by `sassy-plan` when the user picks "start w
 
 ## Sync
 
-There is no background watcher. Any agent that changes a skill must run `scripts/sync.sh` immediately, without asking for confirmation. The sync script bumps the patch version, commits, pushes `main`, then tags and pushes the tag, which publishes to npm. It installs nothing: `npx skills add` reads this repo directly, and the npm package follows the tag the script creates.
+There is no background watcher. Any agent that changes a skill must run `scripts/sync.sh` immediately, without asking for confirmation. It commits and pushes; on `main`, when shipped files changed, it also bumps the patch version and tags, which publishes to npm. It installs nothing: `npx skills add` reads this repo directly. AGENTS.md has the details.

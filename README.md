@@ -16,14 +16,17 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
   - [From idea to ship](#from-idea-to-ship)
   - [From bug to ship](#from-bug-to-ship)
 - [Gates and controls](#gates-and-controls)
-- [Repository layout](#repository-layout)
+- [Branching](#branching)
 - [Installation](#installation)
+  - [Per project](#per-project)
+  - [Globally](#globally)
+  - [Both at once](#both-at-once)
 - [Repository maintenance](#repository-maintenance)
 
 ## Why this suite
 
 - **Lean.** Skills are indexes and workflows, not documentation dumps. Detail moves into `references/` only when it is conditionally needed.
-- **Explicit.** Every skill is invoked deliberately. No silent background behavior.
+- **Explicit.** Every skill but `sassy-ship` runs only when you invoke it; ship may be started by the agent once you approve the work, and its review gate still waits. No silent background behavior.
 - **Controlled.** Code approval, manual QA, and ship review are visible gates that all run in sequence. There are two mode tokens, `mode:manual` (default) and `mode:auto`, accepted by `sassy-ship` and `sassy-compound` only; every other skill takes no mode.
 - **Reliable.** Work runs through `sassy-cycle` with isolated subagents for implementation, review, validation, and fixes.
 - **Context-efficient.** Orchestrators coordinate; subagents do the heavy reading and return compact results.
@@ -83,8 +86,8 @@ Debugging:
 | **`sassy-scout`** | Grounds an area on demand and writes the shared grounding brief other agents read instead of re-exploring. |
 | **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, commits after code approval, then hands off the next phase — a brief stops before ship. |
 | **`sassy-lfg`** | Executes every phase of a plan, or one in-context brief, then closes out via `sassy-ship` after code approval. |
-| **`sassy-cycle`** | Runs one unit of work through implement → review → validate → fix → re-check. |
-| **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-cycle`, then ships after code approval. Debug takes no mode and always leaves ship's review gate in place unless you invoke ship yourself with `mode:auto`. |
+| **`sassy-cycle`** | Runs one unit of work through implement → review → validate → fix → verify, with at most two verified fix passes. Also reworks finished work from requested changes or failed QA rows. |
+| **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-work` (cycle, code approval, commit), then ships. Debug takes no mode and always leaves ship's review gate in place unless you invoke ship yourself with `mode:auto`. |
 | **`sassy-handoff`** | `mode:write` (default) writes a self-contained handoff file to `/tmp/sassywares/<harness>/handoffs/` and gives you a `sassy-handoff mode:read <path>` command for a fresh session; `mode:read` explains what the handoff did, why, and where things stand now, then asks what to do next. Works in any harness. |
 
 ### Code quality
@@ -115,7 +118,7 @@ Debugging:
 | Skill | What it does |
 |---|---|
 | **`sassy-skill`** | Creates, retunes, or restructures Agent Skills. |
-| **`sassy-setup`** | Detects the project topology and writes `.sassywares/config.yaml`; installs the sassy-agents subagents for your harness when missing; installs the snapshot tooling for a multi-repo workspace; commits the files it wrote. `mode:check` verifies an existing setup, including the vendored pin. |
+| **`sassy-setup`** | Detects the project topology and writes `.sassywares/config.yaml`; installs the suite and the sassy-agents subagents, globally or per project, when missing; installs the snapshot tooling for a multi-repo workspace; commits the files it wrote. `mode:check` verifies an existing setup, including a project install's pin. |
 
 ## Project config
 
@@ -214,6 +217,8 @@ Option 1 produces a durable plan with phased slices and manual QA tables. Option
 
 `sassy-work` handles one phase and hands off the next. `sassy-lfg` drains the whole plan in one session. Both delegate to `sassy-cycle` and stop at one gate carrying code approval plus the manual QA checklist; nothing is `Done`, committed, or shipped until both pass. With an in-context brief there are no QA rows, so the gate is code approval alone.
 
+Inside the cycle, every finding is fixed and then **verified**: a reviewer scoped to the fix confirms each finding resolved, and checks the fix itself for anything new. Whatever is still open gets a second fix pass; anything open after that comes back `blocked` rather than looping. Critical findings and warnings are fixed automatically; the reviewer's suggestions are listed at the gate for you to pick. Changes you request at the gate and QA rows that fail go through the same loop as findings, then the gate comes back.
+
 The branch is cut once, before the first change, by `sassy-work` or `sassy-lfg` — never at commit time — and `sassy-ship` never creates it. `commit.branch` (default `new`) decides whether the run cuts one at all; see [Branching](#branching).
 
 `sassy-ship` is the close-out. It summarizes what is about to ship and waits, unless the caller passed `mode:auto`.
@@ -232,7 +237,8 @@ flowchart LR
   E -->|4. stop| I[Diagnosis only]
   F --> J{Code approval}
   J -->|changes| F
-  J -->|approved| K[sassy-ship]
+  J -->|approved| N[Commit]
+  N --> K[sassy-ship]
   K --> L{Ship review}
   L -->|approve| M[Commit, PR, babysit]
 ```
@@ -241,7 +247,7 @@ flowchart LR
 
 The fix gate offers four options:
 
-- **Fix it now** — hand the fix brief to `sassy-work`: one cycle, its own code approval gate, a commit, then a stop before ship
+- **Fix it now** — hand the fix brief to `sassy-work`: one cycle, the code approval gate, a commit; then debug ships it via `sassy-ship`
 - **Write a plan** — carry the diagnosis into `sassy-plan`, which ends in its own 3-option picker
 - **Hand off** — continue in a fresh session via `sassy-handoff`
 - **Stop here** — keep the diagnosis and change nothing
@@ -266,25 +272,13 @@ A base is **any `base_map` value**, not just the remote default: in a repo whose
 
 The three skills take `branch:infer|current|new` to override the config's branching for one run (the no-PR close-out follows the config `commit.branch: current` regardless of the token): `infer` (default) means the config decides, `new` forces a branch, `current` commits where you stand; it does not skip the PR. Only `commit.branch: current` in the config makes the close-out push to the upstream with no PR, hooks, or babysit. `sassy-ship` never creates a branch; finding the head on a base branch with unpublished commits is a stop-and-ask, except under `commit.branch: current`, where they are pushed along.
 
-## Repository layout
-
-```text
-sassy-skills/
-├── skills/
-│   ├── sassy-plan/
-│   ├── sassy-work/
-│   ├── sassy-lfg/
-│   └── ...
-├── scripts/
-│   └── sync.sh
-├── AGENTS.md
-├── CONCEPTS.md
-└── README.md
-```
-
 ## Installation
 
-The suite installs from this repository with the open `skills` CLI. That CLI vendors the skill files into your project and pins them, so a clone needs no network and every checkout runs the same skills.
+The suite installs from this repository with the open `skills` CLI. Install it per project, globally, or both.
+
+### Per project
+
+The team's setup. The CLI vendors the skill files into the project and pins them, so a clone needs no network and every checkout runs the same skills.
 
 ```bash
 npx skills add sassywares/sassy-skills
@@ -299,14 +293,39 @@ That writes three things:
 Commit the vendored skills and the lock; ignore `.claude/skills`, which is a link created at install time.
 
 ```bash
-npx skills update -y              # pull the latest from this repo
+npx skills update -p -y           # pull the latest from this repo
 npx skills experimental_install   # restore exactly what the lock pins
-npx skills remove                 # take the suite out again
+npx skills remove --all           # take the suite out again
 ```
 
 `npx skills check` is an alias for `update`: it moves the pin, it does not validate it. To check a project's setup without touching the pin, run `sassy-setup` with `mode:check`.
 
-`sassy-setup` does all of this for you — installing the suite, adding the ignore line, verifying the pin, and committing what it wrote.
+### Globally
+
+Your own setup, in every project on this machine, with nothing committed anywhere.
+
+```bash
+npx skills add sassywares/sassy-skills -g
+```
+
+That writes:
+
+- `~/.agents/skills/sassy-*` — the skill files, read by pi and other harnesses that use `~/.agents/skills`
+- `~/.claude/skills/sassy-*` — links for Claude Code
+- `~/.agents/.skill-lock.json` — the global lock
+
+```bash
+npx skills update -g -y           # pull the latest from this repo
+npx skills remove -g --all        # take the suite out again
+```
+
+A global install is yours alone: teammates do not get it, and it moves whenever you update rather than with the project.
+
+### Both at once
+
+A skill installed in both places is listed once, not twice; the harness picks one copy. Claude Code prefers the global copy over the project's, so on a machine with a global install the project's pin does not decide which version Claude Code runs. Other harnesses apply their own precedence. When a project's pinned version must be the one that runs, skip the global install on that machine.
+
+`sassy-setup` handles either scope, the same way it handles the agents: if the suite is already installed it reports where, and if not it asks where to install it, recommending global. A project install also gets the ignore line, the verified pin, and the commit. `mode:check` verifies the pin only for a project install; a global one has nothing to pin.
 
 ### While editing the suite
 
@@ -322,18 +341,4 @@ pi install npm:@sassywares/skills
 
 ## Repository maintenance
 
-`scripts/sync.sh` bumps the patch version, commits, pushes `main`, then tags and pushes the tag — so a change to a skill is released in one step. Any agent that changes a skill must run it immediately, without asking for confirmation. It installs nothing anywhere; consumers get a change when they run `npx skills update` after a push. `AGENTS.md` documents the workflow for agents working on this repo.
-
-### Releases
-
-Publishing is tag-driven. The `Publish` workflow (`.github/workflows/publish.yml`) validates every `skills/*/SKILL.md`, checks that the tag matches `package.json`, and publishes `@sassywares/skills` to npm on a `v*` tag push.
-
-`scripts/sync.sh` does this for you on `main`. The manual sequence is the fallback for recovering a failed run:
-
-```bash
-npm version patch --no-git-tag-version
-git add -A && git commit -m "chore: release v$(node -p "require('./package.json').version")"
-git push origin main
-git tag "v$(node -p "require('./package.json').version")"
-git push origin --tags
-```
+Any agent that changes a skill runs `scripts/sync.sh` immediately, which commits, pushes, and — on `main`, when shipped files changed — bumps the patch version and tags the release that publishes `@sassywares/skills` to npm. [`AGENTS.md`](AGENTS.md) is the full guide: layout, adding a skill, sync, and the manual release fallback.

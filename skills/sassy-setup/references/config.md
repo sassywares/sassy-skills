@@ -376,9 +376,11 @@ per-PR say-so, because one switch would merge N PRs nobody re-read.
   run uses a default this project never chose.
 
 `scripts/detect.sh --check` enforces all of the above and reports each breach as
-a `drift:` line, exiting non-zero. It also verifies the vendored pin offline:
-every `.agents/skills/sassy-*` folder is hashed with the `skills` CLI's own
+a `drift:` line, exiting non-zero. When the suite is installed in project
+scope it also verifies the vendored pin offline: every `.agents/skills/sassy-*` folder is hashed with the `skills` CLI's own
 definition and compared to `computedHash` in `skills-lock.json`, the lock is
 checked against the installed set in both directions, and git-tracked state of
 the lock is reported. A stale, hand-edited, or half-installed suite is drift
-even when the config itself matches the tree.
+even when the config itself matches the tree. A user-scope install
+(`~/.agents/skills/`) has no pin to verify; the check notes it, and a suite
+found in neither scope is noted, not drift.

@@ -618,9 +618,10 @@ if (( CHECK )); then
   if [[ "$TOPOLOGY" == "repo" ]]; then
     # Tracked, not merely present: a clone has to get the pin without a network
     # call, so an untracked lock is a setup that does not travel.
+    # Only a project-scope install has a lock; a user-scope one has nothing here.
     if [[ -n "$(git -C "$ROOT" ls-files -- skills-lock.json 2>/dev/null)" ]]; then
       note "  skills-lock.json is tracked"
-    else
+    elif [[ -f "$ROOT/skills-lock.json" ]]; then
       note "  skills-lock.json is not tracked yet — the setup commit carries it"
     fi
     if [[ -e "$ROOT/.claude/skills" ]] && ! git -C "$ROOT" check-ignore -q -- .claude/skills 2>/dev/null; then

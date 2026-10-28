@@ -4,20 +4,24 @@ Project config and tooling for the Sassy Skills suite. Written by `sassy-setup`.
 
 ## Skills
 
-Installed from upstream with the open `skills` CLI, which vendors the skills into
-`.agents/skills/` and pins them in `skills-lock.json`:
+Installed from upstream with the open `skills` CLI, in one of two scopes:
+
+- **Project** — vendored into `.agents/skills/` and pinned in `skills-lock.json`,
+  both committed, so every clone runs the same skills. `.claude/skills` is a link
+  created at install time and is not committed.
+- **User** — `~/.agents/skills/` (plus `~/.claude/skills/` links), for one person
+  across every project on their machine. Nothing is committed here.
 
 ```bash
-npx skills add sassywares/sassy-skills   # first install
-npx skills update -y                      # pull the latest from upstream
-npx skills experimental_install           # restore exactly what the lock pins
+npx skills add sassywares/sassy-skills      # project install (-g for user scope)
+npx skills update -p -y                      # pull the latest (-g -y for user scope)
+npx skills experimental_install              # restore exactly what the project lock pins
 ```
 
-Refreshing the suite is this project's decision — nothing here updates itself.
+Refreshing the suite is your decision — nothing here updates itself. With both
+scopes installed, Claude Code runs the user-scope copy.
 
-The vendored skills and the lock are committed; `.claude/skills` is a link and is not.
-
-`.agents/skills/` is read by pi and Cursor; Claude Code reads `.claude/skills/` only, which is why that symlink exists. After any change, reload your harness (`/reload` in pi, a new session in Claude Code).
+`.agents/skills/` is read by pi and Cursor; Claude Code reads `.claude/skills/` only, which is why those links exist. After any change, reload your harness (`/reload` in pi, a new session in Claude Code).
 
 ## Agents
 
@@ -31,14 +35,14 @@ install them when missing.
 
 ## Missing skills
 
-If a skill tells you another skill is missing, run `npx skills add sassywares/sassy-skills` (or `npx skills experimental_install` to restore exactly what the lock pins) and restart.
+If a skill tells you another skill is missing, run `npx skills add sassywares/sassy-skills` (add `-g` for user scope, or run `npx skills experimental_install` to restore exactly what the project lock pins) and restart.
 
 ## Config
 
-`config.yaml` holds the project's paths, git topology, and PR defaults. Every key is documented inline, including its allowed values, and the full schema is in the `sassy-setup` skill's `references/config.md`. Verify the setup still matches the tree — the config, the hooks it names, and the vendored pin:
+`config.yaml` holds the project's paths, git topology, and PR defaults. Every key is documented inline, including its allowed values, and the full schema is in the `sassy-setup` skill's `references/config.md`. Verify the setup still matches the tree — the config, the hooks it names, and the vendored pin when the suite is installed in project scope:
 
 ```bash
-.agents/skills/sassy-setup/scripts/detect.sh --root . --check
+.agents/skills/sassy-setup/scripts/detect.sh --root . --check   # ~/.agents/skills/... for user scope
 ```
 
 Or ask for `mode:check` on the setup skill, which runs the same check and reports it. Neither moves the pin: `npx skills check` is an alias of `update`.
