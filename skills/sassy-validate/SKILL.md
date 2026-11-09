@@ -6,7 +6,7 @@ description: >-
   sassy-cycle. mode:manual (default) asks which to close, mode:auto closes all,
   mode:return only reports. Use when asked to verify conformance to a plan or
   intent. Leaves changes uncommitted.
-argument-hint: "[plan path + phase, or the intent to validate against] [mode:manual|auto|return]"
+argument-hint: "[plan path [+ phase], or the intent to validate against] [range:<base>..<head>] [mode:manual|auto|return]"
 ---
 
 # Sassy Validate
@@ -33,8 +33,8 @@ Use the mode the caller passed; never pick one yourself.
 
 ## Workflow
 
-1. **Intent.** Resolve the reference: a plan path plus phase (preferred), or an explicit intent the user states. If neither exists, ask and stop.
-2. **Validate.** Dispatch the `validator` with that intent reference.
+1. **Intent.** Resolve the reference: a plan path plus phase (preferred), a plan path with no phase — the whole plan — or an explicit intent the user states. If none exists, ask and stop.
+2. **Validate.** Dispatch the `validator` with that intent reference. When the caller passed `range:<base>..<head>`, hand it to the validator as the commit range to validate; otherwise the validator scopes the work itself.
 3. **Return.** In `mode:return`, return the validator's grade, evidence, and gaps as-is and stop.
 4. **Conforms?** If the grade is `Conforms`, report it and stop. If `Blocked — insufficient grounding`, report what it needs and stop — do not guess.
 5. **Choose.** On `Partial` or `Diverges`, in `mode:manual` present the `Gaps` and ask which to close: all / specific / none. In `mode:auto`, take all.
@@ -45,7 +45,7 @@ Use the mode the caller passed; never pick one yourself.
 
 | Rule | Requirement |
 |------|-------------|
-| Intent required | Never validate without a plan phase or explicit intent. |
+| Intent required | Never validate without a plan, a plan phase, or an explicit intent. |
 | Orchestrator only | Never edit code. The `validator` judges, `sassy-cycle` closes. |
 | Ask first | In `mode:manual`, never change code before the user picks. |
 | Gap-bound | Close only the chosen gaps. |

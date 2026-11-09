@@ -65,8 +65,12 @@ config. This applies to every token these skills forward, not just `branch`.
    is a stop: cutting from local HEAD would carry commits stranded on the base
    into the new branch, and cutting from a missing upstream ref silently does
    exactly that. Name the count, the branch, and the choice.
-3. Name it `<type>/<slug>` from the plan filename or the topic, deterministically,
-   so a retried run converges on the same name instead of forking `-2`.
+3. Name it `<type>/<slug>` from the plan path or the topic, deterministically,
+   so a retried run converges on the same name instead of forking `-2`. The slug
+   is the plan's path relative to `artifacts.plans`, without `.md`: a standalone
+   plan stays `feat/<slug>`, and a goal slice nests as `<type>/<goal>/<NN-slice>`
+   (`feat/powersync/02-offline-reads`). A `feat/*`-style `base_map` or
+   `hooks.pr` family still matches the nested name by prefix.
 4. Re-run with `--name <name>` and take `pr-base` from that answer: a name like
    `release/1.2` or `hotfix/x` matches a `base_map` family and retargets the PR,
    and it also changes which `hooks.pr` pattern applies — a plan slug containing

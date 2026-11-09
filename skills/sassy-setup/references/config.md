@@ -80,7 +80,7 @@ hooks:
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `artifacts.plans` | `docs/plans` | Where `sassy-plan` writes plans |
+| `artifacts.plans` | `docs/plans` | Where `sassy-plan` writes plans, and where `sassy-goal` keeps goal folders (`<slug>/goal.md` plus slice plans) |
 | `artifacts.solutions` | `docs/solutions` | Where `sassy-compound` writes learnings |
 | `artifacts.handbooks` | `docs/handbooks` | Where `sassy-handbook` writes handbooks |
 | `artifacts.concepts` | `CONCEPTS.md` | The glossary file compound maintains |

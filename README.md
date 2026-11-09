@@ -14,6 +14,7 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 - [Project config](#project-config)
 - [Workflows](#workflows)
   - [From idea to ship](#from-idea-to-ship)
+  - [From goal to done](#from-goal-to-done)
   - [From bug to ship](#from-bug-to-ship)
 - [Gates and controls](#gates-and-controls)
 - [Branching](#branching)
@@ -27,7 +28,7 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 
 - **Lean.** Skills are indexes and workflows, not documentation dumps. Detail moves into `references/` only when it is conditionally needed.
 - **Explicit.** Every skill but `sassy-ship` runs only when you invoke it; ship may be started by the agent once you approve the work, and its review gate still waits. No silent background behavior.
-- **Controlled.** Code approval, manual QA, and ship review are visible gates that all run in sequence. Mode tokens are opt-in per skill: `mode:manual` (default) and `mode:auto` on `sassy-ship` and `sassy-compound`, plus `mode:return` on `sassy-review`, `sassy-simplify`, and `sassy-validate`; work, lfg, and debug take no mode.
+- **Controlled.** Code approval, manual QA, and ship review are visible gates that all run in sequence. Mode tokens are opt-in per skill: `mode:manual` (default) and `mode:auto` on `sassy-ship` and `sassy-compound`, plus `mode:return` on `sassy-review`, `sassy-simplify`, and `sassy-validate`; work, lfg, and debug take no mode; `sassy-goal` takes one mode per step of a goal (`write`, `next`, `check`, `close`).
 - **Reliable.** Work runs through `sassy-cycle` with isolated subagents for implementation, review, simplification, validation, and verified fixes.
 - **Context-efficient.** Orchestrators coordinate; subagents do the heavy reading and return compact results.
 - **Never surprising.** Nothing is committed just because a step finished. Shipping is its own phase.
@@ -83,6 +84,7 @@ Debugging:
 | Skill | What it does |
 |---|---|
 | **`sassy-plan`** | Grills you one question at a time through every branch of the work — pushing back, assuming nothing, sketching UI on request — until nothing is open, then offers three choices: write the plan, start working via `sassy-work`, or implement and ship via `sassy-lfg`. |
+| **`sassy-goal`** | Runs a project too big for one plan — a migration, an epic — as a goal split into slices that each ship something complete. `mode:write` (default) grills and writes the goal, `mode:next` plans the next slice via `sassy-plan`, `mode:check` validates a shipped slice and carries its lessons forward, `mode:close` verifies the whole goal. You run every step. |
 | **`sassy-scout`** | Grounds an area on demand and writes the shared grounding brief other agents read instead of re-exploring. |
 | **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, commits after code approval, then hands off the next phase — a brief stops before ship. |
 | **`sassy-lfg`** | Executes every phase of a plan, or one in-context brief, then closes out via `sassy-ship` after code approval. |
@@ -225,6 +227,26 @@ Inside the cycle, every finding is fixed and then **verified**: a reviewer scope
 The branch is cut once, before the first change, by `sassy-work` or `sassy-lfg` — never at commit time — and `sassy-ship` never creates it. `commit.branch` (default `new`) decides whether the run cuts one at all; see [Branching](#branching).
 
 `sassy-ship` is the close-out. It summarizes what is about to ship and waits, unless the caller passed `mode:auto`.
+
+### From goal to done
+
+```mermaid
+flowchart LR
+  A[Big idea] --> B[sassy-goal write]
+  B --> C[goal.md + slice table]
+  C --> D[sassy-goal next]
+  D --> E[sassy-plan: slice plan]
+  E --> F[sassy-work / sassy-lfg]
+  F --> G[sassy-ship]
+  G --> H[sassy-goal check]
+  H -->|more slices, after merge| D
+  H -->|last slice| I[sassy-goal close]
+  I --> J[Goal Done, rides the last PR]
+```
+
+A goal is a folder under `artifacts.plans` holding `goal.md` and one plan per started slice (`01-<slice>.md`, `02-…`). `mode:write` grounds every affected domain once, grills only goal-level branches — slice boundaries and order, coexistence, the goal's done-when, non-goals — and pushes back on any slice that would leave a half-built layer. Each slice's plan is grilled only when `mode:next` starts it, with the goal's decisions and every carry-forward entry already settled. The slice then runs the usual work or lfg → ship path on its own branch (`feat/<goal>/<NN-slice>`); ship marks it `Shipped` and babysits the PR without merging, so the check can still land in it.
+
+`mode:check` runs on the slice branch before the PR merges: it validates the whole slice plan against the branch's commits, and every gap is fixed now, deferred to a named later slice, or accepted with a reason. It appends the slice's carry-forward entry, marks it `Done` with its PR link, and pushes `goal.md` into the same PR. After the last slice, `mode:close` checks the goal's done-when against the whole tree and marks the goal `Done` in the last PR. One slice is in flight at a time, and nothing chains on its own.
 
 ### From bug to ship
 

@@ -7,7 +7,7 @@ description: >-
   via sassy-lfg.
   Sketches UI on request. No modes, no QA flags. Use when asked to brainstorm,
   scope, plan, or create a phased plan.
-argument-hint: "[feature description, requirements, or idea to scope]"
+argument-hint: "[feature description, requirements, or idea to scope] [out:<plan path>]"
 ---
 
 # Sassy Plan
@@ -40,9 +40,13 @@ argument-hint: "[feature description, requirements, or idea to scope]"
 
 **UI work.** At the first layout, state, flow, or interaction-shape decision, say once that you can sketch it; when the user asks, read `references/sketches.md`.
 
+## Caller-set output
+
+A caller that owns where the plan goes — `sassy-goal` planning a slice, for one — passes `out:<path>`. Grill exactly as usual, then read `references/plan-format.md`, write the plan to exactly that path, skip the picker entirely, and return the path to the caller. Do not offer `sassy-work` or `sassy-lfg`; the caller hands those over. Anything the caller passes as settled enters the ledger as settled, with its provenance, and is never re-asked.
+
 ## The picker
 
-Only when the read-back is confirmed with zero open items, present exactly these three options and stop until the user picks. Do not recommend one.
+Only when the read-back is confirmed with zero open items — and no `out:` was given — present exactly these three options and stop until the user picks. Do not recommend one.
 
 ```text
 Settled. Pick one:
@@ -81,4 +85,4 @@ The plan document carries manual QA tables per `references/plan-format.md`. Thos
 
 If the user points at an existing sassy plan, update phases and tables in place. If they point at a raw plan from elsewhere, reshape it into this format without discarding its settled decisions — but grill whatever it leaves open or merely asserts. An existing plan is already the document.
 
-Decisions already settled earlier in the conversation carry forward per `references/interview.md`; never re-ask them.
+Decisions already settled earlier in the conversation, or passed in by a caller as settled, carry forward per `references/interview.md`; never re-ask them.

@@ -14,7 +14,7 @@ A specialized subagent from [sassy-agents](https://github.com/sassywares/sassy-a
 
 ## Orchestrator
 
-A skill that mostly coordinates. It reads compact results, writes briefs, and avoids reading source or diffs in the main context. `sassy-work`, `sassy-lfg`, `sassy-ship`, and `sassy-debug` are orchestrators.
+A skill that mostly coordinates. It reads compact results, writes briefs, and avoids reading source or diffs in the main context. `sassy-work`, `sassy-lfg`, `sassy-ship`, `sassy-debug`, and `sassy-goal` are orchestrators.
 
 ## Cycle
 
@@ -37,12 +37,13 @@ A gate is a deliberate stop or pass/fail condition.
 
 ## Modes
 
-Three mode tokens: `mode:manual` (default) asks at the skill's gate; `mode:auto` means pre-authorized, no review; `mode:return` reports and changes nothing.
+Three shared mode tokens: `mode:manual` (default) asks at the skill's gate; `mode:auto` means pre-authorized, no review; `mode:return` reports and changes nothing. Some skills take their own modes instead: `sassy-goal`, `sassy-handoff` (`write`, `read`), `sassy-setup` (`init`, `check`), and `sassy-skill` (`create`, `retune`, `verify`).
 
 - `sassy-ship` and `sassy-compound` accept `manual` and `auto`. Ship reviews the whole close-out in `mode:manual` and forwards `mode:auto` to compound once its own gate is answered.
 - `sassy-review`, `sassy-simplify`, and `sassy-validate` accept all three: `manual` asks which findings to fix, `auto` fixes them without asking, `return` hands the findings back to the caller.
 - `sassy-debug` accepts no mode. It always leaves ship's review gate in place.
 - `sassy-work` and `sassy-lfg` accept no mode.
+- `sassy-goal` takes its own modes, one per step of a goal: `mode:write` (default), `mode:next`, `mode:check`, and `mode:close`.
 
 Everything else is decided by the artifact, not a mode:
 
@@ -52,6 +53,18 @@ Everything else is decided by the artifact, not a mode:
 ## Plan
 
 A durable document under `docs/plans/` with intent, decisions, constraints, phase tracking, and per-phase manual QA tables.
+
+## Goal
+
+Work too big for one plan — a migration, an epic — run by `sassy-goal` as a folder under `artifacts.plans`: `goal.md` (intent, cross-slice decisions, landscape, coexistence, a slice table, carry-forward) plus one plan per started slice. It turns `Done` when `mode:close` verifies its done-when against the whole tree.
+
+## Slice
+
+One step of a goal: its own plan (`NN-<slug>.md`, written only when `mode:next` starts it), branch, and PR, and it must ship something complete on its own — never a half-built layer. One slice is in flight at a time: `Pending` > `Planned` > `Shipped` > `Done`.
+
+## Carry-forward
+
+The append-only section of `goal.md` that `mode:check` adds to once per slice: what changed versus the plan, new decisions, impact on later slices, and gaps deferred or accepted. Every later slice's grill reads it as settled.
 
 ## Brief
 

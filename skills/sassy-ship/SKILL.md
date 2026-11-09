@@ -28,7 +28,7 @@ argument-hint: "<plan path or topic> [steps:compound,handbook,commit,pr,babysit]
 
 ## Steps (in order)
 
-1. **Review gate.** In `mode:manual` only: present a compact shipping summary — the plan or topic, the changes from the cycle results, the docs the close-out expects to write, the branch/PR target, the babysit options, and **the hooks resolved for this run's head — point, skill, and args — or that none are declared** — and wait. Under `commit.branch: current`, state instead "commit + push to `<head>`, no PR" and that no PR, babysit, merge, or `hooks.pr.*` (`before_create`, `after_create`, `before_merge`, `after_merge`) will run. In `mode:auto`, skip this gate.
+1. **Review gate.** In `mode:manual` only: present a compact shipping summary — the plan or topic, the changes from the cycle results, the docs the close-out expects to write, the branch/PR target, the babysit options, for a goal slice the `goal.md` change (slice → `Shipped`) and that babysit will not merge, and **the hooks resolved for this run's head — point, skill, and args — or that none are declared** — and wait. Under `commit.branch: current`, state instead "commit + push to `<head>`, no PR" and that no PR, babysit, merge, or `hooks.pr.*` (`before_create`, `after_create`, `before_merge`, `after_merge`) will run. In `mode:auto`, skip this gate.
 2. **Compound (conditional).** If the work produced a qualifying learning, dispatch a `worker` whose task is: *load the `sassy-compound` skill and follow it with `mode:auto`* — with a compact learnings brief (the solved problems, root causes, and solutions taken from the cycle results, not from re-reading the tree). It always gets `mode:auto` because ship's own gate already covered the approval. Skip cleanly when nothing qualifies, and skip entirely when `knowledge.write` is `false`.
 3. **Handbook (conditional).** If the feature is self-contained and independent enough that a teammate would benefit from a handover, dispatch a `worker` whose task is: *load the `sassy-handbook` skill and follow it* — with the plan path and topic. The worker reads the tree itself. Skip for small or tightly-coupled changes.
 4. **Commit or snapshot.** After the review gate — never before it — the docs and any remaining code become durable.
@@ -43,6 +43,8 @@ argument-hint: "<plan path or topic> [steps:compound,handbook,commit,pr,babysit]
 6. **Babysit.** Skipped under `commit.branch: current`. With `pr.babysit` (default `true`), dispatch a `worker`: *load the `sassy-babysit` skill and follow it for the PR just created, one checkpoint*, forwarding any `merge:on|off` and `delete-branch:on|off` the caller supplied, else `pr.merge` and `pr.delete_branch`. It reports looks-ready or blocked. For a continuous watch, tell the user to run `sassy-babysit` in-session.
 
    **One PR per run.** Babysitting a workspace fan-out means one `sassy-babysit` run per PR, and a fan-out is never auto-merged: `pr.merge` and `pr.merge:on` apply to a single-PR run only. A multi-repo merge needs an explicit per-PR say-so.
+
+**Goal slices.** A plan that sits next to a `goal.md` is a `sassy-goal` slice. The step 4 commit worker sets that slice `Shipped` in `goal.md`'s slice table and names `goal.md` in the commit, since `sassy-commit` stages named files only. Step 6 babysits the PR **without merging** — forward `merge:off` whatever `pr.merge` or the caller says — because `sassy-goal` `mode:check` must run on the open PR first. End the final report with the `sassy-goal <goal path> mode:check` command in the harness's syntax.
 
 ## Rules
 
