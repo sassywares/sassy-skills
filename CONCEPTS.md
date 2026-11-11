@@ -74,6 +74,6 @@ A settled in-context brief produced by `sassy-plan` when the user picks "start w
 
 `sassy-handoff` in `mode:write` writes a self-contained handoff file under `/tmp/sassywares/<harness>/handoffs/` and gives the user a `sassy-handoff mode:read <path>` command; `mode:read` in the fresh session summarizes what was done, why, and the current state against the tree, then asks what to do next. A skill cannot start a session, so the user opens the fresh one; the file is the only bridge, in any harness.
 
-## Sync
+## Release
 
-There is no background watcher. Any agent that changes a skill must run `scripts/sync.sh` immediately, without asking for confirmation. It commits and pushes; on `main`, when shipped files changed, it also bumps the patch version and tags, which publishes to npm. It installs nothing: `npx skills add` reads this repo directly. AGENTS.md has the details.
+There is no background watcher. Releases go through `sassy-ship` under `commit.branch: current`: after the approved push, the `hooks.push` `after_push` hook runs the `sassy-skills-release` project skill, which runs the vendored `bin/release` script. It bumps the patch version and tags when consumer-facing files changed, and the tag publishes to npm. It installs nothing: `npx skills add` reads this repo directly. AGENTS.md has the details.

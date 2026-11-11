@@ -1,0 +1,71 @@
+# Sassy Skills project config — written by sassy-setup.
+# Every key is optional: delete a line to fall back to the documented default.
+# Guide: https://github.com/sassywares/sassy-skills/blob/main/skills/sassy-setup/references/config.md
+
+# --- Artifacts ------------------------------------------------------------
+# Where sassy writes its documents. Paths are relative to this file's folder.
+artifacts:
+  plans: docs/plans               # sassy-plan writes plans here
+  solutions: docs/solutions       # sassy-compound writes learnings here
+  handbooks: docs/handbooks       # sassy-handbook writes handovers here
+  concepts: CONCEPTS.md           # the glossary sassy-compound maintains (a file)
+
+# --- Knowledge ------------------------------------------------------------
+# read: folders and files searched for prior learnings before planning or
+#       debugging. Any paths; one that does not exist is skipped, not fatal.
+# write: true | false — false means this project takes no learnings.
+knowledge:
+  read: [docs/solutions, CONCEPTS.md, README.md]
+  write: true                     # true | false
+
+# --- Git ------------------------------------------------------------------
+# repo: a remote name (this folder is the repo) | workspace (repos live below,
+#       this folder is not a repo) | none (no git anywhere here).
+# base_map: the base for a HEAD branch, so a PR targets the right rung.
+#   "*" is ordinary work; add a rung for a branch that releases elsewhere.
+git:
+  repo: origin
+  base_map:
+    "*": main           # confirmed: main is the only release line
+    # staging: main    # uncomment when a branch releases somewhere else
+    # release/*: main  # a family of heads, longest prefix wins
+
+# workspace only: each nested repo folder -> the base its PRs target
+# repos:
+#   fe: dev
+
+# --- Commit ---------------------------------------------------------------
+# current: commit on the checked-out branch, even on a base branch, then push
+#          it to its upstream. No PR: pr.* and hooks.pr are ignored; hooks.push runs.
+# new: never commit on a base branch — sassy-work, sassy-lfg, and sassy-debug
+#      cut a branch at the start of the run and stay on it.
+commit:
+  branch: current                 # current | new — every change lands on main
+
+# --- Pull requests --------------------------------------------------------
+pr:
+  babysit: true         # true | false — babysit the PR this run opened
+  merge: false          # true = merge every babysat PR here
+  delete_branch: false  # true | false — delete the head branch once merged
+
+# --- Hooks ----------------------------------------------------------------
+# Project steps injected into the PR pipeline, or after a push under
+# commit.branch: current, keyed by the HEAD branch — the
+# branch the PR comes from, never the one it targets. `"*"` is the default;
+# a name overrides per point, and `release/*` matches a family. Each entry is
+# `<skill> <args…>`, resolved at .agents/skills/<name>/SKILL.md; args are passed
+# to the skill verbatim. Declared order, one worker each, missing skill fails closed.
+hooks:
+  pr:
+    "*":
+      before_create: []       # after the commit, before the PR opens
+      after_create: []        # the PR was just created
+      before_merge: []        # this run is about to merge
+      after_merge: []         # this run observed the merge
+    # staging:            # per-point override for one head branch
+    #   before_create: []
+    # release/*:          # a family of heads
+    #   after_merge: [notify mode:auto]
+  push:                 # commit.branch: current only; keyed by the pushed branch
+    "*":
+      after_push: [sassy-skills-release]   # the push just succeeded: tag and publish

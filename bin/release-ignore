@@ -1,0 +1,18 @@
+# Paths that never reach consumers. The release script bumps and tags only when
+# a changed path is NOT listed here. This file REPLACES the script's defaults, so
+# the defaults are repeated, plus two dev-only files the defaults do not know:
+# .pi/ (loads ./skills while working here) and .gitignore.
+# Consumer-facing: skills/, README.md, CONCEPTS.md, LICENSE, package.json
+# (package.json counts whole: it holds the version, the manifest, and `files`).
+AGENTS.md
+docs/
+tests/
+.sassywares/
+.github/
+.agents/
+.claude/
+scripts/
+bin/release
+bin/release-ignore
+.pi/
+.gitignore
