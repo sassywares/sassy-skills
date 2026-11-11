@@ -162,11 +162,14 @@ hooks:
       after_merge: []            # this run observed the merge
     staging:                     # a per-point override for one head
       before_create: []
+  push:                          # only under commit.branch: current
+    "*":
+      after_push: []             # right after the push succeeds
 ```
 
 ### Extending the pipeline
 
-A project adds its own steps by naming a skill that lives in its own `.agents/skills/`. Nothing declared means nothing runs. Keys are the **head** branch — the one a PR comes from — and every point can be overridden per head; entries may carry args (`<skill> <args…>`).
+A project adds its own steps by naming a skill that lives in its own `.agents/skills/`. Nothing declared means nothing runs. Keys are the **head** branch — the one a PR comes from (for `hooks.push`, the pushed branch) — and every point can be overridden per head; entries may carry args (`<skill> <args…>`).
 
 | Hook | Runs | Typical use |
 |---|---|---|
@@ -174,8 +177,9 @@ A project adds its own steps by naming a skill that lives in its own `.agents/sk
 | `after_create` | the PR was just created | labels, deploy-target comment |
 | `before_merge` | this run is about to merge | a final approval gate |
 | `after_merge` | this run observed the merge | sync a back-merge branch, tag, notify |
+| `hooks.push` `after_push` | `commit.branch: current` only: after ship's push | notify, trigger a follow-up step |
 
-Hooks run in declared order, one subagent each, and fail closed: a declared skill that is missing or returns `blocked` stops the run. Only `before_create` may commit its own output, because it runs after the pipeline's commit. `before_merge` and `after_merge` never fire unless this run merges.
+Hooks run in declared order, one subagent each, and fail closed: a declared skill that is missing or returns `blocked` stops the run. Which points may write, and how, is stated once in `sassy-setup`'s `references/config.md` (the hook contract). `before_merge` and `after_merge` never fire unless this run merges.
 
 This is deliberately not a fork mechanism. A project skill that *adds* a step is a hook; one that *restates* our steps is a copy, and copies rot. Rules are not hooks either — those belong in `AGENTS.md`.
 
@@ -366,4 +370,4 @@ pi install npm:@sassywares/skills
 
 ## Repository maintenance
 
-Any agent that changes a skill runs `scripts/sync.sh` immediately, which commits, pushes, and — on `main`, when shipped files changed — bumps the patch version and tags the release that publishes `@sassywares/skills` to npm. [`AGENTS.md`](AGENTS.md) is the full guide: layout, adding a skill, sync, and the manual release fallback.
+Work here lands on `main` through `sassy-ship` (`commit.branch: current`). After the approved push, the project's `hooks.push` `after_push` step runs the release: on `main`, when files consumers receive changed, it bumps the patch version and tags it, and the tag publishes `@sassywares/skills` to npm. [`AGENTS.md`](AGENTS.md) is the full guide: layout, adding a skill, testing, and releasing.

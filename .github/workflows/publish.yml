@@ -62,6 +62,13 @@ jobs:
           done
           exit "$status"
 
+      - name: Check the suite roster
+        run: |
+          if ! diff <(ls skills | sort) <(sort skills/sassy-setup/assets/roster); then
+            echo "::error file=skills/sassy-setup/assets/roster::roster differs from ls skills/ — update it in the same commit"
+            exit 1
+          fi
+
       # Allows the one-time manual bootstrap publish of a new package.
       - name: Check if the version is already published
         id: published

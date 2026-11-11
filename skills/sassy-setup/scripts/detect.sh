@@ -52,6 +52,24 @@ START="${ROOT_ARG:-$PWD}"
 START="$(cd "$START" && pwd -P)"
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# The suite roster ships with sassy-setup (assets/roster, one skill name per
+# line). Only these names are "ours"; a project skill that merely starts with
+# `sassy-` is the project's. Never derived from sibling folders: in project scope
+# those are the project's own skills. Empty/missing falls back to the prefix.
+SUITE_ROSTER=""
+if [[ -s "$SKILL_DIR/assets/roster" ]]; then
+  while IFS= read -r _n || [[ -n "$_n" ]]; do
+    _n="${_n//[$'\r\t ']/}"
+    [[ -n "$_n" ]] && SUITE_ROSTER="${SUITE_ROSTER:+$SUITE_ROSTER,}$_n"
+  done < "$SKILL_DIR/assets/roster"
+fi
+is_suite_skill() {
+  if [[ -n "$SUITE_ROSTER" ]]; then
+    case ",$SUITE_ROSTER," in *",$1,"*) return 0 ;; *) return 1 ;; esac
+  fi
+  [[ "$1" == sassy-* ]]
+}
 ASSET_SNAPSHOT="$SKILL_DIR/assets/snapshot"
 ASSET_WORKSPACE="$SKILL_DIR/assets/workspace"
 
@@ -189,15 +207,35 @@ map_match() {
 
 base_for_head() { map_match base_map "$1"; }
 
+# hook_patterns [KIND] — the head patterns declared under hooks.<kind> (pr by default).
 hook_patterns() {
-  yaml_flat | awk -F'\t' -v us="$US" '{n=split($1,a,us); if (n==4 && a[1]=="hooks" && a[2]=="pr") print a[3]}' | sort -u
+  yaml_flat | awk -F'\t' -v us="$US" -v k="${1:-pr}" '{n=split($1,a,us); if (n==4 && a[1]=="hooks" && a[2]==k) print a[3]}' | sort -u
 }
 
-# hooks_for_head_point HEAD POINT — exact head, then the longest matching
+# hook_points KIND — the single source of point names; empty for an unknown kind.
+hook_points() {
+  case "$1" in
+    pr) printf '%s' "before_create after_create before_merge after_merge" ;;
+    push) printf '%s' "after_push" ;;
+  esac
+}
+
+# hooks_declared KIND — succeeds when hooks.<kind> names at least one skill.
+hooks_declared() {
+  local kind="$1" pat point
+  while IFS= read -r pat; do
+    for point in $(hook_points "$kind"); do
+      [[ -n "$(list_items "$(yflat "hooks${US}${kind}${US}${pat}${US}${point}")")" ]] && return 0
+    done
+  done < <(hook_patterns "$kind")
+  return 1
+}
+
+# hooks_for_head_point HEAD POINT [KIND] — exact head, then the longest matching
 # family, then "*". A pattern that declares no entry for this point inherits.
 hooks_for_head_point() {
-  local head="$1" point="$2" pat stem best="" bestlen=0 v
-  v="$(yflat "hooks${US}pr${US}${head}${US}${point}")"
+  local head="$1" point="$2" kind="${3:-pr}" pat stem best="" bestlen=0 v
+  v="$(yflat "hooks${US}${kind}${US}${head}${US}${point}")"
   [[ -n "$v" ]] && { printf '%s' "$v"; return; }
   while IFS= read -r pat; do
     case "$pat" in *"*") ;; *) continue ;; esac
@@ -206,12 +244,12 @@ hooks_for_head_point() {
     if [[ "$head" == "$stem"* ]] && (( ${#stem} > bestlen )); then
       best="$pat"; bestlen=${#stem}
     fi
-  done < <(hook_patterns)
+  done < <(hook_patterns "$kind")
   if [[ -n "$best" ]]; then
-    v="$(yflat "hooks${US}pr${US}${best}${US}${point}")"
+    v="$(yflat "hooks${US}${kind}${US}${best}${US}${point}")"
     [[ -n "$v" ]] && { printf '%s' "$v"; return; }
   fi
-  printf '%s' "$(yflat "hooks${US}pr${US}*${US}${point}")"
+  printf '%s' "$(yflat "hooks${US}${kind}${US}*${US}${point}")"
 }
 
 detect_base() {
@@ -331,7 +369,7 @@ if (( CHECK )); then
       repos.*) ;;
       commit.branch) ;;
       pr.babysit|pr.merge|pr.delete_branch) ;;
-      hooks.pr.*) ;;                            # shape checked with the hooks
+      hooks.*) ;;                               # shape checked with the hooks
       *) bad "unknown key '$key' — it is ignored, so the run uses the default" ;;
     esac
   done < <(yaml_flat "$CONFIG")
@@ -482,39 +520,48 @@ if (( CHECK )); then
   if [[ -n "$(yflat "hooks${US}pr${US}before_create")" ]]; then
     bad "hooks.pr.<point> is now nested by head branch — write hooks.pr.\"*\".<point>"
   fi
-  while IFS= read -r pat; do
-    [[ -n "$pat" ]] || continue
-    case "$pat" in
-      "*") ;;
-      *"*") [[ "${pat%\*}" != *"*" ]] || bad "hook pattern '$pat': only one trailing * is allowed" ;;
-    esac
-    for point in before_create after_create before_merge after_merge; do
-      val="$(yflat "hooks${US}pr${US}${pat}${US}${point}")"
-      [[ -n "$val" ]] || continue
-      while IFS= read -r entry; do
-        [[ -n "$entry" ]] || continue
-        name="${entry%% *}"
-        case "$name" in
-          sassy-*) bad "hooks.$pat.$point: '$name' is one of our skills — hooks are project skills only" ;;
-          *) hook_skill_path "$name" >/dev/null 2>&1 \
-               || bad "hooks.$pat.$point: '$name' not found at .agents/skills/$name/SKILL.md" ;;
-        esac
-      done < <(list_items "$val")
-    done
-  done < <(hook_patterns)
+  for kind in pr push; do
+    while IFS= read -r pat; do
+      [[ -n "$pat" ]] || continue
+      case "$pat" in
+        "*") ;;
+        *"*") [[ "${pat%\*}" != *"*" ]] || bad "hook pattern '$pat': only one trailing * is allowed" ;;
+      esac
+      for point in $(hook_points "$kind"); do
+        val="$(yflat "hooks${US}${kind}${US}${pat}${US}${point}")"
+        [[ -n "$val" ]] || continue
+        while IFS= read -r entry; do
+          [[ -n "$entry" ]] || continue
+          name="${entry%% *}"
+          if is_suite_skill "$name"; then
+            bad "hooks.$kind.$pat.$point: '$name' is one of our skills — hooks are project skills only"
+          else
+            hook_skill_path "$name" >/dev/null 2>&1 \
+              || bad "hooks.$kind.$pat.$point: '$name' not found at .agents/skills/$name/SKILL.md"
+          fi
+        done < <(list_items "$val")
+      done
+    done < <(hook_patterns "$kind")
+  done
 
-  # `hooks.pr.<head>.<point>` is the only shape, and the four points are the
-  # only moments a skill asks for. A fifth point name is a step that never fires.
+  # `hooks.<kind>.<head>.<point>` is the only shape. hooks.pr has four points and
+  # hooks.push has one; any other point name is a step that never fires.
   while IFS=$'\t' read -r depth hpath; do
     [[ -n "$depth" ]] || continue
+    kind="${hpath#hooks$US}"; kind="${kind%%$US*}"
+    case "$kind" in
+      pr|push) ;;
+      *) bad "hooks kind '$kind' is not one of pr|push"; continue ;;
+    esac
     if [[ "$depth" != "4" ]]; then
       bad "hooks entry '${hpath//$US/.}' is not head -> point -> list"
       continue
     fi
     point="${hpath##*$US}"
-    case "$point" in
-      before_create|after_create|before_merge|after_merge) ;;
-      *) bad "hooks point '$point' is not one of before_create|after_create|before_merge|after_merge" ;;
+    points="$(hook_points "$kind")"
+    case " $points " in
+      *" $point "*) ;;
+      *) bad "hooks.$kind point '$point' is not one of ${points// /|}" ;;
     esac
   done < <(yaml_flat "$CONFIG" \
              | awk -F'\t' -v us="$US" '{n=split($1,a,us); if (n>=2 && a[1]=="hooks") print n "\t" $1}')
@@ -524,9 +571,11 @@ if (( CHECK )); then
     if [[ "$TOPOLOGY" == "repo" ]]; then
       note "  base for '$HEAD_ARG': $(base_for_head "$HEAD_ARG")"
     fi
-    for point in before_create after_create before_merge after_merge; do
-      resolved="$(hooks_for_head_point "$HEAD_ARG" "$point")"
-      note "  head '$HEAD_ARG' → $point: $( [[ -n "$resolved" ]] && printf '%s' "$resolved" || printf 'none' )"
+    for kind in pr push; do
+      for point in $(hook_points "$kind"); do
+        resolved="$(hooks_for_head_point "$HEAD_ARG" "$point" "$kind")"
+        note "  head '$HEAD_ARG' → $point: $( [[ -n "$resolved" ]] && printf '%s' "$resolved" || printf 'none' )"
+      done
     done
   fi
 
@@ -601,16 +650,30 @@ if (( CHECK )); then
     esac
   fi
 
+  # Hooks that cannot fire are a note, not drift: the config is legal, the step
+  # just never runs. hooks.push needs `current` in a single remote repo.
+  if [[ "$val" == "current" ]]; then
+    if hooks_declared pr; then
+      note "  hooks.pr entries are declared but commit.branch is current — no PR, so they never run"
+    fi
+    if hooks_declared push && [[ "$configured_repo" == "workspace" || "$configured_repo" == "none" ]]; then
+      note "  hooks.push entries are declared but git.repo is '$configured_repo' — they never run"
+    fi
+  elif hooks_declared push; then
+    note "  hooks.push entries are declared but commit.branch is not current — they never run"
+  fi
+
   # The pin. A config can match the tree perfectly while the vendored suite is
   # stale, edited, or half-installed, and every skill downstream then runs
   # something other than what the lock says. Offline, no network.
+  [[ -n "$SUITE_ROSTER" ]] || note "  suite roster not found — falling back to the sassy-* name prefix"
   if command -v node >/dev/null 2>&1; then
     while IFS=$'\t' read -r kind msg; do
       case "$kind" in
         drift) bad "$msg" ;;
         note)  note "  $msg" ;;
       esac
-    done < <(node "$SKILL_DIR/scripts/lockcheck.mjs" --root "$ROOT" 2>/dev/null || true)
+    done < <(node "$SKILL_DIR/scripts/lockcheck.mjs" --root "$ROOT" --roster "$SUITE_ROSTER" 2>/dev/null || true)
   else
     note "  node not found — the vendored pin is unverified (the skills CLI needs node)"
   fi
@@ -949,7 +1012,7 @@ cat <<'EOF'
 
 # --- Commit ---------------------------------------------------------------
 # current: commit on the checked-out branch, even on a base branch, then push
-#          it to its upstream. No PR: pr.* and hooks.pr are ignored.
+#          it to its upstream. No PR: pr.* and hooks.pr are ignored; hooks.push runs.
 # new: never commit on a base branch — sassy-work, sassy-lfg, and sassy-debug
 #      cut a branch at the start of the run and stay on it.
 commit:
@@ -966,7 +1029,8 @@ kv delete_branch false 24 '# true | false — delete the head branch once merged
 cat <<'EOF'
 
 # --- Hooks ----------------------------------------------------------------
-# Project steps injected into the PR pipeline, keyed by the HEAD branch — the
+# Project steps injected into the PR pipeline, or after a push under
+# commit.branch: current, keyed by the HEAD branch — the
 # branch the PR comes from, never the one it targets. `"*"` is the default;
 # a name overrides per point, and `release/*` matches a family. Each entry is
 # `<skill> <args…>`, resolved at .agents/skills/<name>/SKILL.md; args are passed
@@ -984,4 +1048,7 @@ cat <<'EOF'
     #   before_create: []
     # release/*:          # a family of heads
     #   after_merge: [notify mode:auto]
+  # push:                 # commit.branch: current only; keyed by the pushed branch
+  #   "*":
+  #     after_push: []
 EOF

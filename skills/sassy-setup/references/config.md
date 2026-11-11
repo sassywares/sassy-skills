@@ -76,6 +76,9 @@ hooks:
       before_create: [tap2-version mode:auto]
     staging:
       before_create: []
+  push:
+    "*":
+      after_push: []          # commit.branch: current only
 ```
 
 | Key | Default | Meaning |
@@ -96,6 +99,7 @@ hooks:
 | `pr.merge` | `false` | `true` authorizes merging a single babysat PR |
 | `pr.delete_branch` | `false` | Delete the head branch once merged |
 | `hooks.pr.<pattern>.<point>` | `[]` | Project steps, keyed by the PR's head branch |
+| `hooks.push.<pattern>.after_push` | `[]` | Project steps after a push, keyed by the pushed branch (see Hooks) |
 
 Paths are relative to the config's own directory, never to the cwd.
 
@@ -183,7 +187,8 @@ phase work once got committed straight onto `staging`.
 
 Under `current` the close-out skips the PR pipeline: `pr.*` and `hooks.pr.*`
 are ignored (`before_create`, `after_create`, `before_merge`, `after_merge` never
-run), and there is no babysit or merge. A non-fast-forward push stops the run.
+run), and there is no babysit or merge. `hooks.push.after_push` is the one hook
+that does run (see Hooks). A non-fast-forward push stops the run.
 Only this config value triggers it. A typed `branch:current` token, or the one
 skills forward to `sassy-commit`, does not suppress the PR.
 
@@ -287,6 +292,12 @@ targets. `hooks.pr.staging` means *PRs whose source is staging*.
 | `after_create` | `sassy-commit-push-pr` | the PR was just created — not on an update |
 | `before_merge` | `sassy-babysit` | the PR looks ready **and** this run will merge it |
 | `after_merge` | `sassy-babysit` | this run observed the PR merged |
+| `hooks.push.after_push` | `sassy-ship` | right after a successful push under `commit.branch: current` |
+
+`hooks.push` has the same shape and resolution as `hooks.pr`, but its key is the
+pushed head branch and its only point is `after_push`. It runs only under
+`commit.branch: current`, in a single `remote` repo, never after a rejected push
+or in a workspace.
 
 ### Resolution
 
@@ -317,15 +328,20 @@ in review, and commented when it is deliberate.
 - **Names**: a skill the project owns, never one of ours.
 - **Order**: declared order, one worker each, sequential.
 - **Brief**: plan path, changed files, artifact paths, base, branch, commit hash,
-  and the PR URL where one exists.
+  and the PR URL where one exists. `after_push` has no PR and also gets the
+  pushed hash and the upstream.
 - **Result**: `done`, `blocked`, or `needs-decision`; a decision comes back to the
   orchestrator, which holds the gate.
 - **Fail closed**: a missing skill or a `blocked` result stops the pipeline.
-- **Writes**: only `before_create` may also commit, because it runs after the
-  pipeline's commit; every other point leaves the tree clean.
-- **Never**: push, open a PR, change `mode`, `branch`, or `merge`.
+- **Writes**: `before_create` may also commit, because it runs after the
+  pipeline's commit. `after_push` may commit and push the checked-out head and
+  push tags, never forcing, opening or merging a PR, or touching another branch.
+  Every other point leaves the tree clean.
+- **Never**: push (bar `after_push`, above), open a PR, change `mode`, `branch`,
+  or `merge`.
 - **Idempotent**: `after_merge` can be reached by a later run observing an
-  already merged PR, and `before_create` can run again on a re-ship.
+  already merged PR, `before_create` can run again on a re-ship, and `after_push`
+  runs after an up-to-date push (nothing new) too.
 - **Per PR**: in a workspace fan-out the hooks run once per PR.
 
 ### When they do not fire
@@ -365,8 +381,9 @@ per-PR say-so, because one switch would merge N PRs nobody re-read.
 - `git.repo` is `workspace`, `none`, or one existing remote name.
 - `git.remote` is required when `git.repo: workspace`; forbidden otherwise.
   `git.mirror_branch` and `repos` are workspace-only too.
-- `hooks` is allowed only with the four keys under `hooks.pr`, each a list of
-  skill names that resolve to `.agents/skills/<name>/SKILL.md`.
+- `hooks` is allowed only with the four keys under `hooks.pr` and `after_push`
+  under `hooks.push`, each a list of skill names that resolve to
+  `.agents/skills/<name>/SKILL.md`.
 - `commit.branch` is `current` or `new`; `pr.*` are `true` or `false`. Write
   booleans as `true`/`false`, never `on`/`off` — bare `on`/`off` are YAML 1.1
   booleans and parse inconsistently.
@@ -377,7 +394,7 @@ per-PR say-so, because one switch would merge N PRs nobody re-read.
 
 `scripts/detect.sh --check` enforces all of the above and reports each breach as
 a `drift:` line, exiting non-zero. When the suite is installed in project
-scope it also verifies the vendored pin offline: every `.agents/skills/sassy-*` folder is hashed with the `skills` CLI's own
+scope it also verifies the vendored pin offline: every `.agents/skills/<name>` folder whose name is a suite skill (a name in the suite's roster, `assets/roster` in sassy-setup, not merely `sassy-`-prefixed) is hashed with the `skills` CLI's own
 definition and compared to `computedHash` in `skills-lock.json`, the lock is
 checked against the installed set in both directions, and git-tracked state of
 the lock is reported. A stale, hand-edited, or half-installed suite is drift

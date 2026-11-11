@@ -94,7 +94,7 @@ Only reachable with `policy: current`, which is an explicit statement that
 committing on the base branch is intended. Proceed, and say in the run's gate
 summary that the commits are landing on `<head>`. When the config says
 `commit.branch: current`, the close-out commits and pushes `<head>` to its upstream with **no PR** — no
-`sassy-commit-push-pr`, no `hooks.pr.*`, no babysit, no merge. `pr-base` is
+`sassy-commit-push-pr`, no `hooks.pr.*`, no babysit, no merge; only `hooks.push.after_push` runs. `pr-base` is
 irrelevant here. Never infer this from a skill default.
 
 ### `stop-and-ask`

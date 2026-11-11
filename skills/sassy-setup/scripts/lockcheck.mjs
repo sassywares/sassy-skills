@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Verify the vendored sassy-* folders against skills-lock.json.
+// Verify the vendored suite skill folders against skills-lock.json.
 //
 // The suite installs in one of two scopes, like the agents: the project
 // (vendored into .agents/skills and pinned in skills-lock.json) or the user
@@ -12,7 +12,9 @@
 // path — so "identical to the pin" is a fact this script asserts, not a claim
 // the agent has to make in prose.
 //
-// Usage: lockcheck.mjs [--root DIR]
+// Usage: lockcheck.mjs [--root DIR] [--roster a,b,c]
+// A suite skill is a name in --roster (assets/roster in sassy-setup); without
+// one, any name starting with `sassy-`.
 // Prints "<drift|note>\t<message>" per finding and always exits 0: the caller
 // owns the verdict and the formatting.
 
@@ -23,12 +25,17 @@ import { homedir } from "node:os";
 import { join, relative } from "node:path";
 
 const SUITE = "sassywares/sassy-skills";
-const SASSY = /^sassy-/;
+let roster = null; // suite skill names (--roster a,b,c); null falls back to the sassy- prefix
+const isSuite = (name) => (roster ? roster.has(name) : /^sassy-/.test(name));
 
 const argv = process.argv.slice(2);
 let root = process.cwd();
 for (let i = 0; i < argv.length; i += 1) {
-  if (argv[i] === "--root") {
+  if (argv[i] === "--roster") {
+    const names = (argv[i + 1] ?? "").split(",").filter(Boolean);
+    roster = names.length > 0 ? new Set(names) : null;
+    i += 1;
+  } else if (argv[i] === "--root") {
     root = argv[i + 1];
     i += 1;
   }
@@ -65,12 +72,12 @@ async function folderHash(dir) {
   return hash.digest("hex");
 }
 
-// sassy-* skills in a skills directory. Follows symlinks: a user scope may link
+// suite skills in a skills directory. Follows symlinks: a user scope may link
 // each skill to a working copy rather than holding the files.
 function suiteIn(dir) {
   if (!existsSync(dir)) return [];
   return readdirSync(dir).filter(
-    (name) => SASSY.test(name) && existsSync(join(dir, name, "SKILL.md")),
+    (name) => isSuite(name) && existsSync(join(dir, name, "SKILL.md")),
   );
 }
 
@@ -89,7 +96,7 @@ async function main() {
     return;
   }
   if (!existsSync(lockPath)) {
-    drift(`sassy-* folders in .agents/skills but no skills-lock.json — re-pin with npx skills add ${SUITE}`);
+    drift(`suite skill folders in .agents/skills but no skills-lock.json — re-pin with npx skills add ${SUITE}`);
     return;
   }
 
@@ -102,10 +109,10 @@ async function main() {
   }
 
   const pinned = Object.entries(lock.skills ?? {}).filter(
-    ([name, entry]) => SASSY.test(name) || String(entry.source ?? "").includes("sassy-skills"),
+    ([name]) => isSuite(name),
   );
   if (pinned.length === 0) {
-    drift(`skills-lock.json pins no sassy-* skill — install with npx skills add ${SUITE}`);
+    drift(`skills-lock.json pins no suite skill — install with npx skills add ${SUITE}`);
     return;
   }
 
@@ -116,7 +123,7 @@ async function main() {
   }
 
   const installed = (await readdir(suite, { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory() && SASSY.test(entry.name))
+    .filter((entry) => entry.isDirectory() && isSuite(entry.name))
     .map((entry) => entry.name);
   const installedNames = new Set(installed);
   const pinnedNames = new Set(pinned.map(([name]) => name));
@@ -141,7 +148,7 @@ async function main() {
   }
 
   if (matched > 0) {
-    note(`${matched}/${pinned.length} sassy-* skill folders match skills-lock.json byte for byte`);
+    note(`${matched}/${pinned.length} suite skill folders match skills-lock.json byte for byte`);
   }
 
   const sources = [...new Set(pinned.map(([, entry]) => String(entry.source ?? "unknown")))];
