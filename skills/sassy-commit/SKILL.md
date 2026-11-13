@@ -59,7 +59,7 @@ Treat the reads as a snapshot; re-read branch and staged set right before commit
    - **Footers** — `Refs: #123`, `Closes #123`, `Co-authored-by:` lines go last.
    - Bad: `Update checkout.rb`, `Fix double-submit on checkout`
    - Good: `fix(checkout): prevent double-submit on slow networks`
-6. **Stage and commit** — stage **named files only** (never `git add -A` or `git add .`). Write the full message to `/tmp/sassywares/<harness>/commits/<UTC timestamp>-<slug>.txt` (directory per the `sassy-setup` skill's `references/harness.md`), then:
+6. **Stage and commit** — stage **named files only** (never `git add -A` or `git add .`). Write the full message to `/tmp/sassywares/commits/<UTC timestamp>-<slug>-<4 hex>.txt` (rules in the `sassy-setup` skill's `references/harness.md`), then:
    ```
    git add file1 file2 file3
    git commit -F <message-file> -- file1 file2 file3

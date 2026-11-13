@@ -14,7 +14,7 @@
 3. **Write the file** in the shape `SKILL.md` defines, one file per handoff. Create the directory with the `sassy-setup` skill's `references/harness.md` snippet, `<purpose>` = `handoffs`, then:
 
    ```bash
-   FILE="$DIR/$(date -u +%Y%m%dT%H%M%SZ)-<kebab-goal>.md"
+   FILE="$DIR/$(date -u +%Y%m%dT%H%M%SZ)-<kebab-goal>-$(printf '%04x' $((RANDOM % 65536))).md"
    ```
 
    Fill **Done** with the *why*, not just the what: the next session reads it to understand the work, not to replay it. Keep every section short. When there is no plan file, the brief goes in the file in full — the fresh session cannot see this conversation.

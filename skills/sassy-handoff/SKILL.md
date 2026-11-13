@@ -27,12 +27,13 @@ Resolve the mode: an explicit `mode:write` or `mode:read` wins. With no mode, an
 
 ## The handoff file
 
-Written by `write`, parsed by `read`. Files live in `/tmp/sassywares/<harness>/handoffs/`, named `<UTC timestamp>-<kebab-goal>.md`:
+Written by `write`, parsed by `read`. Files live in `/tmp/sassywares/handoffs/`, named `<UTC timestamp>-<kebab-goal>.md`:
 
 ```md
 # Handoff: <goal in one line>
 
 - **Repo / cwd:** <absolute path> · **Branch:** <branch> @ <short sha> · **Written:** <ISO time>
+- **Harness:** <the one that wrote this> · **Worktree:** <path, when the run was in one, else "main checkout">
 - **Plan:** <plan path + next phase, or "none — brief below">
 
 ## Goal

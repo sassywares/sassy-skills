@@ -30,13 +30,12 @@ For any other harness, give the skill name and its arguments and let the user in
 
 ## Temp files
 
-Every file a skill or agent writes outside the repo goes under **`/tmp/sassywares/<harness>/<purpose>/`** — never loose in `/tmp`, never inside the working tree. Each harness gets its own folder; the harness is detected from its environment (`CLAUDECODE` → `claude`, `PI_CODING_AGENT` → `pi`, else `other`), and `SASSY_HARNESS` overrides it. Directories are `0700`; a symlinked directory, or a `/tmp/sassywares` owned by someone else, aborts rather than being followed.
+Every file a skill or agent writes outside the repo goes under **`/tmp/sassywares/<purpose>/`** — never loose in `/tmp`, never inside the working tree. One folder per purpose, shared by every harness: a handoff written in one harness has to be findable from another, which is the whole point of the file.
 
 ```bash
 SW=/tmp/sassywares
-HARNESS="${SASSY_HARNESS:-$(if [ -n "${CLAUDECODE:-}" ]; then echo claude; elif [ -n "${PI_CODING_AGENT:-}" ]; then echo pi; else echo other; fi)}"
-DIR="$SW/$HARNESS/<purpose>"
-for d in "$SW" "$SW/$HARNESS" "$DIR"; do [ -L "$d" ] && { echo "unsafe symlink: $d" >&2; exit 1; }; done
+DIR="$SW/<purpose>"
+[ -L "$SW" ] && { echo "unsafe symlink: $SW" >&2; exit 1; }
 (umask 077; mkdir -p "$DIR")
 [ -O "$SW" ] || { echo "not owned by you: $SW" >&2; exit 1; }
 ```
@@ -49,4 +48,14 @@ for d in "$SW" "$SW/$HARNESS" "$DIR"; do [ -L "$d" ] && { echo "unsafe symlink: 
 | PR bodies | `prs/` | `sassy-commit-push-pr` |
 | Anything else — clones, captured output, drafts | `scratch/` | any skill or agent |
 
-Name files so a run can find its own: a UTC timestamp plus a short slug (`20261027T101500Z-fix-checkout.txt`). Delete scratch you no longer need; `/tmp` clearing on reboot covers the rest. A new purpose gets a new row here, not a new top-level folder.
+Name files so a run can find its own: a UTC timestamp, a short slug, and a short random suffix (`20261027T101500Z-fix-checkout-4f2a.txt`). The suffix keeps two harnesses writing in the same second apart, now that they share a folder. A clone or any temporary tree gets its own `mktemp -d` under `scratch/` for the same reason. Delete scratch you no longer need; `/tmp` clearing on reboot covers the rest. A new purpose gets a new row here, not a new top-level folder.
+
+**Harness is not a path segment.** It is recorded inside the file where it still matters — a handoff carries `**Harness:**` so a reader knows which agent wrote it — and the resume command is generated for whoever is reading, not for the writer. When a file needs it:
+
+```bash
+HARNESS="${SASSY_HARNESS:-$(if [ -n "${CLAUDECODE:-}" ]; then echo claude; elif [ -n "${PI_CODING_AGENT:-}" ]; then echo pi; else echo other; fi)}"
+```
+
+## Durable state
+
+`/tmp` is for files a run produces and forgets. Anything that must survive a reboot lives under **`~/.sassywares/<purpose>/`**: today that is `worktrees/`, whose checkouts carry uncommitted work (see `worktree.md`). Never put working state under `/tmp`, and never bury durable state inside a checkout — `/tmp` clearing is harmless for a handoff and fatal for a worktree.

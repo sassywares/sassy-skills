@@ -32,16 +32,17 @@ argument-hint: "[the area or question to ground]"
 
 ## The brief
 
-The scout writes it under `/tmp/sassywares/<harness>/grounding/` (see `references/harness.md` in the `sassy-setup` skill), keyed by the worktree root:
+The scout writes it under `/tmp/sassywares/grounding/` (see `references/harness.md` in the `sassy-setup` skill), keyed by the worktree root:
 
 ```bash
 SW=/tmp/sassywares
-HARNESS="${SASSY_HARNESS:-$(if [ -n "${CLAUDECODE:-}" ]; then echo claude; elif [ -n "${PI_CODING_AGENT:-}" ]; then echo pi; else echo other; fi)}"
-ROOT="$SW/$HARNESS/grounding"
+ROOT="$SW/grounding"
 ROOT_ABS=$(cd "$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")" && pwd -P)
 KEY=$(printf '%s' "$ROOT_ABS" | shasum -a 256 | cut -d' ' -f1)
 BRIEF="$ROOT/$KEY.md"
 ```
+
+Keyed by the checkout root, not the repository, so a worktree on its own branch gets its own brief and the main checkout keeps the one it had.
 
 It is fresh only while its `head` and `dirty` lines match the working tree. After any commit or edit, re-scout.
 
