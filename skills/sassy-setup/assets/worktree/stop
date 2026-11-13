@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Stop whatever is listening on a worktree's port.
+#
+# By port, not by pid file: a preview that already died leaves nothing to
+# believe, and a port that answers is the only proof that something is running.
+#
+# Usage: .sassywares/worktree/stop <slug|branch> [--version]
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./_lib.sh
+source "$SCRIPT_DIR/_lib.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: .sassywares/worktree/stop <slug|branch>
+
+Kill the processes listening on that worktree's port. Nothing listening is a
+success with a note, so stopping twice is safe.
+EOF
+}
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+  --version) printf '%s\n' "$WT_VERSION"; exit 0 ;;
+  "") usage >&2; exit 2 ;;
+esac
+
+need_git
+rec="$(wt_require "$1")"
+path="${rec%%$'\t'*}"
+branch="${rec##*$'\t'}"
+slug="$(wt_slug "$branch")"
+
+wt_is_main "$path" && die "the main checkout has no derived port to stop"
+port="$(wt_port_for "$slug")"
+
+if ! tcp_up "$port"; then
+  ok status "nothing listening on :$port"
+  exit 0
+fi
+
+command -v lsof >/dev/null 2>&1 || die "lsof not found — stop the process on :$port yourself"
+
+pids="$(lsof -ti "tcp:$port" 2>/dev/null | tr '\n' ' ' || true)"
+[ -n "$pids" ] || die "something answers on :$port but lsof cannot name it — is it yours?"
+
+n="$(printf '%s' "$pids" | wc -w | tr -d ' ')"
+kill -TERM $pids 2>/dev/null || true
+for _ in 1 2 3 4 5; do
+  sleep 1
+  tcp_up "$port" || break
+done
+if tcp_up "$port"; then
+  kill -KILL $pids 2>/dev/null || true
+  sleep 1
+  tcp_up "$port" && die ":$port still answers after SIGKILL (pids: $pids)"
+  ok stopped "$n process(es) on :$port (SIGKILL)"
+else
+  ok stopped "$n process(es) on :$port"
+fi

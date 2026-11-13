@@ -45,6 +45,31 @@ A gate is a deliberate stop or pass/fail condition.
 - **Run branch** — the branch a run cuts before its first change when `commit.branch` is `new`. Cut once, at the start: every phase, every doc, and ship's commit land on it. A later phase, a resumed run, or `sassy-lfg` after `sassy-work` reuses it rather than cutting another.
 - **Token authorship** — a token is explicit only when the caller supplied it or the run's own gate recorded it. A skill that passes its own default as a token outranks the project's config, which is the bug class `commit.branch` was lost to.
 
+## Worktree
+
+One checkout per branch, so two runs never share a working tree. `sassy-worktree`
+owns the lifecycle; the scripts in `.sassywares/worktree/` own the git.
+
+- **Worktree** — a second checkout of the same repository, at
+  `~/.sassywares/worktrees/<repo>/<slug>`. It shares one object store and one
+  branch lock with the main checkout, so the same branch can never be held twice
+  — the property that makes it safe where a `git clone` per agent is not.
+- **Slug** — the branch with `/` flattened (`feat/catalog` → `feat-catalog`). It
+  names the directory, the port, and the registry entry.
+- **Namespace** — the slug prefixed with the repo (`shop-feat-catalog`), and the
+  only name a hook should use for a database, a compose project, or a simulator.
+  Derived once by `create`; never rebuilt by hand.
+- **Port claim** — the private port a checkout owns: hashed from the slug into the
+  configured range, claimed with an atomic `mkdir`, and probed forward on a
+  collision. Liveness is *probed*, never read from a pid file.
+- **Preview** — bringing that checkout up so a human can look at it. It runs the
+  dogfood recipe's steps up to the section's `Prove it:` and never judges the
+  work; proving is dogfood's job.
+
+`create` and `remove` need an agent because their hooks are project skills, and a
+script cannot dispatch one. That is why the lifecycle is a skill and the git is a
+script.
+
 ## Modes
 
 Three shared mode tokens: `mode:manual` (default) asks at the skill's gate; `mode:auto` means pre-authorized, no review; `mode:return` reports and changes nothing. Some skills take their own modes instead: `sassy-goal`, `sassy-handoff` (`write`, `read`), `sassy-setup` (`init`, `check`), and `sassy-skill` (`create`, `retune`, `verify`).

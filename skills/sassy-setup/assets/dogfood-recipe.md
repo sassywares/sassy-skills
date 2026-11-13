@@ -7,6 +7,8 @@ never values>
 
 **Reset:** <back to a known state>
 
+**Preview:** <the one command a human runs to look at it — `bun dev --port $PORT` — and what to open>
+
 <!--
 Incomplete on purpose. sassy-setup writes this skeleton so the shape is visible;
 `sassy-dogfood mode:discover` fills it by trying the product once and writing down

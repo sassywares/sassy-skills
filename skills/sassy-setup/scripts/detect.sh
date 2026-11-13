@@ -72,6 +72,7 @@ is_suite_skill() {
 }
 ASSET_SNAPSHOT="$SKILL_DIR/assets/snapshot"
 ASSET_WORKSPACE="$SKILL_DIR/assets/workspace"
+ASSET_WORKTREE="$SKILL_DIR/assets/worktree"
 
 # The nearest config wins, walking up. Report where it is if one exists.
 CONFIG=""
@@ -257,6 +258,7 @@ hook_points() {
   case "$1" in
     pr) printf '%s' "before_create after_create before_merge after_merge" ;;
     push) printf '%s' "after_push" ;;
+    worktree) printf '%s' "after_create before_remove" ;;
   esac
 }
 
@@ -410,6 +412,7 @@ if (( CHECK )); then
       commit.branch) ;;
       pr.babysit|pr.merge|pr.delete_branch) ;;
       dogfood.enabled|dogfood.recipe|dogfood.reports|dogfood.timeout) ;;
+      worktrees.enabled|worktrees.dir|worktrees.ports) ;;
       hooks.*) ;;                               # shape checked with the hooks
       *) bad "unknown key '$key' — it is ignored, so the run uses the default" ;;
     esac
@@ -561,7 +564,7 @@ if (( CHECK )); then
   if [[ -n "$(yflat "hooks${US}pr${US}before_create")" ]]; then
     bad "hooks.pr.<point> is now nested by head branch — write hooks.pr.\"*\".<point>"
   fi
-  for kind in pr push; do
+  for kind in pr push worktree; do
     while IFS= read -r pat; do
       [[ -n "$pat" ]] || continue
       case "$pat" in
@@ -591,8 +594,8 @@ if (( CHECK )); then
     [[ -n "$depth" ]] || continue
     kind="${hpath#hooks$US}"; kind="${kind%%$US*}"
     case "$kind" in
-      pr|push) ;;
-      *) bad "hooks kind '$kind' is not one of pr|push"; continue ;;
+      pr|push|worktree) ;;
+      *) bad "hooks kind '$kind' is not one of pr|push|worktree"; continue ;;
     esac
     if [[ "$depth" != "4" ]]; then
       bad "hooks entry '${hpath//$US/.}' is not head -> point -> list"
@@ -612,7 +615,7 @@ if (( CHECK )); then
     if [[ "$TOPOLOGY" == "repo" ]]; then
       note "  base for '$HEAD_ARG': $(base_for_head "$HEAD_ARG")"
     fi
-    for kind in pr push; do
+    for kind in pr push worktree; do
       for point in $(hook_points "$kind"); do
         resolved="$(hooks_for_head_point "$HEAD_ARG" "$point" "$kind")"
         note "  head '$HEAD_ARG' → $point: $( [[ -n "$resolved" ]] && printf '%s' "$resolved" || printf 'none' )"
@@ -691,6 +694,114 @@ if (( CHECK )); then
     esac
   fi
 
+  # Worktrees: a switch and three mechanical settings. Creating, claiming, and
+  # refusing all belong to the scripts, so this validates only what a run reads.
+  wt_on="$(block_value worktrees enabled || true)"
+  wt_dir="$(block_value worktrees dir || true)"
+  wt_ports="$(block_value worktrees ports || true)"
+  case "$wt_on" in
+    "") ;;
+    true|false) note "  worktrees.enabled: $wt_on" ;;
+    *) bad "worktrees.enabled '$wt_on' must be true|false" ;;
+  esac
+  if [[ -n "$wt_ports" ]]; then
+    case "$wt_ports" in
+      *-*) wt_lo="${wt_ports%%-*}"; wt_hi="${wt_ports##*-}" ;;
+      *)   wt_lo=""; wt_hi=""; bad "worktrees.ports '$wt_ports' is not <from>-<to>" ;;
+    esac
+    if [[ -n "$wt_lo" ]]; then
+      case "$wt_lo$wt_hi" in
+        *[!0-9]*) bad "worktrees.ports '$wt_ports' is not numeric" ;;
+        *) if (( wt_lo < 1 || wt_hi > 65535 || wt_lo > wt_hi )); then
+             bad "worktrees.ports '$wt_ports' is not a usable port range"
+           else
+             note "  worktrees.ports: $wt_ports"
+           fi ;;
+      esac
+    fi
+  fi
+
+  if [[ "$wt_on" == "true" ]]; then
+    if [[ "$TOPOLOGY" != "repo" ]]; then
+      bad "worktrees.enabled needs a repo — this folder is '$TOPOLOGY', and a checkout needs git"
+    else
+      if [[ "$(yflat "commit${US}branch" 2>/dev/null || true)" == "current" ]]; then
+        note "  worktrees.enabled with commit.branch: current — a run never cuts a branch, so no run creates one"
+      fi
+
+      wt_lib="$ROOT/.sassywares/worktree/_lib.sh"
+      if [[ -f "$wt_lib" ]]; then
+        installed_wt="$(sed -n 's/^# worktree-version: //p' "$wt_lib" | head -n 1)"
+        asset_wt="$(sed -n 's/^# worktree-version: //p' "$ASSET_WORKTREE/_lib.sh" | head -n 1)"
+        if [[ -z "$installed_wt" ]]; then
+          bad "installed .sassywares/worktree/_lib.sh has no worktree-version line"
+        elif [[ -n "$asset_wt" && "$installed_wt" != "$asset_wt" ]]; then
+          bad "installed worktree tooling is v${installed_wt}, this skill ships v${asset_wt} — re-run setup"
+        else
+          note "  worktree tooling v${installed_wt}"
+        fi
+        for helper in create list stop remove prune; do
+          [[ -x "$ROOT/.sassywares/worktree/$helper" ]] \
+            || bad "missing or not executable: .sassywares/worktree/$helper"
+        done
+      else
+        bad "worktrees.enabled but .sassywares/worktree/_lib.sh is missing — re-run setup"
+      fi
+
+      # A checkout must live outside the working tree — inside it, `git clean
+      # -xdf` deletes uncommitted work and every scanner that ignores .gitignore
+      # crawls a second copy of the source. And a worktree parked on a configured
+      # base is a run that will commit onto a shared branch unobserved.
+      root_real="$(cd "$ROOT" && pwd -P)"
+      BASE_VALUES="$(yaml_flat "$CONFIG" \
+        | awk -F'\t' -v us="$US" '{n=split($1,a,us); if (n==3 && a[1]=="git" && a[2]=="base_map") print $2}' \
+        | tr '\n' ' ')"
+      wt_paths=()
+      while IFS=$'\t' read -r wpath wbranch; do
+        [[ -n "$wpath" ]] || continue
+        wt_paths+=("$wpath")
+        [[ "$wpath" == "$root_real" ]] && continue          # the main checkout
+        case "$wpath" in
+          "$root_real"/*) bad "worktree '$wpath' is inside the working tree — move worktrees.dir outside it" ;;
+        esac
+        case " $BASE_VALUES " in
+          *" $wbranch "*) bad "a worktree holds '$wbranch', which base_map names as a base" ;;
+        esac
+      done < <(git -C "$ROOT" worktree list --porcelain 2>/dev/null \
+                 | awk '/^worktree /{p=$2} /^branch /{b=$2; sub(/^refs\/heads\//,"",b); print p "\t" b; p=""} /^detached/{print p "\t(detached)"; p=""}')
+
+      # Orphan port claims: the worktree is gone but its port is still taken, so
+      # a later checkout is pushed off it for no reason.
+      wt_homef=""
+      d="${wt_dir:-$HOME/.sassywares/worktrees}"
+      case "$d" in
+        "~")   d="$HOME" ;;
+        "~/"*) d="$HOME/${d#\~/}" ;;
+        /*)    ;;
+        *)     d="$ROOT/$d" ;;
+      esac
+      cand="$d/$(basename "$ROOT")"
+      if [[ -f "$cand/.repo" && "$(cat "$cand/.repo" 2>/dev/null)" != "$root_real" ]]; then
+        cand="$d/$(basename "$ROOT")-$(printf '%s' "$root_real" | shasum -a 256 | cut -c1-6)"
+      fi
+      [[ -d "$cand" ]] && wt_homef="$cand"
+      if [[ -n "$wt_homef" && -d "$wt_homef/ports" ]]; then
+        for claim in "$wt_homef"/ports/*; do
+          [[ -d "$claim" ]] || continue
+          owner="$(cat "$claim/owner" 2>/dev/null || true)"
+          [[ -n "$owner" ]] || continue
+          found=0
+          if (( ${#wt_paths[@]} )); then
+            for p in "${wt_paths[@]}"; do
+              [[ "$p" == *"/$owner" ]] && found=1
+            done
+          fi
+          (( found )) || bad "port $(basename "$claim") is claimed by '$owner', which has no worktree"
+        done
+      fi
+    fi
+  fi
+
   # Dogfood is a pointer and a switch, never commands: the recipe holds the
   # procedure and its `Prove it:` step is the verdict. Everything below is
   # structural. A check run never runs the product — a validator that boots an
@@ -733,6 +844,16 @@ if (( CHECK )); then
       note "  dogfood.reports is gitignored"
     else
       bad "dogfood.reports '$dg_reports' is not gitignored — a run's logs and screenshots would be committed"
+    fi
+  fi
+
+  # A committed session is a credential leak, not merely a heavy history. Only
+  # checked once the folder exists, so a project that never uses one is silent.
+  if [[ "$TOPOLOGY" == "repo" && -d "$ROOT/.sassywares/session" ]]; then
+    if git -C "$ROOT" check-ignore -q -- ".sassywares/session/probe" 2>/dev/null; then
+      note "  .sassywares/session is gitignored"
+    else
+      bad ".sassywares/session is not gitignored — a session artifact must never be committed"
     fi
   fi
 
@@ -1160,6 +1281,19 @@ cat <<'EOF'
   #   "*":
   #     after_push: []
 EOF
+cat <<'EOF'
+
+# --- Worktrees ------------------------------------------------------------
+# Parallel work in one repo: a checkout per branch, each with its own derived
+# namespace and port, so two runs never fight over one working tree. enabled:
+# true lets a run create one instead of working here — and needs
+# commit.branch: new, because `current` never cuts a branch. The scripts in
+# .sassywares/worktree/ own the mechanics; nothing else reads these values.
+worktrees:
+EOF
+kv enabled false 34 '# true = a run may work in its own checkout'
+kv dir '~/.sassywares/worktrees' 34 '# parent of the per-repo folder; ~ is allowed'
+kv ports 3000-3099 34 '# the range a checkout claims a port from'
 cat <<'EOF'
 
 # --- Dogfood --------------------------------------------------------------

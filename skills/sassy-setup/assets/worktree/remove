@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Remove a worktree, after proving nothing would be lost.
+#
+# Refuses: the main checkout, a dirty tree, commits that are on no remote, and a
+# preview that is still running. A declared `hooks.worktree.before_remove` runs
+# first — the script cannot dispatch a skill, so it fails closed until the caller
+# says the hook has been dispatched.
+#
+# Usage: .sassywares/worktree/remove <slug|branch> [--hook-ok] [--force]
+#        .sassywares/worktree/remove --version
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./_lib.sh
+source "$SCRIPT_DIR/_lib.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: .sassywares/worktree/remove <slug|branch> [--hook-ok] [--force]
+
+  --hook-ok  the project's hooks.worktree.before_remove has already been
+             dispatched — required when one is declared (exit 3 otherwise)
+  --force    skip the dirty-tree and unpushed-commit refusals. Never skips the
+             main checkout, the preview check, or the hook handshake.
+EOF
+}
+
+target=""
+hook_ok=0
+force=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --version) printf '%s\n' "$WT_VERSION"; exit 0 ;;
+    --hook-ok) hook_ok=1 ;;
+    --force) force=1 ;;
+    -*) die "unknown flag: $1 (try --help)" ;;
+    *) [ -z "$target" ] || die "one worktree at a time"; target="$1" ;;
+  esac
+  shift
+done
+[ -n "$target" ] || { usage >&2; exit 2; }
+
+need_git
+rec="$(wt_require "$target")"
+path="${rec%%$'\t'*}"
+branch="${rec##*$'\t'}"
+slug="$(wt_slug "$branch")"
+
+wt_is_main "$path" && die "that is the main checkout — it cannot be removed"
+
+hooks="$(wt_hook before_remove "$branch")"
+if [ -n "$hooks" ] && [ "$hook_ok" -eq 0 ]; then
+  while IFS= read -r n; do
+    [ -n "$n" ] || continue
+    log "require-hook $n"
+  done <<<"$hooks"
+  printf '  %-9s %s\n' "→" "dispatch it, then re-run with --hook-ok" >&2
+  exit 3
+fi
+
+port="$(wt_port_for "$slug")"
+if tcp_up "$port"; then
+  die "something is still listening on :$port — stop <$slug> first"
+fi
+
+if [ "$force" -eq 0 ]; then
+  wt_dirty "$path" && die "not clean — $(git -C "$path" status --porcelain | wc -l | tr -d ' ') path(s) modified. Commit, discard, or --force."
+  n="$(wt_unpushed "$path")"
+  case "$n" in
+    0) ;;
+    unknown) die "cannot tell whether this branch is pushed — inspect it, or --force" ;;
+    *) die "$n commit(s) on '$branch' are on no remote — push, or --force" ;;
+  esac
+fi
+
+if [ "$force" -eq 1 ]; then
+  git worktree remove --force "$path"
+else
+  git worktree remove "$path"
+fi
+wt_release "$port" "$slug"
+
+ok released ":$port"
+ok removed "$path"

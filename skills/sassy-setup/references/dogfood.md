@@ -48,13 +48,14 @@ promise that a check exists: an unfinished recipe degrades to Manual rows
 ```text
 .sassywares/
 ├── config.yaml
+├── .gitignore         /session/ and /dogfood/reports/ — setup-owned
+├── session/           cookie jar, storage state, token — shared, never committed
 └── dogfood/
     ├── recipe.md      the procedure — committed, reviewed like code
-    ├── .gitignore     one line: /reports/
     └── reports/       run output — never committed
 ```
 
-The `/reports/` line is setup-owned. `--check` reports it missing as drift,
+The two ignore lines are setup-owned. `--check` reports it missing as drift,
 because a project that "helpfully" removes it commits screenshots by accident.
 
 ## Recipe format
@@ -68,6 +69,8 @@ because a project that "helpfully" removes it commits screenshots by accident.
 copy `.env.example` → `.env` and fill `DOGFOOD_USER`, `DOGFOOD_PASS`.
 
 **Reset:** `bun run db:reset`; `rm -rf .sassywares/dogfood/reports/*`
+
+**Preview:** `bun dev --port $PORT`, then open `$BASE_URL`
 
 ## catalog — a search returns matching products
 
@@ -102,6 +105,11 @@ why the recipe outlives whatever tool the agent happens to have this quarter.
 it set up state and assert along the way; the prove step is the machine-readable
 answer. A section without one has no verdict.
 
+**One `**Preview:**` line**, optional: how a human sees this checkout running. A
+URL, a simulator name, a desktop app — whatever `sassy-worktree mode:preview`
+should print once the app is up. Without one, the address is `$WT_BASE_URL`. It
+is prose, like every other line here: no tool, no schema.
+
 **Rules.**
 
 - Ordered, numbered, **append-only**: add steps at the end of their section;
@@ -116,6 +124,31 @@ answer. A section without one has no verdict.
   lines instead of becoming a wiki.
 - **No tool names.** Never "use Playwright" or "use the Chrome MCP". Say what to
   do and what to see, and let the run discover how.
+
+## Sessions, and a second checkout
+
+Authentication is the one thing that cannot be standardized: a cookie jar, a
+storage-state file, a bearer token, a client certificate, a device-code flow —
+each project is different, and the mechanism is *discovered* rather than
+configured. Two things follow, and they are all this file says about it:
+
+- **Session material lives in `.sassywares/session/`**, gitignored with the same
+  setup-owned file as the reports. The suite never inspects what is in there. A
+  step that needs a credential names an env var or points at that directory and
+  never carries a value.
+- **The procedure says how it is obtained and used** — in *Set up once*, in
+  `**Preview:**`, or in a plain section of its own. `mode:discover` writes it
+  once, after finding out what actually works, and `mode:run` or
+  `mode:preview` stops with an env-class report when the session is missing
+  rather than retrying against a login page.
+
+A worktree gets a fresh, empty `session/`. When a project's provider registers a
+single callback URL, a second checkout usually cannot log in on its own, so the
+usual answer is to copy or link the main checkout's session in the
+`after_create` hook. Worth writing down, because a **cookie** is host-scoped and
+crosses ports freely while a **`localStorage`** session is origin-scoped, port
+included, and has to be injected per origin — the difference looks like a broken
+transplant when it is only the wrong mechanism.
 
 ## Reports
 
@@ -188,7 +221,8 @@ lying switch.
 |----------|-------|
 | `dogfood:` block in the config | `sassy-setup` — the only skill that writes the config |
 | `.sassywares/dogfood/recipe.md` | `sassy-dogfood` (`mode:discover` authors and repairs it; a `mode:run` never edits it to pass) |
-| `.sassywares/dogfood/.gitignore` | `sassy-setup`, at the skeleton; never removed |
+| `.sassywares/.gitignore` | `sassy-setup`; never removes a line |
+| `.sassywares/session/` contents | the project — obtained and written by its own step or hook, never by this skill |
 | `reports/` | `sassy-dogfood`, always gitignored, pruned to ten |
 | `Mode: Auto` QA rows | `sassy-plan`, a section name per row |
 | Row results | `sassy-work`, from a passing report — never from an opinion |
@@ -202,7 +236,9 @@ Structural, never executed:
 - `recipe` exists when `enabled` is `true` — absent, it is "created by the first
   `sassy-dogfood` run", a note rather than drift.
 - `reports` is gitignored in a `repo` topology (`git check-ignore`), since a run
-  once committed would be drift nobody catches later.
+  once committed would be drift nobody catches later. The same check covers
+  `.sassywares/session` whenever that directory exists — a committed session is a
+  credential leak, not a heavy history.
 - The recipe has at least one `## ` section, every section has a `**Prove it:**`
   line, every numbered step has an `**Expect**`, and the file carries no
   secret-shaped strings.

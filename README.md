@@ -13,6 +13,7 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 - [Skills](#skills)
 - [Project config](#project-config)
   - [Dogfooding a project](#dogfooding-a-project)
+  - [Working in parallel](#working-in-parallel)
   - [Extending the pipeline](#extending-the-pipeline)
 - [Workflows](#workflows)
   - [From idea to ship](#from-idea-to-ship)
@@ -90,6 +91,7 @@ Debugging:
 | **`sassy-scout`** | Grounds an area on demand and writes the shared grounding brief other agents read instead of re-exploring. |
 | **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, commits after code approval, then hands off the next phase — a brief stops before ship. |
 | **`sassy-lfg`** | Executes every phase of a plan, or one in-context brief, then closes out via `sassy-ship` after code approval. |
+| **`sassy-worktree`** | One checkout per branch, each with its own derived namespace and port, so two agents can work in one repo. `create`, `list`, `preview`, `remove`, `prune` — and `preview` brings a checkout up so you can look at it without setting it up by hand. |
 | **`sassy-cycle`** | Runs one unit of work through implement → review + simplify + validate → fix → verify, with at most two verified fix passes. Also reworks finished work from requested changes or failed QA rows. |
 | **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-work` (cycle, code approval, commit), then ships. Debug takes no mode and always leaves ship's review gate in place unless you invoke ship yourself with `mode:auto`. |
 | **`sassy-handoff`** | `mode:write` (default) writes a self-contained handoff file to `/tmp/sassywares/handoffs/` and gives you a `sassy-handoff mode:read <path>` command for a fresh session; `mode:read` explains what the handoff did, why, and where things stand now, then asks what to do next. Works in any harness. |
@@ -170,12 +172,54 @@ hooks:
   push:                          # only under commit.branch: current
     "*":
       after_push: []             # right after the push succeeds
+  # worktree:                    # worktrees only; keyed by the checkout's branch
+  #   "*":
+  #     after_create: []          # derive .env, seed, copy the session in
+  #     before_remove: []         # drop the database, shut the device
+worktrees:                       # parallel checkouts of this repo
+  enabled: false                 # true = a run may work in its own checkout
+  dir: ~/.sassywares/worktrees   # parent of the per-repo folder
+  ports: 3000-3099               # the range a checkout claims a port from
 dogfood:                         # agent QA: a stored procedure that proves a change runs
   enabled: false                 # true lets a plan write Mode: Auto QA rows
   recipe: .sassywares/dogfood/recipe.md      # the procedure; never commands here
   reports: .sassywares/dogfood/reports       # run output; gitignored
   timeout: 900                   # whole procedure, seconds
 ```
+
+### Working in parallel
+
+Two agents in one repo need two checkouts, and a checkout needs a name — a
+directory, a port, a database. `worktrees:` turns that on:
+
+```text
+~/.sassywares/worktrees/shop/
+├── .repo        which checkout owns this folder
+├── ports/       one claim directory per port
+└── feat-catalog-search/
+```
+
+`create` derives the whole namespace from the branch and prints it — `WT_PATH`,
+`WT_SLUG`, `WT_NAMESPACE`, `WT_PORT`, `WT_BASE_URL` — so a project's hook derives
+`.env`, a database name, or a simulator from one source instead of inventing its
+own. Ports hash into the configured range and are claimed atomically, so a
+restarted app comes back on the same port and two slugs that hash alike do not
+fight.
+
+It needs `commit.branch: new`: under `current` a run commits where it stands and
+never cuts a branch, so nothing would create a checkout. `--check` says so rather
+than leaving a switch that cannot fire.
+
+**Previewing.** `sassy-worktree mode:preview` runs the dogfood recipe's bring-up
+steps — everything up to the section's `Prove it:` — leaves the app running, and
+prints the address. A worktree gets a fresh, empty `.sassywares/session/`, and
+most providers register one callback URL, so the usual answer is to copy or link
+the main checkout's session in the `after_create` hook: a cookie is host-scoped
+and crosses ports freely, while a `localStorage` session is origin-scoped and has
+to be injected per origin.
+
+Nothing here keeps state: liveness is probed, `stop` reaps by port, and `remove`
+refuses a dirty tree, unpushed commits, a live app, or the main checkout.
 
 ### Extending the pipeline
 
@@ -188,6 +232,8 @@ A project adds its own steps by naming a skill that lives in its own `.agents/sk
 | `before_merge` | this run is about to merge | a final approval gate |
 | `after_merge` | this run observed the merge | sync a back-merge branch, tag, notify |
 | `hooks.push` `after_push` | `commit.branch: current` only: after ship's push | notify, trigger a follow-up step |
+| `hooks.worktree` `after_create` | just after a checkout exists | derive `.env` and the port, seed the database, copy the session in |
+| `hooks.worktree` `before_remove` | before the checkout is deleted | drop the derived database, shut the simulator |
 
 Hooks run in declared order, one subagent each, and fail closed: a declared skill that is missing or returns `blocked` stops the run. Which points may write, and how, is stated once in `sassy-setup`'s `references/config.md` (the hook contract). `before_merge` and `after_merge` never fire unless this run merges.
 
@@ -324,6 +370,12 @@ The artifact decides QA: a plan document carries QA tables that gate phase compl
 ## Branching
 
 `sassy-work`, `sassy-lfg`, and `sassy-debug` decide the branch **before they touch code**, from `commit.branch` (default `new`) compared against `base_map`. On `new`, the run cuts a branch and every commit — phases, docs, ship — lands on it, so no change ever exists on a base branch. A run that is already on a branch that is not a base reuses it, which is how a handed-off phase, a resumed run, or `sassy-lfg` after `sassy-work` converges instead of cutting a second branch.
+
+With `worktrees.enabled`, `create` runs in a worktree instead of checking out in
+place, so the branch and its checkout appear together; the rest of the run works
+in `WT_PATH` and the main checkout stays read-only. A run that finds itself on a
+non-base branch reuses it, which is what keeps a resumed phase inside the
+worktree the first one cut.
 
 A base is **any `base_map` value**, not just the remote default: in a repo whose `"*"` targets `staging`, standing on `staging` counts as standing on a base. That distinction is the whole point of the key — see [`skills/sassy-setup/references/branching.md`](skills/sassy-setup/references/branching.md).
 

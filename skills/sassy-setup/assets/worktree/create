@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# Add a worktree for one branch and claim its port.
+#
+# Idempotent: a branch already in a worktree of ours is reported, not recreated,
+# and nobody else's checkout holding it is a stop rather than a clobber.
+#
+# Usage: .sassywares/worktree/create <branch> [--from <start-point>] [--env]
+#        .sassywares/worktree/create --version
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./_lib.sh
+source "$SCRIPT_DIR/_lib.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: .sassywares/worktree/create <branch> [--from <start-point>] [--env]
+
+Create (or report) the worktree for <branch>, claim its port, and print the
+namespace a run inherits: WT_PATH, WT_BRANCH, WT_SLUG, WT_NAMESPACE, WT_PORT,
+WT_BASE_URL.
+
+  --from <ref>  where a new branch is cut from (default HEAD). A caller that has
+                already resolved the base passes it; this script never guesses.
+  --env         print only `WT_*=<value>` lines, for eval.
+EOF
+}
+
+branch=""
+from="HEAD"
+env_only=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --version) printf '%s\n' "$WT_VERSION"; exit 0 ;;
+    --env) env_only=1 ;;
+    --from) shift; from="${1:-}"; [ -n "$from" ] || die "--from needs a start point" ;;
+    --from=*) from="${1#*=}" ;;
+    -*) die "unknown flag: $1 (try --help)" ;;
+    *)  [ -z "$branch" ] || die "one branch at a time"; branch="$1" ;;
+  esac
+  shift
+done
+[ -n "$branch" ] || { usage >&2; exit 2; }
+
+need_git
+wt_enabled || die "worktrees are off here — set worktrees.enabled: true in .sassywares/config.yaml"
+
+slug="$(wt_slug "$branch")"
+path="$(wt_path "$slug")"
+
+report() { # $1 path, $2 branch
+  local port addr ns
+  ns="$(wt_namespace "$slug")"
+  port="$(wt_claim "$slug")"
+  addr="http://localhost:$port"
+  if [ "$env_only" -eq 1 ]; then
+    printf 'WT_PATH=%s\nWT_BRANCH=%s\nWT_SLUG=%s\nWT_NAMESPACE=%s\nWT_PORT=%s\nWT_BASE_URL=%s\n' \
+      "$1" "$2" "$slug" "$ns" "$port" "$addr"
+    return 0
+  fi
+  ok worktree "$1"
+  ok branch "$2"
+  ok namespace "$ns"
+  ok port "$port"
+  ok address "$addr"
+  local hooks n
+  hooks="$(wt_hook after_create "$2")"
+  if [ -z "$hooks" ]; then
+    ok hook "hooks.worktree.after_create — none declared"
+  else
+    while IFS= read -r n; do
+      [ -n "$n" ] || continue
+      ok hook "after_create → $n (dispatch it, with WT_* above)"
+    done <<<"$hooks"
+  fi
+}
+
+# Already in a worktree of ours: report and stop. This is the second call in a
+# resumed run, and it must not fail.
+existing="$(wt_find "$branch" || true)"
+if [ -n "$existing" ]; then
+  epath="${existing%%$'\t'*}"
+  if wt_is_main "$epath"; then
+    die "'$branch' is checked out in the main checkout — leave it, or switch the main checkout first"
+  fi
+  report "$epath" "$branch"
+  exit 0
+fi
+
+if [ -e "$path" ]; then
+  die "'$path' exists but no worktree is registered for '$branch' — inspect it, then prune"
+fi
+
+(umask 077; mkdir -p "$(wt_home)/ports")
+printf '%s\n' "$MAIN" > "$(wt_home)/.repo"
+
+if git show-ref --verify --quiet "refs/heads/$branch"; then
+  git worktree add --quiet "$path" "$branch"
+else
+  git worktree add --quiet -b "$branch" "$path" "$from"
+fi
+
+report "$path" "$branch"

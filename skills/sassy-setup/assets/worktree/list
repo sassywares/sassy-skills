@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Show every worktree of this repo: branch, path, address, whether anything is
+# listening there, and the last dogfood verdict.
+#
+# Liveness is probed, never read from a pid file — a killed preview leaves no
+# stale entry to believe.
+#
+# Usage: .sassywares/worktree/list [--address <slug>] [--path <slug>] [--version]
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./_lib.sh
+source "$SCRIPT_DIR/_lib.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: .sassywares/worktree/list [--address <slug>] [--path <slug>]
+
+Print every worktree with its address and last verdict.
+
+  --address <slug>  print only the base URL of one worktree
+  --path <slug>     print only the path of one worktree (for cd "$(...)")
+EOF
+}
+
+want="" kind=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --version) printf '%s\n' "$WT_VERSION"; exit 0 ;;
+    --address|--path) kind="${1#--}"; shift; want="${1:-}"; [ -n "$want" ] || die "$kind needs a slug" ;;
+    -*) die "unknown flag: $1 (try --help)" ;;
+    *) die "unexpected argument: $1 (try --help)" ;;
+  esac
+  shift
+done
+
+need_git
+
+one() { # $1 path, $2 branch
+  local p="$1" b="$2" slug port
+  slug="$(wt_slug "$b")"
+  if wt_is_main "$p"; then
+    die "the main checkout has no derived port — it uses whatever the app defaults to"
+  fi
+  case "$kind" in
+    path) printf '%s\n' "$p" ;;
+    address)
+      port="$(wt_port_for "$slug")"
+      printf 'http://localhost:%s\n' "$port"
+      ;;
+  esac
+}
+
+if [ -n "$kind" ]; then
+  rec="$(wt_require "$want")"
+  one "${rec%%$'\t'*}" "${rec##*$'\t'}"
+  exit 0
+fi
+
+printf '  %-34s %-50s %-22s %-5s %s\n' "BRANCH" "WORKTREE" "ADDRESS" "LIVE" "LAST RUN"
+count=0
+while IFS=$'\t' read -r p b; do
+  [ -n "$p" ] || continue
+  count=$(( count + 1 ))
+  slug="$(wt_slug "$b")"
+  shown="${p/#$HOME/~}"
+  if wt_is_main "$p"; then
+    printf '  %-34s %-50s %-22s %-5s %s\n' "$b (main checkout)" "$shown" "—" "—" "—"
+    continue
+  fi
+  port="$(wt_port_for "$slug")"
+  if tcp_up "$port"; then live="up"; else live="down"; fi
+  last="$(wt_verdict "$p")"
+  printf '  %-34s %-50s %-22s %-5s %s\n' "$b" "$shown" "http://localhost:$port" "$live" "${last:-—}"
+done < <(wt_all)
+
+[ "$count" -gt 0 ] || log "  no checkouts found — is this a git repository?"

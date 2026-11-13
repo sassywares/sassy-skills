@@ -79,6 +79,14 @@ hooks:
   push:
     "*":
       after_push: []          # commit.branch: current only
+  # worktree:               # worktrees only; keyed by the checkout's branch
+  #   "*":
+  #     after_create: []      # derive .env, seed, copy the session
+  #     before_remove: []     # drop the database, shut the device
+worktrees:
+  enabled: false              # true = a run may work in its own checkout
+  dir: ~/.sassywares/worktrees     # parent of the per-repo folder; ~ is allowed here
+  ports: 3000-3099            # the range a checkout claims a port from
 dogfood:
   enabled: false              # true = sassy-plan writes Mode: Auto QA rows
   recipe: .sassywares/dogfood/recipe.md      # the procedure
@@ -109,6 +117,9 @@ dogfood:
 | `dogfood.recipe` | `.sassywares/dogfood/recipe.md` | The stored procedure `sassy-dogfood` executes. Its `Prove it:` step is the verdict |
 | `dogfood.reports` | `.sassywares/dogfood/reports` | Where a run writes its summary, step logs, and artifacts. Must be gitignored |
 | `dogfood.timeout` | `900` | Wall-clock for one run. A timeout is a failure, never a hang |
+| `worktrees.enabled` | `false` | `true` lets a run work in its own checkout instead of this one. Needs `commit.branch: new` |
+| `worktrees.dir` | `~/.sassywares/worktrees` | Parent of the per-repo worktree folder. The one path here that may be absolute or `~/` |
+| `worktrees.ports` | `3000-3099` | The range a checkout claims its private port from |
 
 Paths are relative to the config's own directory, never to the cwd.
 
@@ -302,6 +313,13 @@ targets. `hooks.pr.staging` means *PRs whose source is staging*.
 | `before_merge` | `sassy-babysit` | the PR looks ready **and** this run will merge it |
 | `after_merge` | `sassy-babysit` | this run observed the PR merged |
 | `hooks.push.after_push` | `sassy-ship` | right after a successful push under `commit.branch: current` |
+| `hooks.worktree.after_create` | `sassy-worktree` | just after a checkout exists, before anyone works in it |
+| `hooks.worktree.before_remove` | `sassy-worktree` | before the checkout is deleted — drop its database, shut its device |
+
+`hooks.worktree` has the same shape and resolution as the other two kinds, keyed
+by the head branch the checkout holds. It needs `worktrees.enabled`; a shell
+script cannot dispatch a skill, so `worktree:remove` fails closed (exit `3`,
+`require-hook <name>`) until the caller has run it.
 
 `hooks.push` has the same shape and resolution as `hooks.pr`, but its key is the
 pushed head branch and its only point is `after_push`. It runs only under
@@ -376,6 +394,34 @@ partial failures explicitly. Never collapse it into one status.
 fan-out means one `sassy-babysit` run per PR; merging a fan-out needs an explicit
 per-PR say-so, because one switch would merge N PRs nobody re-read.
 
+## Worktrees
+
+Parallel work in one repo: a checkout per branch, each with its own derived
+namespace and port, so two runs never fight over a working tree.
+
+```yaml
+worktrees:
+  enabled: true
+  dir: ~/.sassywares/worktrees
+  ports: 3000-3099
+```
+
+Three keys, no commands. The scripts in `.sassywares/worktree/` own the
+mechanics and `sassy-worktree` orchestrates them. `dir` is the one path in this
+file that may be absolute or start with `~/` — it names machine-local state, not
+something a teammate clones.
+
+**Two conditions.**
+
+- `enabled: true` needs `commit.branch: new`. Under `current` a run commits where
+  it stands and never cuts a branch, so nothing would ever create a worktree;
+  `--check` says so rather than leaving a switch that does nothing.
+- It needs the `repo` topology. A `workspace` root and a `none` folder have no
+  git to cut a checkout from.
+
+The namespace, the port claim, the two hooks, and every refusal are in
+[`worktree.md`](worktree.md).
+
 ## Dogfood
 
 Agent QA: a stored procedure that proves a change works in the running product,
@@ -422,9 +468,15 @@ report layout, the verdict classes, and the lint are in
 - `git.repo` is `workspace`, `none`, or one existing remote name.
 - `git.remote` is required when `git.repo: workspace`; forbidden otherwise.
   `git.mirror_branch` and `repos` are workspace-only too.
-- `hooks` is allowed only with the four keys under `hooks.pr` and `after_push`
-  under `hooks.push`, each a list of skill names that resolve to
-  `.agents/skills/<name>/SKILL.md`.
+- `hooks` is allowed only with the four points under `hooks.pr`, `after_push`
+  under `hooks.push`, and `after_create`/`before_remove` under `hooks.worktree`,
+  each a list of skill names that resolve to `.agents/skills/<name>/SKILL.md`.
+- `worktrees.enabled` is `true` or `false`; `worktrees.ports` is `<from>-<to>`
+  inside 1–65535 with `<from>` no greater than `<to>`. A checkout must resolve
+  outside the working tree, must not hold a branch `base_map` names as a base,
+  and must not leave a port claimed by a worktree that no longer exists. An
+  `enabled: true` with no tooling installed, or with the wrong tooling version,
+  is drift.
 - `commit.branch` is `current` or `new`; `pr.*` are `true` or `false`. Write
   booleans as `true`/`false`, never `on`/`off` — bare `on`/`off` are YAML 1.1
   booleans and parse inconsistently.

@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# List worktrees whose work is already safely on a remote, and remove the ones
+# you approve. This is the mode that keeps the worktree home from becoming tens
+# of gigabytes.
+#
+# Only merged-or-gone branches that are clean, fully pushed, and not running are
+# ever candidates. Nothing is removed without --yes.
+#
+# Usage: .sassywares/worktree/prune [--yes] [--version]
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./_lib.sh
+source "$SCRIPT_DIR/_lib.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: .sassywares/worktree/prune [--yes]
+
+Show every worktree that is merged into its upstream (or whose upstream is gone)
+and safe to remove, then — with --yes — remove those and release their ports.
+EOF
+}
+
+yes=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --version) printf '%s\n' "$WT_VERSION"; exit 0 ;;
+    --yes) yes=1 ;;
+    -*) die "unknown flag: $1 (try --help)" ;;
+    *) die "unexpected argument: $1 (try --help)" ;;
+  esac
+  shift
+done
+
+need_git
+
+printf '  %-32s %-9s %-6s %-9s %s\n' "BRANCH" "UPSTREAM" "DIRTY" "UNPUSHED" "ACTION"
+n_candidates=0
+n_removed=0
+while IFS=$'\t' read -r p b; do
+  [ -n "$p" ] || continue
+  wt_is_main "$p" && continue
+  slug="$(wt_slug "$b")"
+  state="$(wt_upstream_state "$p")"
+  if wt_dirty "$p"; then dirty="yes"; else dirty="no"; fi
+  unpushed="$(wt_unpushed "$p")"
+  port="$(wt_port_for "$slug")"
+  if tcp_up "$port"; then live="yes"; else live="no"; fi
+
+  action=""
+  if [ "$state" = "unmerged" ]; then
+    action="skipped — unmerged"
+  elif [ "$dirty" = "yes" ]; then
+    action="skipped — dirty"
+  elif [ "$unpushed" != "0" ]; then
+    action="skipped — $unpushed unpushed"
+  elif [ "$live" = "yes" ]; then
+    action="skipped — running on :$port"
+  else
+    action="removable"
+    n_candidates=$(( n_candidates + 1 ))
+  fi
+
+  printf '  %-32s %-9s %-6s %-9s %s\n' "$b" "$state" "$dirty" "$unpushed" "$action"
+
+  if [ "$yes" -eq 1 ] && [ "$action" = "removable" ]; then
+    hooks="$(wt_hook before_remove "$b")"
+    if [ -n "$hooks" ]; then
+      warn skipped "$b has a before_remove hook — run remove <$slug> so it runs"
+      continue
+    fi
+    git worktree remove "$p" && wt_release "$port" "$slug" && n_removed=$(( n_removed + 1 ))
+  fi
+done < <(wt_all)
+
+if [ "$yes" -eq 1 ]; then
+  ok pruned "$n_removed removed, $(( n_candidates - n_removed )) left"
+elif [ "$n_candidates" -gt 0 ]; then
+  hint "re-run with --yes to remove the $n_candidates removable worktree(s)"
+else
+  ok pruned "nothing to remove"
+fi
