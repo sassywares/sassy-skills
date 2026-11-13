@@ -87,7 +87,7 @@ done
 
 There is no test suite beyond one script; skills are validated structurally.
 
-- **Roster and pin.** `bash tests/sassy-setup-roster.sh` checks that `skills/sassy-setup/assets/roster` equals `ls skills/` and runs `detect.sh --check` in project scope, user scope (three real Sassywares repos), and with the roster missing.
+- **Roster and pin.** `bash tests/sassy-setup-roster.sh` checks that `skills/sassy-setup/assets/roster` equals `ls skills/` and runs `detect.sh --check` in project scope, user scope (three real Sassywares repos), and with the roster missing. It also builds its locks from `skills/sassy-setup/scripts/hash-skill.mjs` (never a private copy of the hash) and holds golden vectors for both lock eras: a change in the CLI's folder hash must break that test, not silently report every skill as drift.
 
 - **Frontmatter.** Every `skills/*/SKILL.md` starts with `---` frontmatter holding `name` and `description` (`argument-hint` optional). `publish.yml` enforces `name` and `description` and fails the publish without them, so check locally first.
 - **Config tooling.** After changing `sassy-setup` or the config schema, run `bash skills/sassy-setup/scripts/detect.sh --root . --check` (config and vendored pin versus reality) and `bash skills/sassy-setup/scripts/detect.sh --root .` (proposed config) and confirm the output matches `references/config.md`.

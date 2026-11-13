@@ -496,7 +496,10 @@ a `drift:` line, exiting non-zero. When the suite is installed in project
 scope it also verifies the vendored pin offline: every `.agents/skills/<name>` folder whose name is a suite skill (a name in the suite's roster, `assets/roster` in sassy-setup, not merely `sassy-`-prefixed) is hashed with the `skills` CLI's own
 definition and compared to `computedHash` in `skills-lock.json`, the lock is
 checked against the installed set in both directions, and git-tracked state of
-the lock is reported. A stale, hand-edited, or half-installed suite is drift
-even when the config itself matches the tree. A user-scope install
-(`~/.agents/skills/`) has no pin to verify; the check notes it, and a suite
-found in neither scope is noted, not drift.
+the lock is reported. Both lock eras count: the definition named by the lock's
+`version` is tried first and the other second, so a pin written by an older
+`skills` CLI reads as a match (with a note) rather than as drift — the
+`skills` CLI changed its folder hash and still reads both. A stale, hand-edited,
+or half-installed suite is drift even when the config itself matches the tree. A
+user-scope install (`~/.agents/skills/`) has no pin to verify; the check notes
+it, and a suite found in neither scope is noted, not drift.

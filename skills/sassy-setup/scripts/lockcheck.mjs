@@ -7,10 +7,12 @@
 // install has a pin to verify; a user install is reported, and a missing suite
 // is reported without counting as drift.
 //
-// Read-only, offline. The folder hash is the `skills` CLI's own definition —
-// sha256 over each file's relative path then its bytes, files sorted by relative
-// path — so "identical to the pin" is a fact this script asserts, not a claim
-// the agent has to make in prose.
+// Read-only, offline. The folder hash is the `skills` CLI's own definition
+// (./hash-skill.mjs), so "identical to the pin" is a fact this script asserts,
+// not a claim the agent has to make in prose. Both hash eras are live — the
+// lock's version names the one it was written with — so the definition that
+// version names is tried first and the other second. Trying both cannot hide an
+// edited folder: edited bytes match neither.
 //
 // Usage: lockcheck.mjs [--root DIR] [--roster a,b,c]
 // A suite skill is a name in --roster (assets/roster in sassy-setup); without
@@ -18,13 +20,15 @@
 // Prints "<drift|note>\t<message>" per finding and always exits 0: the caller
 // owns the verdict and the formatting.
 
-import { createHash } from "node:crypto";
-import { readdir, readFile } from "node:fs/promises";
 import { existsSync, readdirSync } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, relative } from "node:path";
+import { join } from "node:path";
+
+import { hashSkillFolder } from "./hash-skill.mjs";
 
 const SUITE = "sassywares/sassy-skills";
+
 let roster = null; // suite skill names (--roster a,b,c); null falls back to the sassy- prefix
 const isSuite = (name) => (roster ? roster.has(name) : /^sassy-/.test(name));
 
@@ -44,33 +48,6 @@ for (let i = 0; i < argv.length; i += 1) {
 const lines = [];
 const drift = (message) => lines.push(`drift\t${message}`);
 const note = (message) => lines.push(`note\t${message}`);
-
-async function collect(base, dir, files) {
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (entry.name === ".git" || entry.name === "node_modules") continue;
-      await collect(base, full, files);
-    } else if (entry.isFile()) {
-      files.push({
-        path: relative(base, full).split("\\").join("/"),
-        body: await readFile(full),
-      });
-    }
-  }
-}
-
-async function folderHash(dir) {
-  const files = [];
-  await collect(dir, dir, files);
-  files.sort((a, b) => a.path.localeCompare(b.path));
-  const hash = createHash("sha256");
-  for (const file of files) {
-    hash.update(file.path);
-    hash.update(file.body);
-  }
-  return hash.digest("hex");
-}
 
 // suite skills in a skills directory. Follows symlinks: a user scope may link
 // each skill to a working copy rather than holding the files.
@@ -122,23 +99,32 @@ async function main() {
     return;
   }
 
+  // The lock's version names the hash era; the other era is the fallback.
+  const legacyFirst = Number(lock.version) === 1;
   const installed = (await readdir(suite, { withFileTypes: true }))
     .filter((entry) => entry.isDirectory() && isSuite(entry.name))
     .map((entry) => entry.name);
   const installedNames = new Set(installed);
   const pinnedNames = new Set(pinned.map(([name]) => name));
   let matched = 0;
+  let otherEra = 0;
 
   for (const [name, entry] of pinned) {
     if (!installedNames.has(name)) {
       drift(`vendored ${name} is missing from .agents/skills — re-install with npx skills add ${SUITE}`);
       continue;
     }
-    if ((await folderHash(join(suite, name))) !== entry.computedHash) {
-      drift(`${name} does not match the pin — edited locally or half-installed; re-install, or re-pin with npx skills add ${SUITE}`);
+    const dir = join(suite, name);
+    if ((await hashSkillFolder(dir, legacyFirst)) === entry.computedHash) {
+      matched += 1;
       continue;
     }
-    matched += 1;
+    if ((await hashSkillFolder(dir, !legacyFirst)) === entry.computedHash) {
+      matched += 1;
+      otherEra += 1;
+      continue;
+    }
+    drift(`${name} does not match the pin — edited locally or half-installed; re-install, or re-pin with npx skills add ${SUITE}`);
   }
 
   for (const name of installed) {
@@ -149,6 +135,9 @@ async function main() {
 
   if (matched > 0) {
     note(`${matched}/${pinned.length} suite skill folders match skills-lock.json byte for byte`);
+  }
+  if (otherEra > 0) {
+    note(`${otherEra} of them matched the other skills-lock hash era — the next npx skills add ${SUITE} migrates the lock`);
   }
 
   const sources = [...new Set(pinned.map(([, entry]) => String(entry.source ?? "unknown")))];
