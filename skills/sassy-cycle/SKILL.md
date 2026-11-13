@@ -79,7 +79,7 @@ A finding is `resolved`, and a simplification `applied`, only when step 6's revi
 | Only fixes block | Simplifications are applied and verified but never make a run `blocked`; reviewer suggestions go to the caller's gate for the user to pick and are never applied automatically. |
 | Simplifier runs once | Only at step 3 (or never, on rework). Verify re-checks what was applied; it does not hunt for more. |
 | Never commit | This skill leaves everything uncommitted. Shipping is `sassy-ship`. |
-| Manual QA | Never mark QA rows `Done`. QA is confirmed by the user at the caller's gate; failing rows come back as findings. |
+| QA stays the caller's | Never mark a QA row `Done`, `Manual` or `Auto`. A `Manual` row is confirmed by the user at the caller's gate and an `Auto` row by a passing dogfood report; failing rows come back as findings. |
 
 ## Context and token discipline
 

@@ -20,6 +20,16 @@ A skill that mostly coordinates. It reads compact results, writes briefs, and av
 
 `sassy-cycle` runs one unit of work through implement → review + simplify + validate (in parallel) → fix → verify. Simplifications are applied and verified but never block. Verify is a reviewer scoped to the fix, confirming each finding resolved and checking the fix for new ones; at most two fix passes, then anything open is `blocked`. Reviewer suggestions never block; they go to the gate. Given findings instead of a brief — requested changes, failed QA rows — it reworks existing work through the same fix → verify loop. It never commits. Work and LFG run it; debug fixes through work.
 
+## Dogfood
+
+Agent QA: the project's own stored procedure for proving a change works in the running product, not merely in the diff. `sassy-dogfood` executes it, and the report's verdict is the only thing that settles an `Auto` QA row.
+
+- **Recipe** — `.sassywares/dogfood/recipe.md`, committed and reviewed like code. Append-only sections of ordered steps, each with a `Do` and an `Expect`, ending in one `Prove it:` step whose exit code is the verdict. It names no tool: whatever the harness has connected at run time is what satisfies a step. The config points at it and never restates it — commands in the config would duplicate the manifest and could not express order.
+- **Report** — `.sassywares/dogfood/reports/<run-id>/`, never committed and pruned to ten: `summary.md` (status, class, the per-step table, artifact paths), one log per executed step, and the artifacts. The durable record is the QA row's note — verdict and run id — never a path that will vanish.
+- **Verdict classes** — `code` is a finding for the cycle, `env` means the toolchain is broken (report and park, never loop), `recipe` means the procedure itself is stale (propose a diff, never improvise around it).
+- **Two gates** — an `Auto` row needs `dogfood.enabled: true` **and** a section with a `Prove it:` step. One without the other keeps the row `Manual`, which is how an unfinished recipe degrades safely instead of making a gate lie.
+- **Frozen against the run** — a red run never edits the recipe or its expectations to pass. The cheapest way past a check must not be to weaken it.
+
 ## Gates
 
 A gate is a deliberate stop or pass/fail condition.
@@ -27,7 +37,7 @@ A gate is a deliberate stop or pass/fail condition.
 - **Fix gate** — `sassy-debug` presents the causal chain, fix, and risks before changing code.
 - **Code approval gate** — the user approves the code before committing or shipping. Always on for `sassy-work` and `sassy-lfg`.
 - **Ship review gate** — `sassy-ship` summarizes the close-out and waits in `mode:manual` (default); skipped only when the caller passed `mode:auto`.
-- **QA gate** — manual QA checklists, part of phase completion rather than a separate track: a phase turns `Done` only when the code is approved and every QA row passed. The user runs the rows; no agent ticks its own. It exists only when the plan document has QA tables; an in-context brief has none.
+- **QA gate** — QA tables, part of phase completion rather than a separate track: a phase turns `Done` only when the code is approved and every QA row passed. A `Manual` row belongs to the user, and no agent ticks its own. An `Auto` row is settled by a passing dogfood report, never by an opinion, and ship will not persist behind one that is unproven. It exists only when the plan document has QA tables; an in-context brief has none.
 
 ## Branch and base
 
@@ -47,12 +57,12 @@ Three shared mode tokens: `mode:manual` (default) asks at the skill's gate; `mod
 
 Everything else is decided by the artifact, not a mode:
 
-- A plan document under `docs/plans/` drives phased execution and carries manual QA tables.
+- A plan document under `docs/plans/` drives phased execution and carries QA tables whose rows are `Auto` or `Manual`.
 - An in-context brief drives one cycle and has no plan file and no QA tables.
 
 ## Plan
 
-A durable document under `docs/plans/` with intent, decisions, constraints, phase tracking, and per-phase manual QA tables.
+A durable document under `docs/plans/` with intent, decisions, constraints, phase tracking, and per-phase QA tables.
 
 ## Goal
 

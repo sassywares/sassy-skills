@@ -14,11 +14,29 @@ The plan has no open-questions section. Every branch the interview found is a de
 4. **Readable.** 3–8 phases for a typical feature. Merge only when a split leaves a phase with no meaningful thing to verify.
 5. **No dump sections.** Anything executable lives under a phase. No giant task list outside the phases.
 
-## QA — manual, and part of the gate
+## QA — part of the gate
 
-Manual QA is the default: each phase gets a QA table with `Mode: Manual` fixed. Write each row so a person can run it without reading code — say what to set up, what to do, and what passing looks like. Suggest checks from the phase goal (happy path, edge, regression) but the user may edit them later.
+Every phase gets a QA table. Each row's `Mode` is `Auto` or `Manual`, and the choice is not a preference:
 
-QA is a completion gate, not a separate track: a phase turns `Done` only when the code is approved and every QA row for that phase passes. The user runs the rows and the agent records them; an agent never ticks its own row.
+- **`Manual` is the default.** Write each row so a person can run it without reading code — what to set up, what to do, and what passing looks like.
+- **`Auto` needs two things**: the project's `dogfood.enabled` is `true` (per the `sassy-setup` skill's `references/dogfood.md`) **and** the row names a recipe section that carries a `Prove it:` step. One without the other stays `Manual`. An `Auto` row with no check behind it is a gate that proves nothing.
+- An `Auto` row names the recipe **section**, never a command. Commands belong in the recipe; copied into a row they rot one row at a time.
+
+A row stays `Manual` when the answer is genuinely a human's:
+
+| The check is… | Because |
+|---|---|
+| subjective | "does this look right", "does this feel intuitive", "is this the right product decision" |
+| physical or sensory | audio, haptics, camera, mic, a real device, a push to a real phone |
+| irreversible or third-party | payments, mail actually sent, shared or staging data touched |
+| unobservable | no artifact an agent can inspect |
+| unprovable | no check exists yet |
+
+On doubt, `Manual`. A false `Auto` pass is unrecoverable; a `Manual` row is merely slower.
+
+**An `Auto` check must have been seen failing once** — break the thing, watch the check fail, restore it — before the row is recorded. A check nobody has watched fail is not a check.
+
+QA is a completion gate, not a separate track: a phase turns `Done` only when the code is approved and every QA row for that phase passes. `Manual` rows belong to the user, and the agent records what it hears. `Auto` rows are settled by a `sassy-dogfood` run and its report, never by an opinion.
 
 The user may ask in plain language to omit QA tables for this plan, in which case omit the tables and the `**QA:**` line entirely.
 
@@ -27,7 +45,9 @@ The user may ask in plain language to omit QA tables for this plan, in which cas
 ```markdown
 # <Plan title>
 
-**QA:** manual
+**QA:** auto
+
+(`auto` when at least one row in the plan is `Auto`, `manual` when none is. It is the source of truth for executors, so it never disagrees with the tables.)
 
 ## Intent
 One short paragraph: what we are building and why.
@@ -81,15 +101,15 @@ Omit empty layers. Do not put the next goal's work here.
 
 **Done when:** Plain-language acceptance for this phase only.
 
-#### QA — P1 (Manual)
+#### QA — P1 (Auto)
 
 | ID | Check | Mode | Status | Notes |
 |----|-------|------|--------|-------|
-| P1-Q1 | … | Manual | Pending | |
-| P1-Q2 | … | Manual | Pending | |
+| P1-Q1 | Searching "wool socks" returns matching products | Auto (catalog) | Pending | |
+| P1-Q2 | The empty state reads well | Manual | Pending | |
 
 ### P2 — <short goal name>
 …
 ```
 
-Every phase has at least one QA row. Status values there are `Pending` | `Done` | `Blocked`: `Done` means the user ran that check and confirmed it passed, `Blocked` carries a note saying what failed, and anything unreported stays `Pending`. The `**QA:**` line near the title is the source of truth for executors.
+Every phase has at least one QA row. Status values there are `Pending` | `Done` | `Blocked`: a `Manual` row is `Done` once the user ran that check and confirmed it passed, an `Auto` row is `Done` once a dogfood run passed and its run id is in `Notes`, `Blocked` carries a note saying what failed, and anything unreported stays `Pending`. The `**QA:**` line near the title is the source of truth for executors.

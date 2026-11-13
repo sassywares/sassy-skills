@@ -59,7 +59,7 @@ The user must pick explicitly. There is no default and no auto-selection. If no 
 
 ### Option 1 — Write the plan
 
-Read `references/plan-format.md` and write the plan, including the per-phase manual QA tables that format defines. Then report the absolute path and offer the remaining two options, now run on the plan file:
+Read `references/plan-format.md` and write the plan, including the per-phase QA tables that format defines, with each row's `Mode` decided the way that format says. Then report the absolute path and offer the remaining two options, now run on the plan file:
 
 ```text
 Plan written to <absolute path>. Pick one, or stop here:
@@ -79,7 +79,11 @@ Load the `sassy-lfg` skill the same way: the settled brief as the work brief, it
 
 ## QA
 
-The plan document carries manual QA tables per `references/plan-format.md`. Those rows gate phase completion: a phase is `Done` only when the code is approved and every row passed, with the user running the checks. The in-context brief has no QA table, so its gate is code approval alone. Omit QA tables only when the user explicitly asks to skip QA in plain language.
+The plan document carries QA tables per `references/plan-format.md`. Those rows gate phase completion: a phase is `Done` only when the code is approved and every row passed. `Manual` rows are the user's to run; `Auto` rows are proved by `sassy-dogfood` and its report.
+
+A row is `Auto` only when the project's `dogfood.enabled` is `true` **and** the row names a recipe section with a `Prove it:` step; otherwise it is `Manual`. That reference owns the list of checks that stay human — subjective, physical, irreversible, unobservable, unprovable — and on doubt the row is `Manual`. Never invent a section, a command, or a check to make a row look automatable: a false `Auto` pass is unrecoverable.
+
+The in-context brief has no QA table, so its gate is code approval alone. Omit QA tables only when the user explicitly asks to skip QA in plain language.
 
 ## Resume
 

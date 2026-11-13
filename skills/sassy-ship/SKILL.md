@@ -32,6 +32,8 @@ argument-hint: "<plan path or topic> [steps:compound,handbook,commit,pr,babysit]
 2. **Compound (conditional).** If the work produced a qualifying learning, dispatch a `worker` whose task is: *load the `sassy-compound` skill and follow it with `mode:auto`* — with a compact learnings brief (the solved problems, root causes, and solutions taken from the cycle results, not from re-reading the tree). It always gets `mode:auto` because ship's own gate already covered the approval. Skip cleanly when nothing qualifies, and skip entirely when `knowledge.write` is `false`.
 3. **Handbook (conditional).** If the feature is self-contained and independent enough that a teammate would benefit from a handover, dispatch a `worker` whose task is: *load the `sassy-handbook` skill and follow it* — with the plan path and topic. The worker reads the tree itself. Skip for small or tightly-coupled changes.
 4. **Commit or snapshot.** After the review gate — never before it — the docs and any remaining code become durable.
+
+   **Before anything is persisted, check the plan's `Auto` QA rows.** If the plan carries any and one is not `Done` from a passing `sassy-dogfood` report, stop here: report the outstanding rows, the report path, and what it would take to prove them. Ship never commits, pushes, or opens a PR behind an unproven automated row, and never runs the recipe itself — proving is `sassy-work`'s step, and re-running it here would let a red row reach a commit by being retried instead of fixed. A brief and a plan with only `Manual` rows skip this entirely.
    - **`git.repo` is a remote.** Dispatch a `worker`: *load the `sassy-commit` skill and follow it with `branch:current`*, naming that the commit must include the plan, any new solutions docs, the concepts file, `AGENTS.md`, and any handbook just written — resolved from `artifacts.*`, never hardcoded. The branch already exists: `sassy-work` or `sassy-lfg` cut it before the first change, so the docs belong on it with the phase commits. It returns the hash and subject.
 
      **Ship never creates the branch.** Outside `commit.branch: current`, a head on a base branch with unpublished commits is a mis-run — `sassy-work` was supposed to cut before touching code. Ask the commit worker to return `state` and `unpublished` from the `sassy-setup` skill's `scripts/detect.sh --branch`, and stop and ask if they show a base with a non-zero count. Never relocate commits silently, never push to the base. Under `commit.branch: current` this check does not fire: unpublished commits on the head are simply pushed along with the close-out commit.
@@ -52,6 +54,7 @@ argument-hint: "<plan path or topic> [steps:compound,handbook,commit,pr,babysit]
 
 | Rule | Requirement |
 |------|-------------|
+| Unproven rows stop the close-out | A plan's `Auto` QA row that is not `Done` from a passing dogfood report stops ship before anything is persisted. Ship never runs the recipe itself. |
 | Review gate | `mode:manual` (default) presents the summary and waits before any write, commit, push, or PR. |
 | No review | `mode:auto` runs the close-out with no approval gate. Never toggled by the skill. |
 | All-or-nothing gate | In `mode:manual`, nothing is written until the gate is answered. |

@@ -182,6 +182,46 @@ list_items() {
     | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s/^"//; s/"$//' | grep -v '^$' || true
 }
 
+# recipe_lint FILE — structural lint for a dogfood procedure. Prints one message
+# per breach; the caller turns each into a drift line. Nothing is executed: a
+# check run validates the shape of a procedure, it never runs the product.
+recipe_lint() {
+  awk '
+    BEGIN { pending = 0; sec = ""; sname = ""; prove = 0; step = ""; incomment = 0 }
+    index($0, "<!--") { incomment = 1 }
+    incomment {
+      if (index($0, "-->")) incomment = 0
+      next
+    }
+    index($0, "**Prove it:**") { prove = 1; next }
+    /^## / {
+      if (sec != "" && !prove)
+        printf "section \"%s\" has no **Prove it:** line — it has no verdict\n", sname
+      if (pending)
+        printf "step %s-%s has no **Expect** line — an unstated check is a suggestion\n", sname, step
+      pending = 0; prove = 0
+      sec = $0; sub(/^## +/, "", sec)
+      split(sec, parts, /[ \t]+/); sname = parts[1]
+      next
+    }
+    /^[0-9]+\. / && index($0, "**Do**") {
+      if (pending)
+        printf "step %s-%s has no **Expect** line — an unstated check is a suggestion\n", sname, step
+      step = $0; sub(/\..*$/, "", step)
+      pending = 1; next
+    }
+    index($0, "**Expect**") { pending = 0; next }
+    END {
+      if (pending)
+        printf "step %s-%s has no **Expect** line — an unstated check is a suggestion\n", sname, step
+      if (sec != "" && !prove)
+        printf "section \"%s\" has no **Prove it:** line — it has no verdict\n", sname
+      if (sec == "")
+        printf "has no \"## <section>\" heading — there is nothing to prove\n"
+    }
+  ' "$1"
+}
+
 # map_match SECTION HEAD — exact key, then the longest matching family, then "*".
 # base_map uses it, and hooks use the same rule, so "which pattern applies" has
 # exactly one answer in the whole config.
@@ -369,6 +409,7 @@ if (( CHECK )); then
       repos.*) ;;
       commit.branch) ;;
       pr.babysit|pr.merge|pr.delete_branch) ;;
+      dogfood.enabled|dogfood.recipe|dogfood.reports|dogfood.timeout) ;;
       hooks.*) ;;                               # shape checked with the hooks
       *) bad "unknown key '$key' — it is ignored, so the run uses the default" ;;
     esac
@@ -648,6 +689,73 @@ if (( CHECK )); then
       current|new) note "  commit.branch: $val" ;;
       *) bad "commit.branch '$val' is not current|new" ;;
     esac
+  fi
+
+  # Dogfood is a pointer and a switch, never commands: the recipe holds the
+  # procedure and its `Prove it:` step is the verdict. Everything below is
+  # structural. A check run never runs the product — a validator that boots an
+  # app is a validator nobody runs.
+  dg_enabled="$(block_value dogfood enabled || true)"
+  dg_recipe="$(block_value dogfood recipe || true)"
+  dg_reports="$(block_value dogfood reports || true)"
+  dg_timeout="$(block_value dogfood timeout || true)"
+  case "$dg_enabled" in
+    "") ;;
+    true|false) note "  dogfood.enabled: $dg_enabled" ;;
+    *) bad "dogfood.enabled '$dg_enabled' must be true|false" ;;
+  esac
+  for dkey in recipe reports; do
+    case "$dkey" in
+      recipe) dpath="$dg_recipe" ;;
+      *) dpath="$dg_reports" ;;
+    esac
+    [[ -n "$dpath" ]] || continue
+    case "$dpath" in
+      /*|~*) bad "dogfood.$dkey '$dpath' is not relative to the config" ;;
+      .|./) bad "dogfood.$dkey is the project root itself" ;;
+      *) escapes_root "$dpath" && bad "dogfood.$dkey '$dpath' walks outside the project" ;;
+    esac
+  done
+  if [[ -n "$dg_timeout" ]]; then
+    case "$dg_timeout" in
+      *[!0-9]*) bad "dogfood.timeout '$dg_timeout' is not a positive integer" ;;
+      0) bad "dogfood.timeout is 0 — a procedure that can never finish" ;;
+      *) note "  dogfood.timeout: ${dg_timeout}s" ;;
+    esac
+  fi
+
+  # Reports are logs and screenshots. A project that drops the ignore line
+  # commits them, and nobody notices until the history is heavy. Probed with a
+  # child path: `/reports/` names a directory, so git only matches it when the
+  # probe goes through the directory — and the directory may not exist yet.
+  if [[ "$TOPOLOGY" == "repo" && -n "$dg_reports" ]]; then
+    if git -C "$ROOT" check-ignore -q -- "$dg_reports/run.log" 2>/dev/null; then
+      note "  dogfood.reports is gitignored"
+    else
+      bad "dogfood.reports '$dg_reports' is not gitignored — a run's logs and screenshots would be committed"
+    fi
+  fi
+
+  if [[ -n "$dg_recipe" ]]; then
+    if [[ ! -f "$ROOT/$dg_recipe" ]]; then
+      if [[ "$dg_enabled" == "true" ]]; then
+        # Enabled with no procedure is the one state that lies: a planner would
+        # write Auto rows against a check that does not exist.
+        bad "dogfood.recipe '$dg_recipe' does not exist — run sassy-dogfood mode:discover"
+      else
+        note "  dogfood.recipe: $dg_recipe (written by the first sassy-dogfood run)"
+      fi
+    else
+      while IFS= read -r msg; do
+        [[ -n "$msg" ]] || continue
+        bad "dogfood.recipe $msg"
+      done < <(recipe_lint "$ROOT/$dg_recipe")
+      while IFS= read -r line0; do
+        [[ -n "$line0" ]] || continue
+        bad "dogfood.recipe has a secret-shaped string at line $line0 — env var names only, never a value"
+      done < <(grep -nE 'sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}' "$ROOT/$dg_recipe" 2>/dev/null | cut -d: -f1)
+      note "  dogfood.recipe: $dg_recipe"
+    fi
   fi
 
   # Hooks that cannot fire are a note, not drift: the config is legal, the step
@@ -1052,3 +1160,18 @@ cat <<'EOF'
   #   "*":
   #     after_push: []
 EOF
+cat <<'EOF'
+
+# --- Dogfood --------------------------------------------------------------
+# Agent QA: a stored procedure that proves a change works in the running
+# product. This block only points at it — commands live in the recipe, because
+# a copy here would duplicate the manifest and could not express step order.
+# The recipe ends each section in a `Prove it:` step whose exit code is the
+# verdict. enabled: true lets a plan write Mode: Auto QA rows, but only for a
+# section that actually has one.
+dogfood:
+EOF
+kv enabled false 42 '# true = plan writes Auto QA rows; false = all Manual'
+kv recipe .sassywares/dogfood/recipe.md 42 '# the procedure; sassy-dogfood writes it'
+kv reports .sassywares/dogfood/reports 42 '# run output; must stay gitignored'
+kv timeout 900 42 '# seconds for the whole procedure'

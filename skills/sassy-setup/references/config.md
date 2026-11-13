@@ -79,6 +79,11 @@ hooks:
   push:
     "*":
       after_push: []          # commit.branch: current only
+dogfood:
+  enabled: false              # true = sassy-plan writes Mode: Auto QA rows
+  recipe: .sassywares/dogfood/recipe.md      # the procedure
+  reports: .sassywares/dogfood/reports       # run output, never committed
+  timeout: 900                # whole procedure, seconds
 ```
 
 | Key | Default | Meaning |
@@ -100,6 +105,10 @@ hooks:
 | `pr.delete_branch` | `false` | Delete the head branch once merged |
 | `hooks.pr.<pattern>.<point>` | `[]` | Project steps, keyed by the PR's head branch |
 | `hooks.push.<pattern>.after_push` | `[]` | Project steps after a push, keyed by the pushed branch (see Hooks) |
+| `dogfood.enabled` | `false` | `true` lets a plan write automated QA rows. Absent means `false` — manual QA, today's behavior |
+| `dogfood.recipe` | `.sassywares/dogfood/recipe.md` | The stored procedure `sassy-dogfood` executes. Its `Prove it:` step is the verdict |
+| `dogfood.reports` | `.sassywares/dogfood/reports` | Where a run writes its summary, step logs, and artifacts. Must be gitignored |
+| `dogfood.timeout` | `900` | Wall-clock for one run. A timeout is a failure, never a hang |
 
 Paths are relative to the config's own directory, never to the cwd.
 
@@ -367,12 +376,44 @@ partial failures explicitly. Never collapse it into one status.
 fan-out means one `sassy-babysit` run per PR; merging a fan-out needs an explicit
 per-PR say-so, because one switch would merge N PRs nobody re-read.
 
+## Dogfood
+
+Agent QA: a stored procedure that proves a change works in the running product,
+not just in the diff. The block is a **pointer and a switch**, deliberately —
+four keys, no commands.
+
+```yaml
+dogfood:
+  enabled: true
+  recipe: .sassywares/dogfood/recipe.md
+  reports: .sassywares/dogfood/reports
+  timeout: 900
+```
+
+Commands live in the recipe, not here. A copied command duplicates
+`package.json` or a `Makefile` and drifts from it silently, and a single command
+cannot express what makes dogfooding project-specific anyway: which order, which
+prerequisites, and what counts as success between the steps. The recipe holds
+the order, an `Expect` per step, and one `Prove it:` step whose exit code is the
+verdict.
+
+**Two gates.** An `Auto` QA row needs `enabled: true` **and** a recipe section
+with a `Prove it:` step. One without the other keeps the row `Manual`, which is
+how an unfinished recipe degrades safely instead of producing a green gate that
+proves nothing.
+
+`enabled` is written explicitly by `sassy-setup`, never inferred: no block means
+`false`, which is today's behavior — every QA row is manual. The format, the
+report layout, the verdict classes, and the lint are in
+[`dogfood.md`](dogfood.md).
+
 ## Fail closed vs soft
 
 - **Fail closed** (stop, say why): an unusable `artifacts.*` or `git.*` value.
   A typo must not silently write docs into the wrong place.
-- **Soft** (fall back, say so): an unusable `commit.*` or `pr.*` value, and any
-  `knowledge.read` path that is missing.
+- **Soft** (fall back, say so): an unusable `commit.*`, `pr.*`, or `dogfood.*`
+  value, and any `knowledge.read` path that is missing. A `dogfood` failure
+  never fails a run: it only means QA rows stay manual.
 
 ## Validation rules
 
@@ -389,6 +430,12 @@ per-PR say-so, because one switch would merge N PRs nobody re-read.
   booleans and parse inconsistently.
 - `knowledge.read` is an inline list (`read: [a, b]`). A block list is not read
   by the config reader, so it would silently scout nothing.
+- `dogfood.*` is exactly four keys; `enabled` is `true` or `false`, `timeout`
+  is a positive integer, and both paths are repo-relative and inside the
+  project. `reports` must be gitignored in a `repo` topology, and the recipe is
+  structurally linted — a section without a `Prove it:` line, a step without an
+  `Expect`, or a secret-shaped string is drift. See
+  [`dogfood.md`](dogfood.md).
 - An unknown key is an error, not a fallback: a typo parses, is ignored, and the
   run uses a default this project never chose.
 

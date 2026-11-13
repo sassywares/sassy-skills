@@ -12,6 +12,8 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 - [Quick start](#quick-start)
 - [Skills](#skills)
 - [Project config](#project-config)
+  - [Dogfooding a project](#dogfooding-a-project)
+  - [Extending the pipeline](#extending-the-pipeline)
 - [Workflows](#workflows)
   - [From idea to ship](#from-idea-to-ship)
   - [From goal to done](#from-goal-to-done)
@@ -28,7 +30,7 @@ It covers the whole path from a rough idea to a shipped PR, and from a bug repor
 
 - **Lean.** Skills are indexes and workflows, not documentation dumps. Detail moves into `references/` only when it is conditionally needed.
 - **Explicit.** Every skill but `sassy-ship` runs only when you invoke it; ship may be started by the agent once you approve the work, and its review gate still waits. No silent background behavior.
-- **Controlled.** Code approval, manual QA, and ship review are visible gates that all run in sequence. Mode tokens are opt-in per skill: `mode:manual` (default) and `mode:auto` on `sassy-ship` and `sassy-compound`, plus `mode:return` on `sassy-review`, `sassy-simplify`, and `sassy-validate`; work, lfg, and debug take no mode; `sassy-goal` takes one mode per step of a goal (`write`, `next`, `check`, `close`).
+- **Controlled.** Code approval, QA — manual and proved — and ship review are visible gates that all run in sequence. Mode tokens are opt-in per skill: `mode:manual` (default) and `mode:auto` on `sassy-ship` and `sassy-compound`, plus `mode:return` on `sassy-review`, `sassy-simplify`, and `sassy-validate`; work, lfg, and debug take no mode; `sassy-goal` takes one mode per step of a goal (`write`, `next`, `check`, `close`).
 - **Reliable.** Work runs through `sassy-cycle` with isolated subagents for implementation, review, simplification, validation, and verified fixes.
 - **Context-efficient.** Orchestrators coordinate; subagents do the heavy reading and return compact results.
 - **Never surprising.** Nothing is committed just because a step finished. Shipping is its own phase.
@@ -99,8 +101,11 @@ Debugging:
 | **`sassy-review`** | Reviews a diff, branch, PR, or files for bugs, security, project-rule conformance, and design-system conformance, then fixes the findings you pick. |
 | **`sassy-simplify`** | Finds behavior-preserving simplifications — reuse, quality, efficiency — then applies the ones you pick. |
 | **`sassy-validate`** | Checks whether work matches a plan or stated intent, then closes the gaps you pick. |
+| **`sassy-dogfood`** | Uses the product the way a user does to prove a change actually works at runtime — runs the project's stored procedure, writes a report with a verdict, and in `mode:discover` builds or repairs that procedure from what really worked. Tooling-agnostic: it uses whatever your harness has connected and never installs a runner. |
 
 Each does one job and takes `mode:manual` (default: ask which to fix), `mode:auto` (fix without asking), or `mode:return` (report only). Fixes run through `sassy-cycle`, so they are verified. Inside work, lfg, and debug, the cycle runs all three agents in parallel itself.
+
+`sassy-dogfood` takes its own modes instead: `run` (default), `discover`, and `check`.
 
 ### Shipping
 
@@ -165,6 +170,11 @@ hooks:
   push:                          # only under commit.branch: current
     "*":
       after_push: []             # right after the push succeeds
+dogfood:                         # agent QA: a stored procedure that proves a change runs
+  enabled: false                 # true lets a plan write Mode: Auto QA rows
+  recipe: .sassywares/dogfood/recipe.md      # the procedure; never commands here
+  reports: .sassywares/dogfood/reports       # run output; gitignored
+  timeout: 900                   # whole procedure, seconds
 ```
 
 ### Extending the pipeline
@@ -182,6 +192,23 @@ A project adds its own steps by naming a skill that lives in its own `.agents/sk
 Hooks run in declared order, one subagent each, and fail closed: a declared skill that is missing or returns `blocked` stops the run. Which points may write, and how, is stated once in `sassy-setup`'s `references/config.md` (the hook contract). `before_merge` and `after_merge` never fire unless this run merges.
 
 This is deliberately not a fork mechanism. A project skill that *adds* a step is a hook; one that *restates* our steps is a copy, and copies rot. Rules are not hooks either — those belong in `AGENTS.md`.
+
+### Dogfooding a project
+
+Agent QA is opt-in and stores a **procedure**, not a command. One command can never say "seed first, boot the simulator, wait for the health endpoint, then re-auth if the token is stale" — and that ordering is the only genuinely project-specific part. So the config holds four keys and the work lives in a file:
+
+```text
+.sassywares/
+├── config.yaml
+└── dogfood/
+    ├── recipe.md      committed — ordered steps, one `Prove it:` step per section
+    ├── .gitignore     one line: /reports/
+    └── reports/       run logs and artifacts — never committed
+```
+
+`recipe.md` is the project's, written by `sassy-dogfood mode:discover` from what actually worked, and reviewed like code: numbered steps you append to, each with a `Do` and an `Expect`, ending in a `Prove it:` step whose exit code is the verdict. It names no tool, so it outlives whichever browser driver or emulator your harness happens to have this quarter.
+
+A QA row is `Auto` only when `dogfood.enabled` is `true` **and** the row names a recipe section with a `Prove it:` step. One without the other keeps the row `Manual`, which is how an unfinished recipe degrades safely instead of turning into a gate that proves nothing. Anything subjective, physical, irreversible, or unobservable stays a human's check — a false `Auto` pass is unrecoverable. The directory also makes a good fence: a run that trips on a step may not edit the recipe to pass, only propose the diff.
 
 Precedence is always explicit token > session instruction > config > skill default. `sassy-setup` writes the file from the tree it detects and keeps `pr.merge` off unless you say otherwise. The full schema, resolution chains, and the three topologies are in [`skills/sassy-setup/references/config.md`](skills/sassy-setup/references/config.md).
 
@@ -222,9 +249,9 @@ flowchart LR
   L -->|approve or mode:auto| M[Commit, PR, babysit]
 ```
 
-Option 1 produces a durable plan with phased slices and manual QA tables. Options 2 and 3 keep the whole job as one settled in-context brief and write no plan file.
+Option 1 produces a durable plan with phased slices and QA tables. Options 2 and 3 keep the whole job as one settled in-context brief and write no plan file.
 
-`sassy-work` handles one phase and hands off the next. `sassy-lfg` drains the whole plan in one session. Both delegate to `sassy-cycle` and stop at one gate carrying code approval plus the manual QA checklist; nothing is `Done`, committed, or shipped until both pass. With an in-context brief there are no QA rows, so the gate is code approval alone.
+`sassy-work` handles one phase and hands off the next. `sassy-lfg` drains the whole plan in one session. Both delegate to `sassy-cycle` and stop at one gate carrying code approval plus the QA checklist; nothing is `Done`, committed, or shipped until both pass. `Manual` rows are yours to run. `Auto` rows are proved before the gate by `sassy-dogfood`, and a failed one goes back through the cycle as a finding. With an in-context brief there are no QA rows, so the gate is code approval alone.
 
 Inside the cycle, every finding is fixed and then **verified**: a reviewer scoped to the fix confirms each finding resolved, and checks the fix itself for anything new. Whatever is still open gets a second fix pass; anything open after that comes back `blocked` rather than looping. Critical findings, warnings, and validator gaps are fixed automatically; the simplifier's findings are applied in the same pass but never block; the reviewer's suggestions are listed at the gate for you to pick. Changes you request at the gate and QA rows that fail go through the same loop as findings, then the gate comes back.
 
@@ -288,10 +315,11 @@ The fix gate offers four options:
 | Control | When it applies |
 |---|---|
 | Code approval | Always on for `sassy-work` and `sassy-lfg`. |
-| Manual QA | Part of the same gate, and only when the plan document has QA tables. The user runs the rows; a phase is `Done` only when both pass. |
+| QA | Part of the same gate, and only when the plan document has QA tables. `Manual` rows are yours; `Auto` rows are settled by a `sassy-dogfood` report. A phase is `Done` only when both pass. |
+| Dogfood | `Auto` rows only exist when `dogfood.enabled` is on and the row's recipe section has a `Prove it:` step. `sassy-ship` persists nothing behind an unproven row. |
 | Ship review | On in `mode:manual` (default), skipped by `mode:auto`. |
 
-The artifact decides QA: a plan document carries manual QA tables that gate phase completion, an in-context brief does not. Gates are deliberate stops; the only way past one is the user's approval. `mode:auto` is accepted only by `sassy-ship` and `sassy-compound`.
+The artifact decides QA: a plan document carries QA tables that gate phase completion, an in-context brief does not. Gates are deliberate stops; the only way past one is the user's approval. `mode:auto` is accepted only by `sassy-ship` and `sassy-compound`.
 
 ## Branching
 
