@@ -39,15 +39,21 @@ need_git
 printf '  %-32s %-9s %-6s %-9s %s\n' "BRANCH" "UPSTREAM" "DIRTY" "UNPUSHED" "ACTION"
 n_candidates=0
 n_removed=0
+unmanaged=0
 while IFS=$'\t' read -r p b; do
   [ -n "$p" ] || continue
   wt_is_main "$p" && continue
+  wt_managed "$p" || { unmanaged=$(( unmanaged + 1 )); continue; }
   slug="$(wt_slug "$b")"
   state="$(wt_upstream_state "$p")"
   if wt_dirty "$p"; then dirty="yes"; else dirty="no"; fi
   unpushed="$(wt_unpushed "$p")"
-  port="$(wt_port_for "$slug")"
-  if tcp_up "$port"; then live="yes"; else live="no"; fi
+  port=""
+  live="no"
+  if wt_has_ports; then
+    port="$(wt_port_for "$slug")"
+    tcp_up "$port" && live="yes"
+  fi
 
   action=""
   if [ "$state" = "unmerged" ]; then
@@ -57,7 +63,7 @@ while IFS=$'\t' read -r p b; do
   elif [ "$unpushed" != "0" ]; then
     action="skipped — $unpushed unpushed"
   elif [ "$live" = "yes" ]; then
-    action="skipped — running on :$port"
+    action="skipped — running${port:+ on :$port}"
   else
     action="removable"
     n_candidates=$(( n_candidates + 1 ))
@@ -71,7 +77,9 @@ while IFS=$'\t' read -r p b; do
       warn skipped "$b has a before_remove hook — run remove <$slug> so it runs"
       continue
     fi
-    git worktree remove "$p" && wt_release "$port" "$slug" && n_removed=$(( n_removed + 1 ))
+    git worktree remove "$p" || continue
+    [ -n "$port" ] && wt_release "$port" "$slug"
+    n_removed=$(( n_removed + 1 ))
   fi
 done < <(wt_all)
 
@@ -79,6 +87,6 @@ if [ "$yes" -eq 1 ]; then
   ok pruned "$n_removed removed, $(( n_candidates - n_removed )) left"
 elif [ "$n_candidates" -gt 0 ]; then
   hint "re-run with --yes to remove the $n_candidates removable worktree(s)"
-else
-  ok pruned "nothing to remove"
+[ "$unmanaged" -gt 0 ] && hint "$unmanaged worktree(s) not managed here — left alone"
+[ "$n_candidates" -eq 0 ] && [ "$unmanaged" -eq 0 ] && ok pruned "nothing to remove"
 fi

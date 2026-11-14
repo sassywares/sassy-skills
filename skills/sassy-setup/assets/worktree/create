@@ -50,20 +50,34 @@ slug="$(wt_slug "$branch")"
 path="$(wt_path "$slug")"
 
 report() { # $1 path, $2 branch
-  local port addr ns
+  local port="" addr="" ns
   ns="$(wt_namespace "$slug")"
-  port="$(wt_claim "$slug")"
-  addr="http://localhost:$port"
+  # A port is a resource this project asked for, not a property of a checkout.
+  if wt_has_ports; then
+    port="$(wt_claim "$slug")"
+    addr="http://localhost:$port"
+  fi
   if [ "$env_only" -eq 1 ]; then
-    printf 'WT_PATH=%s\nWT_BRANCH=%s\nWT_SLUG=%s\nWT_NAMESPACE=%s\nWT_PORT=%s\nWT_BASE_URL=%s\n' \
-      "$1" "$2" "$slug" "$ns" "$port" "$addr"
+    printf 'WT_PATH=%s\nWT_BRANCH=%s\nWT_SLUG=%s\nWT_NAMESPACE=%s\n' "$1" "$2" "$slug" "$ns"
+    [ -n "$port" ] && printf 'WT_PORT=%s\nWT_BASE_URL=%s\n' "$port" "$addr"
     return 0
   fi
   ok worktree "$1"
   ok branch "$2"
   ok namespace "$ns"
-  ok port "$port"
-  ok address "$addr"
+  if [ -n "$port" ]; then
+    ok port "$port"
+    ok address "$addr"
+  else
+    ok port "none — worktrees.ports is unset, so this checkout holds no port"
+  fi
+  local preview
+  preview="$(wt_preview "$slug")"
+  [ -n "$preview" ] && ok preview "$preview"
+  # A branch cut from a ref that predates setup has no config and no tooling, so
+  # this checkout is not managed here: `list` skips it, `prune` leaves it alone.
+  [ -f "$1/.sassywares/config.yaml" ] \
+    || ok unmanaged "this branch has no .sassywares/config.yaml — cut from a ref that predates setup; list and prune will skip it"
   local hooks n
   hooks="$(wt_hook after_create "$2")"
   if [ -z "$hooks" ]; then

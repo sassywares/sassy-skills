@@ -23,7 +23,7 @@ argument-hint: "[slug] [mode:create|list|preview|remove|prune] [section:<name>]"
 
 | Mode | What it does |
 |------|--------------|
-| `list` (default) | The table: branch, worktree, address, liveness, last dogfood verdict |
+| `list` (default) | The table: branch, worktree, how to see it, liveness, last dogfood verdict. Only managed checkouts appear; others are counted in a footer |
 | `create` | Add a worktree for the run's branch, claim its port, dispatch `after_create` |
 | `preview` | Bring that checkout up and print how to see it; leave it running. `stop` reaps it |
 | `remove` | Dispatch `before_remove`, then delete after the script's refusals pass |
@@ -40,7 +40,7 @@ argument-hint: "[slug] [mode:create|list|preview|remove|prune] [section:<name>]"
 
 ## `list`
 
-Run `.sassywares/worktree/list` and present it as it prints — branch, worktree, address, live, last verdict. `--address <slug>` and `--path <slug>` print one value for scripting. Never summarise the table away: the address is the point.
+Run `.sassywares/worktree/list` and present it as it prints — branch, worktree, how to see it, live, last verdict. `--preview <slug>` prints how to see one checkout, `--path <slug>` its path, and `--address <slug>` its URL when the project configured ports. Never summarise the table away: how to see it is the point.
 
 ## `preview`
 
@@ -48,8 +48,8 @@ Run `.sassywares/worktree/list` and present it as it prints — branch, worktree
 2. **Read the recipe** at `dogfood.recipe`. Two things stop the run, and both are reported rather than worked around: no recipe (the project has no stored procedure — say to run `sassy-dogfood mode:discover`), or the section has no `Prove it:` step (nothing marks where bringing-up ends).
 3. **Preflight the session.** If the recipe's *Working in a second checkout* or *Set up once* names a session artifact and `.sassywares/session/` in **that checkout** is empty, that is `class: env`: report it with the line that fixes it and stop. Never open a logged-out app and call it a preview — the human will read the login screen as a broken build.
 4. **Run the bring-up.** In `WT_PATH`: the recipe's *Set up once* when the checkout is cold (no `.env`, no installed deps), then the section's steps in order **up to but not including** its `Prove it:` step. Judge each step by its `Expect`. A failure stops the preview and is reported with the step id and its output tail — a preview that half-started is not a preview.
-5. **Leave it running and report how to see it.** Print the address from `list --address`, plus the recipe's `**Preview:**` line when it has one (a simulator name, a desktop app, a URL). Verify it answers before you call it up: the address is a promise.
-6. **To stop it,** run `.sassywares/worktree/stop <slug>` — by port, never by a recorded pid.
+5. **Leave it running and report how to see it.** `list --preview <slug>` prints the recipe's `**Preview:**` line with the namespace substituted — the *result*, a URL or a simulator name or a window, never the command that started it. Print exactly that; never build an address yourself, and never assume one is a URL. When the project has ports and the preview answers on one, say it is up; when it does not, say it is running and that stopping it is the project's job.
+6. **To stop it,** run `.sassywares/worktree/stop <slug>`. It kills by port, so it works only for a project that configured `worktrees.ports`; for a simulator or a window it says so instead of pretending.
 
 Preview never judges the work, never writes a report, never commits, and never returns a verdict. If the user wants to know whether it *works*, that is `sassy-dogfood mode:run`.
 
@@ -71,10 +71,12 @@ Preview never judges the work, never writes a report, never commits, and never r
 |------|-------------|
 | The scripts do the git | Never run `git worktree`, never invent a port, never `rm -rf` a checkout. `.sassywares/worktree/*` owns all of it. |
 | One worktree per run | The branch decision belongs to `references/branching.md`. Never create a second worktree for a run already on its branch. |
-| Names come from the script | `WT_NAMESPACE` and `WT_PORT` are derived once. Never build a database name, a compose project, or a device name by hand. |
+| Ours only | A checkout is managed when it sits under `worktrees.dir` **and** carries `.sassywares/config.yaml`. Never list, prune, stop, or remove one that is not — another tool made it, or it was cut before the wiring. `create` says so when that happens. |
+| Names come from the script | `WT_NAMESPACE` is derived once, and `WT_PORT` only when the project configured a range. Never build a database name, a compose project, or a device name by hand. |
+| A preview is not a URL | How to see a checkout is the recipe's preview line. A port is one resource among several; a mobile app's preview is a simulator, and this skill must not invent a URL for it. |
 | Hooks are dispatched, not skipped | A declared `after_create` or `before_remove` runs. `remove` exits `3` rather than skipping it, and that is deliberate. |
 | Never force on your behalf | `--force` skips the dirty and unpushed checks. Only the user's explicit instruction passes it. |
-| Preview is a promise | Report an address only when something answers on it. A half-started app is a failure with a step id, not a preview. |
+| Preview is a promise | Report a URL only when something answers on it. A half-started app is a failure with a step id, not a preview — and an app without a port gets its preview line, not a fabricated address. |
 | No verdicts | This skill never says whether the work is correct. That is `sassy-dogfood`'s job, with a report. |
 | No state of its own | Liveness is probed at read time. There is no registry, no pid file, and nothing to go stale. |
 | Never production | A preview serves the local or staging app. A recipe step pointing at production is refused and reported. |

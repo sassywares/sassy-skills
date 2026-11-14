@@ -59,12 +59,19 @@ owns the lifecycle; the scripts in `.sassywares/worktree/` own the git.
 - **Namespace** — the slug prefixed with the repo (`shop-feat-catalog`), and the
   only name a hook should use for a database, a compose project, or a simulator.
   Derived once by `create`; never rebuilt by hand.
-- **Port claim** — the private port a checkout owns: hashed from the slug into the
-  configured range, claimed with an atomic `mkdir`, and probed forward on a
-  collision. Liveness is *probed*, never read from a pid file.
+- **Port claim** — the private port a checkout owns, *when the project configured
+  `worktrees.ports`*: hashed from the slug into the range, claimed with an atomic
+  `mkdir`, and probed forward on a collision. Liveness is *probed*, never read
+  from a pid file. Without a range there is no port and nothing to claim — a port
+  is one resource, not the definition of a preview.
 - **Preview** — bringing that checkout up so a human can look at it. It runs the
   dogfood recipe's steps up to the section's `Prove it:` and never judges the
-  work; proving is dogfood's job.
+  work; proving is dogfood's job. **How to see it** is the recipe's `**Preview:**`
+  line with `WT_*` substituted — a URL, a simulator, a window, never the command
+  that started it — so the suite never assumes a browser.
+- **Managed checkout** — one under `worktrees.dir` that also carries
+  `.sassywares/config.yaml`. The tooling lists, prunes, stops, and removes only
+  those; anything else belongs to another tool or predates the wiring.
 
 `create` and `remove` need an agent because their hooks are project skills, and a
 script cannot dispatch one. That is why the lifecycle is a skill and the git is a

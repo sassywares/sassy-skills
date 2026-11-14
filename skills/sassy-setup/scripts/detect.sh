@@ -194,7 +194,14 @@ recipe_lint() {
       if (index($0, "-->")) incomment = 0
       next
     }
-    index($0, "**Prove it:**") { prove = 1; next }
+    index($0, "**Prove it:**") {
+      prove = 1
+      val = $0; sub(/^.*\*\*Prove it:\*\*[[:space:]]*/, "", val)
+      low = tolower(val)
+      if (low !~ /^none/ && low !~ /^step[[:space:]]+[0-9]/)
+        printf "a **Prove it:** line must name a step (`step 3`) or say `none` — got \"%s\"\n", val
+      next
+    }
     /^## / {
       if (sec != "" && !prove)
         printf "section \"%s\" has no **Prove it:** line — it has no verdict\n", sname
@@ -725,6 +732,9 @@ if (( CHECK )); then
     if [[ "$TOPOLOGY" != "repo" ]]; then
       bad "worktrees.enabled needs a repo — this folder is '$TOPOLOGY', and a checkout needs git"
     else
+      if [[ -z "$wt_ports" ]]; then
+        note "  worktrees: no port resource — a checkout is addressed by the recipe's preview line"
+      fi
       if [[ "$(yflat "commit${US}branch" 2>/dev/null || true)" == "current" ]]; then
         note "  worktrees.enabled with commit.branch: current — a run never cuts a branch, so no run creates one"
       fi
@@ -747,6 +757,16 @@ if (( CHECK )); then
       else
         bad "worktrees.enabled but .sassywares/worktree/_lib.sh is missing — re-run setup"
       fi
+
+      # A declared worktree hook is how a project prepares a checkout, so say
+      # that it resolved — silence reads as "nothing is configured".
+      for point in after_create before_remove; do
+        declared="$(yflat "hooks${US}worktree${US}*${US}${point}" 2>/dev/null || true)"
+        while IFS= read -r entry; do
+          [[ -n "$entry" ]] || continue
+          note "  hooks.worktree.\"*\".$point: ${entry%% *}"
+        done < <(list_items "$declared")
+      done
 
       # A checkout must live outside the working tree — inside it, `git clean
       # -xdf` deletes uncommitted work and every scanner that ignores .gitignore
@@ -808,6 +828,12 @@ if (( CHECK )); then
   # app is a validator nobody runs.
   dg_enabled="$(block_value dogfood enabled || true)"
   dg_recipe="$(block_value dogfood recipe || true)"
+  # The default path applies even when the key is absent: the scripts use it, so
+  # --check must lint what they will actually read. Only for a project that has
+  # dogfood on, or a recipe already sitting at the default, to avoid noise.
+  if [[ -z "$dg_recipe" ]] && { [[ "$dg_enabled" == "true" ]] || [[ -f "$ROOT/.sassywares/dogfood/recipe.md" ]]; }; then
+    dg_recipe=".sassywares/dogfood/recipe.md"
+  fi
   dg_reports="$(block_value dogfood reports || true)"
   dg_timeout="$(block_value dogfood timeout || true)"
   case "$dg_enabled" in
@@ -1186,6 +1212,8 @@ EOF
     printf '    # staging: main    # uncomment when a branch releases somewhere else\n'
     printf '    # release/*: main  # a family of heads, longest prefix wins\n'
     cat <<'EOF'
+  # remote: owner/backup   # workspace only: the snapshot mirror
+  # mirror_branch: main    # workspace only: the mirror's branch
 
 # workspace only: each nested repo folder -> the base its PRs target
 # repos:
@@ -1258,8 +1286,8 @@ kv delete_branch false 24 '# true | false — delete the head branch once merged
 cat <<'EOF'
 
 # --- Hooks ----------------------------------------------------------------
-# Project steps injected into the PR pipeline, or after a push under
-# commit.branch: current, keyed by the HEAD branch — the
+# Project steps injected into the PR pipeline, after a push under
+# commit.branch: current, or across a worktree's life, keyed by the branch — the
 # branch the PR comes from, never the one it targets. `"*"` is the default;
 # a name overrides per point, and `release/*` matches a family. Each entry is
 # `<skill> <args…>`, resolved at .agents/skills/<name>/SKILL.md; args are passed
@@ -1280,20 +1308,28 @@ cat <<'EOF'
   # push:                 # commit.branch: current only; keyed by the pushed branch
   #   "*":
   #     after_push: []
+  # worktree:             # worktrees only; keyed by the checkout's branch
+  #   "*":
+  #     after_create: []    # derive .env, seed the database, copy the session in
+  #     before_remove: []   # drop the database, shut the device
 EOF
 cat <<'EOF'
 
 # --- Worktrees ------------------------------------------------------------
 # Parallel work in one repo: a checkout per branch, each with its own derived
-# namespace and port, so two runs never fight over one working tree. enabled:
-# true lets a run create one instead of working here — and needs
-# commit.branch: new, because `current` never cuts a branch. The scripts in
-# .sassywares/worktree/ own the mechanics; nothing else reads these values.
+# namespace, so two runs never fight over one working tree. enabled: true lets a
+# run create one instead of working here — and needs commit.branch: new, because
+# `current` never cuts a branch. The scripts in .sassywares/worktree/ own the
+# mechanics; nothing else reads these values.
+#
+# A port is a resource, not the definition of a preview: delete `ports` for a
+# mobile, desktop, or CLI project, and the checkout is addressed by the recipe's
+# preview line instead (`$WT_NAMESPACE` names a simulator, a window, a path).
 worktrees:
 EOF
 kv enabled false 34 '# true = a run may work in its own checkout'
 kv dir '~/.sassywares/worktrees' 34 '# parent of the per-repo folder; ~ is allowed'
-kv ports 3000-3099 34 '# the range a checkout claims a port from'
+kv ports 3000-3099 34 '# a private port per checkout; delete for non-port previews'
 cat <<'EOF'
 
 # --- Dogfood --------------------------------------------------------------

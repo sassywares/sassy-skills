@@ -19,7 +19,7 @@ The plan has no open-questions section. Every branch the interview found is a de
 Every phase gets a QA table. Each row's `Mode` is `Auto` or `Manual`, and the choice is not a preference:
 
 - **`Manual` is the default.** Write each row so a person can run it without reading code — what to set up, what to do, and what passing looks like.
-- **`Auto` needs two things**: the project's `dogfood.enabled` is `true` (per the `sassy-setup` skill's `references/dogfood.md`) **and** the row names a recipe section that carries a `Prove it:` step. One without the other stays `Manual`. An `Auto` row with no check behind it is a gate that proves nothing.
+- **`Auto` needs two things**: the project's `dogfood.enabled` is `true` (per the `sassy-setup` skill's `references/dogfood.md`) **and** the row names a recipe section whose `**Prove it:**` names a step. One without the other stays `Manual`. A section whose `**Prove it:**` says `none` has no machine verdict by design — its rows are `Manual`, and writing `Auto` against it is a gate that proves nothing.
 - An `Auto` row names the recipe **section**, never a command. Commands belong in the recipe; copied into a row they rot one row at a time.
 
 A row stays `Manual` when the answer is genuinely a human's:

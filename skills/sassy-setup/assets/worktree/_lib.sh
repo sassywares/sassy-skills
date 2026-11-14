@@ -122,10 +122,16 @@ wt_home() {
 
 wt_path() { printf '%s/%s' "$(wt_home)" "$1"; }
 
-# --- ports ----------------------------------------------------------------
+# --- resources ------------------------------------------------------------
+# A port is one resource a checkout may need, not the definition of a preview. A
+# mobile app claims a simulator, a desktop app nothing, and both are legitimate:
+# when `worktrees.ports` is absent nothing is derived and nothing is claimed.
+wt_has_ports() { [ -n "$(wt_cfg ports '')" ]; }
+
 wt_range() {
   local r lo hi
-  r="$(wt_cfg ports 3000-3099)"
+  r="$(wt_cfg ports '')"
+  [ -n "$r" ] || return 0
   case "$r" in
     *-*) lo="${r%%-*}"; hi="${r##*-}" ;;
     *)   lo="$r"; hi="$r" ;;
@@ -159,6 +165,7 @@ wt_owner() {
 # one probed forward past claims held by others. Read-only, so `list` may call it.
 wt_port_for() {
   local slug="$1" lo hi span i port owner hex d
+  wt_has_ports || return 0
   read -r lo hi <<<"$(wt_range)"
   for d in "$(wt_home)/ports"/*; do
     [ -d "$d" ] || continue
@@ -221,6 +228,24 @@ wt_find() { # $1 slug or branch -> path<TAB>branch, or nothing
   done < <(wt_all)
 }
 
+# A checkout is ours when it lives under this repo's worktree home AND carries
+# the wiring. Anything else — another tool's worktree, or one cut before setup
+# was committed — is not managed here: we do not list it, prune it, or delete it.
+wt_managed() { # $1 path
+  case "$1" in
+    "$(wt_home)"/*) [ -f "$1/.sassywares/config.yaml" ] ;;
+    *) return 1 ;;
+  esac
+}
+
+wt_require_managed() { # $1 slug or branch -> path<TAB>branch, or die
+  local rec
+  rec="$(wt_require "$1")"
+  wt_managed "${rec%%$'\t'*}" \
+    || die "'$1' is not managed here — it is outside the worktree home, or it was cut before the wiring"
+  printf '%s' "$rec"
+}
+
 wt_require() { # $1 slug or branch -> path<TAB>branch, or die
   local rec
   rec="$(wt_find "$1")"
@@ -255,6 +280,29 @@ wt_upstream_state() { # merged | gone | unmerged
   else
     printf 'unmerged'
   fi
+}
+
+# wt_preview SLUG — the recipe's `**Preview:**` line with WT_* substituted.
+# Empty when the project has no recipe or no preview line.
+wt_preview() {
+  local slug="$1" recipe line port base
+  recipe="$(wt_flat | awk -F'\t' -v p="dogfood${WLIB_US}recipe" '$1 == p { print $2; exit }')"
+  recipe="${recipe:-.sassywares/dogfood/recipe.md}"
+  case "$recipe" in /*) ;; *) recipe="$MAIN/$recipe" ;; esac
+  [ -f "$recipe" ] || return 0
+  line="$(sed -n 's/^\*\*Preview:\*\*[[:space:]]*//p' "$recipe" 2>/dev/null | head -n 1)"
+  [ -n "$line" ] || return 0
+  port=""
+  if wt_has_ports; then
+    port="$(wt_port_for "$slug")"
+    base="http://localhost:$port"
+  fi
+  printf '%s' "$line" \
+    | sed -e "s|\$WT_SLUG|$slug|g" \
+          -e "s|\$WT_NAMESPACE|$(wt_namespace "$slug")|g" \
+          -e "s|\$WT_PATH|$(wt_path "$slug")|g" \
+          -e "s|\$WT_PORT|$port|g" \
+          -e "s|\$WT_BASE_URL|$base|g"
 }
 
 # Newest dogfood verdict for a checkout, as `status  class` — or empty.

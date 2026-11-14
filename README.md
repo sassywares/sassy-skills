@@ -179,7 +179,7 @@ hooks:
 worktrees:                       # parallel checkouts of this repo
   enabled: false                 # true = a run may work in its own checkout
   dir: ~/.sassywares/worktrees   # parent of the per-repo folder
-  ports: 3000-3099               # the range a checkout claims a port from
+  ports: 3000-3099               # optional; delete for a non-port preview
 dogfood:                         # agent QA: a stored procedure that proves a change runs
   enabled: false                 # true lets a plan write Mode: Auto QA rows
   recipe: .sassywares/dogfood/recipe.md      # the procedure; never commands here
@@ -199,12 +199,22 @@ directory, a port, a database. `worktrees:` turns that on:
 └── feat-catalog-search/
 ```
 
-`create` derives the whole namespace from the branch and prints it — `WT_PATH`,
-`WT_SLUG`, `WT_NAMESPACE`, `WT_PORT`, `WT_BASE_URL` — so a project's hook derives
-`.env`, a database name, or a simulator from one source instead of inventing its
-own. Ports hash into the configured range and are claimed atomically, so a
-restarted app comes back on the same port and two slugs that hash alike do not
-fight.
+Only checkouts this tooling manages are listed or pruned: one under `worktrees.dir`
+that also carries `.sassywares/config.yaml`. Anything else — another tool's
+worktree, or one cut from a ref that predates the wiring — is counted in a footer
+and left alone.
+
+`create` derives the identity from the branch and prints it — `WT_PATH`,
+`WT_SLUG`, `WT_NAMESPACE` — so a project's hook derives `.env`, a database name,
+or a simulator from one source instead of inventing its own.
+
+A **port is a resource, not the model**. With `ports:` configured, a checkout
+also gets `WT_PORT` and `WT_BASE_URL`, hashed into the range and claimed
+atomically so a restarted app returns to the same port. Delete `ports:` and there
+is no port at all: the checkout is addressed by the recipe's `**Preview:**` line
+instead — a simulator named `$WT_NAMESPACE`, a desktop window, or nothing at all
+for a CLI. The `list` table's column is `HOW TO SEE`, not "address", for exactly
+that reason.
 
 It needs `commit.branch: new`: under `current` a run commits where it stands and
 never cuts a branch, so nothing would create a checkout. `--check` says so rather
@@ -212,7 +222,7 @@ than leaving a switch that cannot fire.
 
 **Previewing.** `sassy-worktree mode:preview` runs the dogfood recipe's bring-up
 steps — everything up to the section's `Prove it:` — leaves the app running, and
-prints the address. A worktree gets a fresh, empty `.sassywares/session/`, and
+prints the preview line — the result, not the command that booted it. A worktree gets a fresh, empty `.sassywares/session/`, and
 most providers register one callback URL, so the usual answer is to copy or link
 the main checkout's session in the `after_create` hook: a cookie is host-scoped
 and crosses ports freely, while a `localStorage` session is origin-scoped and has

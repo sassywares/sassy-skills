@@ -62,18 +62,26 @@ work; `remove` and `prune` are the only safe exits.
 | `WT_BRANCH` | `feat/catalog` | the branch, as git names it |
 | `WT_SLUG` | `feat-catalog` | the directory name, port key, registry key |
 | `WT_NAMESPACE` | `shop-feat-catalog` | database schema, compose project, simulator name |
-| `WT_PORT` | `3041` | the private port this checkout owns |
-| `WT_BASE_URL` | `http://localhost:3041` | what to open |
+| `WT_PORT` | `3041` | a private port — **only when `ports:` is configured** |
+| `WT_BASE_URL` | `http://localhost:3041` | the URL on that port — same condition |
 
 Derived, never invented downstream: a hook that needs a database name uses
 `$WT_NAMESPACE` rather than building its own, so two worktrees cannot collide by
 accident.
 
-**Ports.** The slug hashes into `worktrees.ports`, then the claim is taken with
-an atomic `mkdir` and probed forward one port at a time on a collision. A claim
-belongs to a slug, so a restarted app returns to the same port, and two slugs
-that hash alike do not fight. `list` probes for liveness and never trusts a
-recorded pid: a killed process leaves nothing to believe.
+**A port is a resource, not the model.** `worktrees.ports` is optional, and
+deleting it is how a project says "my preview is not a URL". Then no port is
+derived, nothing is claimed, `WT_PORT` and `WT_BASE_URL` are absent, and the
+checkout is addressed by the recipe's `**Preview:**` line instead. That covers a
+mobile app (a simulator named `$WT_NAMESPACE`), a desktop app (a window), and a
+CLI or library (nothing to look at).
+
+When a range *is* configured: the slug hashes into it, the claim is taken with an
+atomic `mkdir`, and a collision probes forward one port at a time. A claim
+belongs to a slug, so a restarted app returns to the same port and two slugs that
+hash alike do not fight. `list` probes for liveness and never trusts a recorded
+pid. Without a port there is nothing to probe, so `LIVE` reads `—` and stopping
+the preview is the project's job — its `before_remove` hook, or the recipe.
 
 ## Hooks
 
@@ -100,10 +108,17 @@ records the name; the project writes the body.
 
 ## Previewing a worktree
 
-`sassy-worktree mode:preview` brings the product up in a checkout and prints
-`how_to_see`, using the dogfood recipe's bring-up steps — everything up to, but
-not including, that section's `Prove it:` step. It leaves the app running, and
-`stop` (or `remove`) reaps it by port.
+`sassy-worktree mode:preview` brings the product up in a checkout and prints how
+to see it, using the dogfood recipe's bring-up steps — everything up to, but not
+including, that section's `Prove it:` step. It leaves the app running.
+
+How to see it is the recipe's `**Preview:**` line with the namespace substituted,
+so it is a URL, a simulator, or a window depending on the project and never a
+guess by this tooling. `list` prints that same line in its `HOW TO SEE` column,
+which is why the column is not called "address".
+
+What stops a preview follows from the same split: kill it by port when there is
+one, hand it to the project when there is not.
 
 There is no separate preview configuration. How the app comes up is the recipe's
 job, because it is the only place that knowledge is allowed to live.
@@ -126,7 +141,7 @@ writing down once in the recipe rather than rediscovering it.
 | It is the main checkout | the repo itself |
 | Dirty tree | uncommitted work |
 | Commits on no remote | nothing to recover from |
-| Something listening on its port | stop the app first |
+| Something listening on its port | stop the app first (only when `ports:` is set) |
 | A `before_remove` hook not yet run | the project has cleanup to do |
 
 `--force` skips the dirty and unpushed checks and nothing else. It is never

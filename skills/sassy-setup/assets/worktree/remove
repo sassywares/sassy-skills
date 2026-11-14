@@ -42,7 +42,7 @@ done
 [ -n "$target" ] || { usage >&2; exit 2; }
 
 need_git
-rec="$(wt_require "$target")"
+rec="$(wt_require_managed "$target")"
 path="${rec%%$'\t'*}"
 branch="${rec##*$'\t'}"
 slug="$(wt_slug "$branch")"
@@ -59,9 +59,12 @@ if [ -n "$hooks" ] && [ "$hook_ok" -eq 0 ]; then
   exit 3
 fi
 
-port="$(wt_port_for "$slug")"
-if tcp_up "$port"; then
-  die "something is still listening on :$port — stop <$slug> first"
+port=""
+if wt_has_ports; then
+  port="$(wt_port_for "$slug")"
+  if tcp_up "$port"; then
+    die "something is still listening on :$port — stop <$slug> first"
+  fi
 fi
 
 if [ "$force" -eq 0 ]; then
@@ -79,7 +82,7 @@ if [ "$force" -eq 1 ]; then
 else
   git worktree remove "$path"
 fi
-wt_release "$port" "$slug"
+[ -n "$port" ] && wt_release "$port" "$slug"
 
-ok released ":$port"
+[ -n "$port" ] && ok released ":$port"
 ok removed "$path"

@@ -70,7 +70,12 @@ copy `.env.example` → `.env` and fill `DOGFOOD_USER`, `DOGFOOD_PASS`.
 
 **Reset:** `bun run db:reset`; `rm -rf .sassywares/dogfood/reports/*`
 
-**Preview:** `bun dev --port $PORT`, then open `$BASE_URL`
+**Preview:** open `$BASE_URL`
+
+**Upstream:** `api.example.com` — a service this run does not control. Down is
+`env`, never a retry.
+
+**Uncovered:** mobile (nothing), admin (unit tests only)
 
 ## catalog — a search returns matching products
 
@@ -101,14 +106,34 @@ a check, and `--check` reports it as drift. `Do` is a command *or* an
 instruction ("open `/catalog`, sign in as `DOGFOOD_USER`") — the instruction is
 why the recipe outlives whatever tool the agent happens to have this quarter.
 
-**One `Prove it:` per section**, and its exit code is the verdict. Steps before
+**One `Prove it:` per section**, naming a step (`step 5`) or saying `none`. A
+named step's exit code is the verdict; `none` is a legal, explicit "this surface
+has no machine verdict" — the section still records what a person should check,
+and every QA row for it stays `Manual`. Steps before
 it set up state and assert along the way; the prove step is the machine-readable
 answer. A section without one has no verdict.
 
-**One `**Preview:**` line**, optional: how a human sees this checkout running. A
-URL, a simulator name, a desktop app — whatever `sassy-worktree mode:preview`
-should print once the app is up. Without one, the address is `$WT_BASE_URL`. It
-is prose, like every other line here: no tool, no schema.
+**One `**Preview:**` line**, optional: **what you look at**, not the command that
+starts it. The result — a URL, a simulator, a window — is the project's own answer
+to "what is the address", and it is why the suite never has to assume a browser.
+The command belongs in the section's steps, where its `Expect` can be checked.
+
+**`**Upstream:**` and `**Uncovered:**`** are optional header lines that make the
+two dangerous facts visible without reading every step: which third-party services
+the recipe depends on, and which surfaces have no machine verdict at all. A
+section with no verdict ends `**Prove it:** none`, so a plan keeps its rows
+`Manual` instead of inventing an Auto row for a check that does not exist. `$WT_SLUG`, `$WT_NAMESPACE`, `$WT_PATH`,
+`$WT_PORT`, and `$WT_BASE_URL` are substituted into it — the last two only when
+`worktrees.ports` is configured:
+
+| Project | Preview line |
+|---|---|
+| Web | `open $WT_BASE_URL in a browser` |
+| Mobile | `simulator "$WT_NAMESPACE"` — booted by the `after_create` hook |
+| Desktop | `the app window is already open` |
+| CLI | *(none — there is nothing to look at)* |
+
+Prose, like every other line here: no tool, no schema.
 
 **Rules.**
 
@@ -118,6 +143,11 @@ is prose, like every other line here: no tool, no schema.
   step needs one, it names the variable and the project's own gitignored env file
   holds the value.
 - **Local or staging only.** A recipe that names production is a bug.
+- **No dependency churn.** *Set up once* installs frozen when a lockfile exists.
+  A broke lockfile is `env`; repairing it silently re-resolves versions and makes
+  every checkout dirty.
+- **No third-party mutation.** A step never registers a user, sends mail, or
+  writes to a shared service. Log in by hand and copy the session in.
 - **The happy path plus its checks.** Debris ("metro holds 8081") is a learning,
   not a step: it goes to `artifacts.solutions` via `sassy-compound`, which
   scouting already reads. This is what keeps a busy project's recipe at forty
@@ -188,8 +218,9 @@ A killed session therefore leaves an accurate breadcrumb, and the next one reads
 one file to know where it stopped.
 
 - **`status`** — `running` | `pass` | `failed`.
-- **`class`** — `code` (a finding for the rework cycle) | `env` (the toolchain is
-  broken: a missing dependency, exit 75 or 127 — report and park, never loop) |
+- **`class`** — `code` (a finding for the rework cycle) | `env` (the environment
+  cannot produce a verdict: a missing dependency, exit 75 or 127, or a third-party
+  service nobody in this run owns being down — report and park, never loop) |
   `recipe` (the procedure itself is stale: a renamed script, a dead URL, a step
   that cannot be followed). `recipe` is the rot signal: the run proposes a
   one-line diff and never quietly improvises around it.
@@ -240,6 +271,7 @@ Structural, never executed:
   `.sassywares/session` whenever that directory exists — a committed session is a
   credential leak, not a heavy history.
 - The recipe has at least one `## ` section, every section has a `**Prove it:**`
-  line, every numbered step has an `**Expect**`, and the file carries no
-  secret-shaped strings.
+  line whose value names a step (`step 3`) or is `none`, every numbered step has an
+  `**Expect**`, and the file carries no secret-shaped strings. A `Prove it:` that
+  is neither is a typo, and a typo reads as a verdict.
 - `dogfood.*` is a known key block; anything else in it is an unknown key.

@@ -86,7 +86,7 @@ hooks:
 worktrees:
   enabled: false              # true = a run may work in its own checkout
   dir: ~/.sassywares/worktrees     # parent of the per-repo folder; ~ is allowed here
-  ports: 3000-3099            # the range a checkout claims a port from
+  ports: 3000-3099            # optional; delete for a non-port preview
 dogfood:
   enabled: false              # true = sassy-plan writes Mode: Auto QA rows
   recipe: .sassywares/dogfood/recipe.md      # the procedure
@@ -119,7 +119,7 @@ dogfood:
 | `dogfood.timeout` | `900` | Wall-clock for one run. A timeout is a failure, never a hang |
 | `worktrees.enabled` | `false` | `true` lets a run work in its own checkout instead of this one. Needs `commit.branch: new` |
 | `worktrees.dir` | `~/.sassywares/worktrees` | Parent of the per-repo worktree folder. The one path here that may be absolute or `~/` |
-| `worktrees.ports` | `3000-3099` | The range a checkout claims its private port from |
+| `worktrees.ports` | `3000-3099` | The range a checkout claims its private port from. **Optional**: without it a checkout holds no port and is addressed by the recipe's preview line — which is how a mobile, desktop, or CLI project previews |
 
 Paths are relative to the config's own directory, never to the cwd.
 
@@ -407,7 +407,11 @@ worktrees:
 ```
 
 Three keys, no commands. The scripts in `.sassywares/worktree/` own the
-mechanics and `sassy-worktree` orchestrates them. `dir` is the one path in this
+mechanics and `sassy-worktree` orchestrates them.
+
+**A port is a resource, not the model.** Delete `ports` for an app whose preview
+is not a URL: no port is derived, `WT_PORT` and `WT_BASE_URL` are absent, and
+`list` shows the recipe's `**Preview:**` line instead. `dir` is the one path in this
 file that may be absolute or start with `~/` — it names machine-local state, not
 something a teammate clones.
 
@@ -471,8 +475,8 @@ report layout, the verdict classes, and the lint are in
 - `hooks` is allowed only with the four points under `hooks.pr`, `after_push`
   under `hooks.push`, and `after_create`/`before_remove` under `hooks.worktree`,
   each a list of skill names that resolve to `.agents/skills/<name>/SKILL.md`.
-- `worktrees.enabled` is `true` or `false`; `worktrees.ports` is `<from>-<to>`
-  inside 1–65535 with `<from>` no greater than `<to>`. A checkout must resolve
+- `worktrees.enabled` is `true` or `false`; when `worktrees.ports` is present it
+  is `<from>-<to>` inside 1–65535 with `<from>` no greater than `<to>`. A checkout must resolve
   outside the working tree, must not hold a branch `base_map` names as a base,
   and must not leave a port claimed by a worktree that no longer exists. An
   `enabled: true` with no tooling installed, or with the wrong tooling version,

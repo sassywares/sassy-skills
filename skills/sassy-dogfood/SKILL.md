@@ -36,22 +36,32 @@ recipe, and the next `run` is what proves it.
 
 ## Steps — `mode:run`
 
-1. **Resolve the target.** Read the `dogfood:` block. If `enabled` is not `true`, stop with one line: reporting is not enabled, and enabling it is `sassy-setup mode:init`. Load the recipe; a section the caller names (`section:<name>`) is the target, otherwise every section. A missing recipe, or one whose section has no `Prove it:` step, stops the run and names `mode:discover` — never guess a verdict from a procedure that has none.
+1. **Resolve the target.** Read the `dogfood:` block. If `enabled` is not `true`, stop with one line: reporting is not enabled, and enabling it is `sassy-setup mode:init`. Load the recipe; a section the caller names (`section:<name>`) is the target, otherwise every section. A missing recipe, or one whose section has no `Prove it:` step, stops the run and names `mode:discover`. A section whose `**Prove it:**` says `none` is refused with one line — it has no machine verdict by design, so its QA rows are `Manual`, and running it would only manufacture an opinion. Never guess a verdict from a procedure that has none.
 2. **Preflight, and do not run blind.** The recipe's *Set up once* lists what must exist. Check that each env var it **names** is present — presence only, never print a value — that a session the recipe refers to is actually in `.sassywares/session/`, and that the commands' entry points exist. A missing dependency, a tool not on `PATH`, or an absent env var is `class: env`: write the report, report it, and stop. Never install, never `docker pull`, never mutate the environment to get past preflight.
 3. **Open the report.** Create `<reports>/<YYYYMMDD-HHMMSS>/` with `steps/` and `artifacts/`, and write `summary.md` with `status: running`, the class blank, the recipe path with the current commit, and the start time. Prune older run directories down to ten.
 4. **Execute in order, stopping at the first broken expectation.** Per step: write `steps/<section>-<NN>.log`, capped head-and-tail, with the command and its output, values of every env var the recipe names masked, and the exit code. `Do` is a command *or* an instruction — satisfy it with whatever is available, and judge it only against its `Expect`. A step whose expectation fails ends that section: record it, keep everything already written, and skip to the report. Resume at the failed step on the next run, never from the top: the summary's `Next:` line says which.
 5. **Take the verdict from the prove step.** The section's `Prove it:` step decides: exit 0 is `pass`, non-zero is `failed`. A failure earlier in the section is `failed` regardless. This skill holds no opinion about the work — a check it judged by reading instead of running is not a verdict.
-6. **Classify.** `env` when the toolchain is broken (exit 75 or 127, a missing dependency, an unreachable service that is not part of the change); `recipe` when a step cannot be followed at all (a script renamed, a URL that no longer exists, a UI that no longer matches) — that is the procedure being stale, not the code being wrong; `code` otherwise. When in doubt between `recipe` and `code`, ask: could a person follow this step as written and still be testing the app? If not, it is `recipe`.
+6. **Classify.** `env` when the environment cannot produce a verdict: exit 75 or 127, a missing dependency, or **a service nobody in this run controls** being down (a third-party API, a shared backend). That last one is neither `code` nor `recipe` — report it, name the dependency, and stop; `recipe` when a step cannot be followed at all (a script renamed, a URL that no longer exists, a UI that no longer matches) — that is the procedure being stale, not the code being wrong; `code` otherwise. When in doubt between `recipe` and `code`, ask: could a person follow this step as written and still be testing the app? If not, it is `recipe`.
 7. **Finalize and report.** Write the final `summary.md` (`status`, `class`, the per-step table, artifacts, `Next:`), then return compactly: verdict, class, section, failing step id, the last ~600 characters of that step's log, the report path, and — for `recipe` — the one-line diff you propose. Never paste a whole log to the caller.
 8. **On `recipe`, propose and stop.** Show the diff that would make the procedure followable and ask before writing it. Never edit the recipe to turn a red run green: the cheapest way to pass a check must not be to weaken it.
 
 ## Steps — `mode:discover`
 
-1. **Read what the project already says.** The existing recipe, the config, and the manifest's scripts (`package.json`, `Makefile`, `pyproject.toml`, `deno.json`, a CI workflow) — what is already wired is the answer more often than a new harness is. Discover, do not impose.
-2. **Find the surfaces.** What is this product? A web app, an API, a CLI, a library, a desktop app, a mobile app in a simulator, several of them. Each surface that a change can break gets a section.
-3. **Find the cheapest proof per surface.** Prefer, in order: an existing test suite or e2e target, a single narrow command that exercises the change, an instruction the agent can carry out against the running product. Whatever the harness has connected right now is fair game; nothing is installed to make this work.
-4. **Try it, then write down what worked.** Bring the product up, run the proof, watch it fail at least once if you can arrange it — a check nobody has seen fail is not a check — then write the steps exactly as they succeeded, with the `Expect` each one actually produced. Write instructions, not recipes for one tool.
-5. **Report.** The sections written, which proof each uses, what is still unknown, and whether a `Mode: Auto` row is now justified. Say plainly that `sassy-setup mode:init` flips `dogfood.enabled` and that the switch alone changes nothing.
+1. **Read what the project already says.** The existing recipe, the config, and the manifest's scripts (`package.json`, `Makefile`, `pyproject.toml`, `deno.json`, a CI workflow). **Reading is not deciding** — what exists is the starting point, never the target.
+2. **Find the surfaces.** What is this product? A web app, an API, a CLI, a library, a desktop app, a mobile app in a simulator, several of them. Each surface that a change can break gets its own answer — in a monorepo especially, one app having a suite says nothing about its siblings.
+3. **Classify each surface, honestly.** Three classes and no fourth:
+
+   | Class | Means | Becomes |
+   |---|---|---|
+   | `runtime` | something already drives the running product — e2e, integration, a smoke script | a section that wraps it |
+   | `unit-only` | tests exist, but they never start the product | an **uncovered** section |
+   | `none` | nothing | an **uncovered** section |
+
+   **A unit test is not a dogfood path**, and neither is `lint`, `tsc`, or `build`: they never start the product. Recording one as coverage is the failure this step exists to prevent — it makes an untested app look tested, and nobody can tell afterwards that the gap was never closed.
+4. **Ask, one surface at a time.** With what you found: *"`web`, `api`, and `admin` have no runtime path — `web` has Playwright, the other two only unit tests. Set up a runtime check for `api` and `admin`?"* The options are wrap an existing suite, add a small runtime check to the recipe (boot plus one assertion, a curl, a screenshot — the project's call), or leave it uncovered and say so. **Never leave a surface uncovered silently, and never fill the gap with what happens to exist.**
+5. **Write the recipe, gaps included.** An uncovered section ends with `**Prove it:** none` — explicitly, so a plan keeps its rows `Manual` and a reader sees the hole. Name the uncovered surfaces in the header too (`**Uncovered:** api (unit tests only), admin (nothing)`), so the gap is visible without reading every section.
+6. **Try it, then write down what worked.** Bring the product up, run the proof, watch it fail at least once if you can arrange it — a check nobody has seen fail is not a check — then write the steps exactly as they succeeded, with the `Expect` each one actually produced. Write instructions, not recipes for one tool. **A bring-up step must not mutate dependencies**: install frozen where the project has a lockfile, and treat a broken lockfile as `env` rather than repairing it.
+7. **Report.** Per surface: its class, its proof, whether it was asked about, and what is still unknown, plus the uncovered list. Say plainly that `sassy-setup` flips `dogfood.enabled` and that the switch alone changes nothing.
 
 ## Steps — `mode:check`
 
@@ -70,6 +80,10 @@ Run the `sassy-setup` skill's `scripts/detect.sh --root <path> --check` and repo
 | Env is not code | Exit 75/127, a missing dependency, or an unreachable service is `env`: report and park. Looping on a broken toolchain burns a run for nothing. |
 | Resume, don't restart | Re-run from the failed step; the summary says where. Starting over hides the state that made the failure happen. |
 | Reports are disposable | Pruned to ten. The durable record is the QA row's note, which names the verdict and the run id, never a path that will vanish. |
+| Never promote what exists | A unit test, `lint`, or `build` is not a dogfood path. Discovery records what the product needs, and says so when that is nothing yet. |
+| Ask about every gap | Each uncovered surface gets one question: wrap a suite, add a runtime check, or leave it uncovered and visible. Silence is how a gap becomes a false green. |
+| No third-party mutation | A run never registers a user, sends mail, charges a card, or writes to a shared service it does not own. A public demo API is somebody else's database. |
+| No dependency churn | A bring-up never changes a lockfile. Install frozen where the project has one; a broken lockfile is `env`, not something to repair mid-run. |
 | Not a test framework | If the project has a suite, the recipe wraps it. This skill never grows assertions of its own beyond a step's `Expect`. |
 
 ## What dogfood is not

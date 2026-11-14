@@ -28,7 +28,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     --version) printf '%s\n' "$WT_VERSION"; exit 0 ;;
-    --address|--path) kind="${1#--}"; shift; want="${1:-}"; [ -n "$want" ] || die "$kind needs a slug" ;;
+    --address|--path|--preview) kind="${1#--}"; shift; want="${1:-}"; [ -n "$want" ] || die "$kind needs a slug" ;;
     -*) die "unknown flag: $1 (try --help)" ;;
     *) die "unexpected argument: $1 (try --help)" ;;
   esac
@@ -38,7 +38,7 @@ done
 need_git
 
 one() { # $1 path, $2 branch
-  local p="$1" b="$2" slug port
+  local p="$1" b="$2" slug port line
   slug="$(wt_slug "$b")"
   if wt_is_main "$p"; then
     die "the main checkout has no derived port — it uses whatever the app defaults to"
@@ -46,33 +46,56 @@ one() { # $1 path, $2 branch
   case "$kind" in
     path) printf '%s\n' "$p" ;;
     address)
+      wt_has_ports || die "no port resource here — worktrees.ports is unset; try --preview"
       port="$(wt_port_for "$slug")"
       printf 'http://localhost:%s\n' "$port"
+      ;;
+    preview)
+      line="$(wt_preview "$slug")"
+      [ -n "$line" ] || die "no preview line for '$slug' — add one to dogfood.recipe"
+      printf '%s\n' "$line"
       ;;
   esac
 }
 
 if [ -n "$kind" ]; then
-  rec="$(wt_require "$want")"
+  rec="$(wt_require_managed "$want")"
   one "${rec%%$'\t'*}" "${rec##*$'\t'}"
   exit 0
 fi
 
-printf '  %-34s %-50s %-22s %-5s %s\n' "BRANCH" "WORKTREE" "ADDRESS" "LIVE" "LAST RUN"
+printf '  %-34s %-50s %-40s %-5s %s\n' "BRANCH" "WORKTREE" "HOW TO SEE" "LIVE" "LAST RUN"
 count=0
+unmanaged=0
 while IFS=$'\t' read -r p b; do
   [ -n "$p" ] || continue
   count=$(( count + 1 ))
   slug="$(wt_slug "$b")"
   shown="${p/#$HOME/~}"
   if wt_is_main "$p"; then
-    printf '  %-34s %-50s %-22s %-5s %s\n' "$b (main checkout)" "$shown" "—" "—" "—"
+    printf '  %-34s %-50s %-40s %-5s %s\n' "$b (main checkout)" "$shown" "—" "—" "—"
     continue
   fi
-  port="$(wt_port_for "$slug")"
-  if tcp_up "$port"; then live="up"; else live="down"; fi
+  if ! wt_managed "$p"; then
+    unmanaged=$(( unmanaged + 1 ))
+    continue
+  fi
+  # The address is whatever the project says it is: a URL, a simulator, a window.
+  line="$(wt_preview "$slug")"
+  port=""
+  if wt_has_ports; then
+    port="$(wt_port_for "$slug")"
+    [ -n "$line" ] || line="http://localhost:$port"
+  fi
+  if [ -n "$port" ]; then
+    if tcp_up "$port"; then live="up"; else live="down"; fi
+  else
+    live="—"
+  fi
   last="$(wt_verdict "$p")"
-  printf '  %-34s %-50s %-22s %-5s %s\n' "$b" "$shown" "http://localhost:$port" "$live" "${last:-—}"
+  printf '  %-34s %-50s %-40s %-5s %s\n' "$b" "$shown" "${line:-—}" "$live" "${last:-—}"
 done < <(wt_all)
 
 [ "$count" -gt 0 ] || log "  no checkouts found — is this a git repository?"
+[ "$unmanaged" -gt 0 ] && hint "$unmanaged worktree(s) not managed here — outside $(wt_home | sed "s|$HOME|~|"), or cut before the wiring"
+true
