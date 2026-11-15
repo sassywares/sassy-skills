@@ -7,7 +7,7 @@ never values>
 
 **Reset:** <back to a known state>
 
-**Preview:** <the one command a human runs to look at it — `bun dev --port $PORT` — and what to open>
+**Preview:** <what you look at once it is up — `http://localhost:$WT_PORT`, a simulator name, a window. Not the command; that is a step below.>
 
 <!--
 Incomplete on purpose. sassy-setup writes this skeleton so the shape is visible;
