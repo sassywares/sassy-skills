@@ -42,12 +42,13 @@ done
 [ -n "$target" ] || { usage >&2; exit 2; }
 
 need_git
-rec="$(wt_require_managed "$target")"
+rec="$(wt_require "$target")" || exit 1
 path="${rec%%$'\t'*}"
 branch="${rec##*$'\t'}"
 slug="$(wt_slug "$branch")"
 
 wt_is_main "$path" && die "that is the main checkout — it cannot be removed"
+wt_managed "$path" || die "'$target' is not managed here — it is outside the worktree home, or it was cut before the wiring"
 
 hooks="$(wt_hook before_remove "$branch")"
 if [ -n "$hooks" ] && [ "$hook_ok" -eq 0 ]; then

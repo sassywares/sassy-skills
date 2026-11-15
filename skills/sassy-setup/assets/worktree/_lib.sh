@@ -245,7 +245,10 @@ wt_managed() { # $1 path
 
 wt_require_managed() { # $1 slug or branch -> path<TAB>branch, or die
   local rec
-  rec="$(wt_require "$1")"
+  # `wt_require` dies inside the substitution, where its exit cannot reach us, so
+  # a failure has to be carried out by hand or the caller prints a second, wrong
+  # message ("not managed here" for a branch that does not exist at all).
+  rec="$(wt_require "$1")" || exit 1
   wt_managed "${rec%%$'\t'*}" \
     || die "'$1' is not managed here — it is outside the worktree home, or it was cut before the wiring"
   printf '%s' "$rec"

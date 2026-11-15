@@ -29,12 +29,13 @@ case "${1:-}" in
 esac
 
 need_git
-rec="$(wt_require_managed "$1")"
+rec="$(wt_require "$1")" || exit 1
 path="${rec%%$'\t'*}"
 branch="${rec##*$'\t'}"
 slug="$(wt_slug "$branch")"
 
 wt_is_main "$path" && die "the main checkout is not a worktree — nothing to stop"
+wt_managed "$path" || die "'$1' is not managed here — it is outside the worktree home, or it was cut before the wiring"
 wt_has_ports || die "no port resource here — stopping this preview is the project's job (its before_remove hook or the recipe)"
 port="$(wt_port_for "$slug")"
 
