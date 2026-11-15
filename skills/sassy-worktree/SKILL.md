@@ -36,7 +36,7 @@ argument-hint: "[slug] [mode:create|list|preview|remove|prune] [section:<name>]"
 1. **Resolve the branch and its start point first**, through the `sassy-setup` skill's `references/branching.md`, exactly as `sassy-work` does. A run that reaches here has already decided; the branch is not created twice. When a human asks for one by hand with no branch named, ask for the branch name — never derive one.
 2. **Run `.sassywares/worktree/create <branch> --from <start-point>`** with the resolved start point. It is idempotent: an existing worktree for that branch is reported, a branch held by the main checkout is refused, and a port is claimed either way. On `--env` it prints the `WT_*` block alone.
 3. **Dispatch the declared hooks.** The script prints one line per `hooks.worktree.after_create` entry; it cannot dispatch a skill, so you do. One `worker` each, in declared order: *load the project skill at `.agents/skills/<name>/SKILL.md` and follow it*, briefed with the `WT_*` block and the fact that the checkout now exists. A missing skill or a `blocked` result stops here — the checkout is real but unprepared, and saying so is the report.
-4. **Report** the path, branch, namespace, port, address, and the hooks that ran or that none are declared. If the caller is a run, tell it to work in `WT_PATH` from now on.
+4. **Report** the path, branch, namespace, port, address, the preview line, and the hooks that ran or that none are declared. If the caller is a run, tell it to work in `WT_PATH` from now on.
 
 ## `list`
 
@@ -57,7 +57,8 @@ Preview never judges the work, never writes a report, never commits, and never r
 
 1. **Dispatch `before_remove` first**, one `worker` per declared entry, briefed with the `WT_*` block and that the checkout is about to go. Its job is the project's cleanup: drop the derived database, shut the simulator.
 2. **Run `.sassywares/worktree/remove <slug> --hook-ok`.** Without `--hook-ok` it exits `3` by design when a hook is declared — that exit is the handshake, not an error to route around.
-3. **Report a refusal verbatim and stop.** Dirty tree, unpushed commits, a live preview, the main checkout: each is a real reason, and `--force` is the user's call, never yours. On success report the released port and the removed path.
+3. **Say what survives.** `remove` deletes the checkout and its port claim; the **branch stays**, so the work is still reachable. Naming that stops someone assuming the deletion took their commits with it.
+4. **Report a refusal verbatim and stop.** Dirty tree, unpushed commits, a live preview, the main checkout: each is a real reason, and `--force` is the user's call, never yours. On success report the released port and the removed path.
 
 ## `prune`
 

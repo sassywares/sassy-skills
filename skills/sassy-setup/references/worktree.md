@@ -44,6 +44,11 @@ overwriting an existing copy — from the first install it is the project's file
 one path in the config that may be absolute or start with `~/` — it names
 machine-local state, not something a teammate clones.
 
+The folder is named after the repo. When another **live** clone of the same name
+already owns it, this one takes `<repo>-<hash>` instead; a home whose recorded
+owner no longer exists is reclaimed, so a finished project does not squat the name
+for ever. `.repo` is what makes that decision, and `create` rewrites it.
+
 **Never put checkouts inside `.git` or inside the working tree.** Inside `.git`
 is undocumented and breaks where `.git` is a file (linked worktrees, submodules,
 `--separate-git-dir`). Inside the working tree is destroyed by `git clean -xdf`
@@ -64,6 +69,9 @@ work; `remove` and `prune` are the only safe exits.
 | `WT_NAMESPACE` | `shop-feat-catalog` | database schema, compose project, simulator name |
 | `WT_PORT` | `3041` | a private port — **only when `ports:` is configured** |
 | `WT_BASE_URL` | `http://localhost:3041` | the URL on that port — same condition |
+
+The same five names expand inside the recipe, including the dashed form
+`${WT_PORT:-5180}` that makes a recipe runnable in the main checkout too.
 
 Derived, never invented downstream: a hook that needs a database name uses
 `$WT_NAMESPACE` rather than building its own, so two worktrees cannot collide by
@@ -143,6 +151,10 @@ writing down once in the recipe rather than rediscovering it.
 | Commits on no remote | nothing to recover from |
 | Something listening on its port | stop the app first (only when `ports:` is set) |
 | A `before_remove` hook not yet run | the project has cleanup to do |
+
+`remove` deletes the checkout, the port claim, and nothing else. **The branch
+survives** — git keeps it, so the work is still reachable after the worktree is
+gone. Deleting it is the user's call, or `pr.delete_branch`'s after a merge.
 
 `--force` skips the dirty and unpushed checks and nothing else. It is never
 implied.

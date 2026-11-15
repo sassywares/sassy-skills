@@ -100,7 +100,7 @@ wt_namespace() {
 # under a home that survives a reboot. A second clone of the same project gets a
 # suffixed folder instead of sharing this one.
 wt_home() {
-  local dir base cand parent
+  local dir base cand parent owner
   dir="$(wt_cfg dir "$HOME/.sassywares/worktrees")"
   case "$dir" in
     "~")   dir="$HOME" ;;
@@ -114,8 +114,13 @@ wt_home() {
   [ -d "$parent" ] && dir="$(cd "$parent" && pwd -P)/$(basename "$dir")"
   base="$(basename "$MAIN")"
   cand="$dir/$base"
-  if [ -f "$cand/.repo" ] && [ "$(cat "$cand/.repo" 2>/dev/null)" != "$MAIN" ]; then
-    cand="$dir/$base-$(printf '%s' "$MAIN" | shasum -a 256 | cut -c1-6)"
+  if [ -f "$cand/.repo" ]; then
+    owner="$(cat "$cand/.repo" 2>/dev/null || true)"
+    # Only a live checkout squats the plain name; a deleted one is reclaimed, so a
+    # finished project does not leave a hash-suffixed home behind forever.
+    if [ "$owner" != "$MAIN" ] && [ -n "$owner" ] && [ -d "$owner" ]; then
+      cand="$dir/$base-$(printf '%s' "$MAIN" | shasum -a 256 | cut -c1-6)"
+    fi
   fi
   printf '%s' "$cand"
 }
@@ -282,6 +287,19 @@ wt_upstream_state() { # merged | gone | unmerged
   fi
 }
 
+# wt_subst LINE NAME VALUE — expand `$NAME`, `${NAME}` and `${NAME:-default}` for
+# one variable. No name here is a prefix of another, so a plain replace is exact.
+wt_subst() {
+  local line="$1" name="$2" val="$3"
+  if [ -n "$val" ]; then
+    printf '%s' "$line" \
+      | sed -e "s|\${$name:-[^}]*}|$val|g" -e "s|\${$name}|$val|g" -e "s|\$$name|$val|g"
+  else
+    printf '%s' "$line" \
+      | sed -e "s|\${$name:-\([^}]*\)}|\1|g" -e "s|\${$name}||g" -e "s|\$$name||g"
+  fi
+}
+
 # wt_preview SLUG — the recipe's `**Preview:**` line with WT_* substituted.
 # Empty when the project has no recipe or no preview line.
 wt_preview() {
@@ -297,12 +315,12 @@ wt_preview() {
     port="$(wt_port_for "$slug")"
     base="http://localhost:$port"
   fi
-  printf '%s' "$line" \
-    | sed -e "s|\$WT_SLUG|$slug|g" \
-          -e "s|\$WT_NAMESPACE|$(wt_namespace "$slug")|g" \
-          -e "s|\$WT_PATH|$(wt_path "$slug")|g" \
-          -e "s|\$WT_PORT|$port|g" \
-          -e "s|\$WT_BASE_URL|$base|g"
+  line="$(wt_subst "$line" WT_SLUG "$slug")"
+  line="$(wt_subst "$line" WT_NAMESPACE "$(wt_namespace "$slug")")"
+  line="$(wt_subst "$line" WT_PATH "$(wt_path "$slug")")"
+  line="$(wt_subst "$line" WT_PORT "$port")"
+  line="$(wt_subst "$line" WT_BASE_URL "$base")"
+  printf '%s' "$line"
 }
 
 # Newest dogfood verdict for a checkout, as `status  class` — or empty.
