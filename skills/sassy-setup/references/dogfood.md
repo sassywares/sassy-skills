@@ -70,7 +70,7 @@ copy `.env.example` → `.env` and fill `DOGFOOD_USER`, `DOGFOOD_PASS`.
 
 **Reset:** `bun run db:reset`; `rm -rf .sassywares/dogfood/reports/*`
 
-**Preview:** open `$BASE_URL`
+**Preview:** open `http://localhost:${WT_PORT:-3000}`
 
 **Upstream:** `api.example.com` — a service this run does not control. Down is
 `env`, never a retry.
@@ -109,29 +109,40 @@ why the recipe outlives whatever tool the agent happens to have this quarter.
 **One `Prove it:` per section**, naming a step (`step 5`) or saying `none`. A
 named step's exit code is the verdict; `none` is a legal, explicit "this surface
 has no machine verdict" — the section still records what a person should check,
-and every QA row for it stays `Manual`. Steps before
+and every QA row for it stays `Manual`.
+
+**Steps after the `Prove it:` step are cleanup.** They always run, they never
+change the exit code, and that is where a port is freed or a process is stopped.
+Putting teardown before the verdict means a failed run leaves the port held. Steps before
 it set up state and assert along the way; the prove step is the machine-readable
 answer. A section without one has no verdict.
 
 **One `**Preview:**` line**, optional: **what you look at**, not the command that
-starts it. The result — a URL, a simulator, a window — is the project's own answer
+starts it. The command belongs in the section's steps, where its `Expect` can be
+checked. The result — a URL, a simulator, a window — is the project's own answer
 to "what is the address", and it is why the suite never has to assume a browser.
-The command belongs in the section's steps, where its `Expect` can be checked.
 
-**`**Upstream:**` and `**Uncovered:**`** are optional header lines that make the
-two dangerous facts visible without reading every step: which third-party services
-the recipe depends on, and which surfaces have no machine verdict at all. A
-section with no verdict ends `**Prove it:** none`, so a plan keeps its rows
-`Manual` instead of inventing an Auto row for a check that does not exist. `$WT_SLUG`, `$WT_NAMESPACE`, `$WT_PATH`,
-`$WT_PORT`, and `$WT_BASE_URL` are substituted into it — the last two only when
-`worktrees.ports` is configured:
+`$WT_SLUG`, `$WT_NAMESPACE`, `$WT_PATH`, `$WT_PORT`, and `$WT_BASE_URL` are
+substituted into the preview line and into every step. The last two exist only
+when `worktrees.ports` is configured, and a recipe must also run in the **main
+checkout**, where no worktree exists — so write the port with the project's own
+default: `${WT_PORT:-5180}`. One expansion that works in both places is what
+keeps a recipe runnable outside a worktree.
 
 | Project | Preview line |
 |---|---|
-| Web | `open $WT_BASE_URL in a browser` |
+| Web | `http://localhost:${WT_PORT:-5180}` |
 | Mobile | `simulator "$WT_NAMESPACE"` — booted by the `after_create` hook |
 | Desktop | `the app window is already open` |
 | CLI | *(none — there is nothing to look at)* |
+
+**`**Upstream:**` and `**Uncovered:**`** are optional header lines that make the
+two dangerous facts visible without reading every step: which third-party services
+the recipe depends on, and which parts have no machine verdict at all. `Uncovered`
+may name a sub-area of a covered surface — "the web surface's auth and write
+flows" — which is where a no-third-party-mutation rule usually lands. A section
+with no verdict ends `**Prove it:** none`, so a plan keeps its rows `Manual`
+instead of inventing an Auto row for a check that does not exist.
 
 Prose, like every other line here: no tool, no schema.
 
@@ -143,6 +154,10 @@ Prose, like every other line here: no tool, no schema.
   step needs one, it names the variable and the project's own gitignored env file
   holds the value.
 - **Local or staging only.** A recipe that names production is a bug.
+- **A prerequisite carries its command.** *Set up once* is commands, not prose: a
+  required Node, JDK, or database names the command that provides it (`nvm use 24`)
+  as well as the requirement. A run may not improvise activation, so a stated
+  requirement with no command only works on machines that happen to be ready.
 - **No dependency churn.** *Set up once* installs frozen when a lockfile exists.
   A broke lockfile is `env`; repairing it silently re-resolves versions and makes
   every checkout dirty.
@@ -152,8 +167,9 @@ Prose, like every other line here: no tool, no schema.
   not a step: it goes to `artifacts.solutions` via `sassy-compound`, which
   scouting already reads. This is what keeps a busy project's recipe at forty
   lines instead of becoming a wiki.
-- **No tool names.** Never "use Playwright" or "use the Chrome MCP". Say what to
-  do and what to see, and let the run discover how.
+- **No harness tools.** Never "use Playwright" or "use the Chrome MCP" — a driver,
+  MCP server, or emulator is a harness choice, not a procedure. Ordinary shell
+  utilities (`curl`, `lsof`, `grep`) are fine: they are how a step is written.
 
 ## Sessions, and a second checkout
 
@@ -224,6 +240,9 @@ one file to know where it stopped.
   `recipe` (the procedure itself is stale: a renamed script, a dead URL, a step
   that cannot be followed). `recipe` is the rot signal: the run proposes a
   one-line diff and never quietly improvises around it.
+- **A preflight or bring-up failure** has no step id: its log is `steps/00-setup.log`
+  and its table row is `setup`. It is a verdict about the environment, so it still
+  gets a `class`.
 - **One log per executed step**, capped head-and-tail (~64 KB) with a
   `[truncated N lines]` marker, so a runaway loop cannot fill the disk.
 - **Redaction happens before the write.** Every value of an env var the recipe

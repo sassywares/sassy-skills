@@ -50,6 +50,12 @@ DIR="$SW/<purpose>"
 
 Name files so a run can find its own: a UTC timestamp, a short slug, and a short random suffix (`20261027T101500Z-fix-checkout-4f2a.txt`). The suffix keeps two harnesses writing in the same second apart, now that they share a folder. A clone or any temporary tree gets its own `mktemp -d` under `scratch/` for the same reason. Delete scratch you no longer need; `/tmp` clearing on reboot covers the rest. A new purpose gets a new row here, not a new top-level folder.
 
+**A recipe may use fixed paths.** The timestamp-plus-suffix rule exists so two runs
+never collide. A file a *recipe* re-runs — a dev-server log, a pid — must have the
+same path every time, so a step may use a fixed name under `scratch/`, keyed by
+`$WT_NAMESPACE` when the project uses worktrees (`scratch/<namespace>-dev.log`).
+Predictability is the point there; uniqueness is the point everywhere else.
+
 **Harness is not a path segment.** It is recorded inside the file where it still matters — a handoff carries `**Harness:**` so a reader knows which agent wrote it — and the resume command is generated for whoever is reading, not for the writer. When a file needs it:
 
 ```bash
