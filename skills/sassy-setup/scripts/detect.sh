@@ -1322,6 +1322,9 @@ cat <<'EOF'
 # `current` never cuts a branch. The scripts in .sassywares/worktree/ own the
 # mechanics; nothing else reads these values.
 #
+# Repo topology only: a workspace root has no repo to cut a checkout from, and a
+# `none` folder has no git at all.
+#
 # A port is a resource, not the definition of a preview: delete `ports` for a
 # mobile, desktop, or CLI project, and the checkout is addressed by the recipe's
 # preview line instead (`$WT_NAMESPACE` names a simulator, a window, a path).

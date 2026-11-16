@@ -4,6 +4,12 @@ Parallel work in one repo: each run gets its own checkout, its own branch, and
 its own port, without a second clone and without fighting the checkout somebody
 else is using.
 
+**Repo topology only.** `git.repo: workspace` means the root is not a repo and each
+nested repo carries its own config, so there is nothing to cut a checkout from; a
+`none` folder has no git at all. Setup writes `worktrees.enabled: false` there and
+says why, `--check` reports an `enabled: true` as drift, and the scripts refuse
+with that reason rather than "not a git repository".
+
 Read this when the project has `worktrees.enabled: true`, or when the user asks
 to run two agents in one project.
 
@@ -72,6 +78,17 @@ work; `remove` and `prune` are the only safe exits.
 
 The same five names expand inside the recipe, including the dashed form
 `${WT_PORT:-5180}` that makes a recipe runnable in the main checkout too.
+
+**Finding a checkout.** `list` prints paths with `$HOME` shortened to `~`, which
+reads well and does **not** paste into anything:
+
+```bash
+cd "$(worktree:list --path feat-catalog)"     # the real absolute path
+worktree:list --address feat-catalog          # the URL, when ports are configured
+```
+
+`create --env` prints `WT_PATH=` and the rest for scripts, and a slug is just the
+branch with `/` flattened.
 
 Derived, never invented downstream: a hook that needs a database name uses
 `$WT_NAMESPACE` rather than building its own, so two worktrees cannot collide by

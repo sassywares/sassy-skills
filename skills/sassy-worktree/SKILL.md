@@ -40,6 +40,8 @@ argument-hint: "[slug] [mode:create|list|preview|remove|prune] [section:<name>]"
 
 ## `list`
 
+Paths in the table are shortened to `~`; `--path <slug>` prints the real absolute path, which is what you hand a user who wants to open the checkout in an editor.
+
 Run `.sassywares/worktree/list` and present it as it prints — branch, worktree, how to see it, live, last verdict. `--preview <slug>` prints how to see one checkout, `--path <slug>` its path, and `--address <slug>` its URL when the project configured ports. Never summarise the table away: how to see it is the point.
 
 ## `preview`
@@ -72,6 +74,7 @@ Preview never judges the work, never writes a report, never commits, and never r
 |------|-------------|
 | The scripts do the git | Never run `git worktree`, never invent a port, never `rm -rf` a checkout. `.sassywares/worktree/*` owns all of it. |
 | One worktree per run | The branch decision belongs to `references/branching.md`. Never create a second worktree for a run already on its branch. |
+| Repo topology only | `git.repo: workspace` or `none` means no worktrees at all. Say so in one line and stop — never create a checkout inside a nested repo to work around it. |
 | Ours only | A checkout is managed when it sits under `worktrees.dir` **and** carries `.sassywares/config.yaml`. Never list, prune, stop, or remove one that is not — another tool made it, or it was cut before the wiring. `create` says so when that happens. |
 | Names come from the script | `WT_NAMESPACE` is derived once, and `WT_PORT` only when the project configured a range. Never build a database name, a compose project, or a device name by hand. |
 | A preview is not a URL | How to see a checkout is the recipe's preview line. A port is one resource among several; a mobile app's preview is a simulator, and this skill must not invent a URL for it. |

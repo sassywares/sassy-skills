@@ -23,11 +23,39 @@ warn() { printf '  %-9s %s\n' "!" "$2" >&2; }
 die()  { printf '  ✗ %s\n' "$*" >&2; exit 1; }
 hint() { printf '  %-9s %s\n' "→" "$*"; }
 
+# The nearest config, walking up from the cwd — used only to explain a refusal
+# when there is no repo to work in at all.
+wt_find_config() {
+  local dir
+  dir="$(pwd -P)"
+  while :; do
+    if [ -f "$dir/.sassywares/config.yaml" ]; then
+      printf '%s' "$dir/.sassywares/config.yaml"
+      return 0
+    fi
+    [ "$dir" = "/" ] && return 1
+    dir="$(dirname "$dir")"
+  done
+}
+
 need_git() {
   command -v git >/dev/null 2>&1 || die "git not found"
-  local common
-  common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
-    || die "not inside a git repository"
+  local common found cfg_repo
+  common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  if [ -z "$common" ]; then
+    # No repo here. A workspace root is that way on purpose, so say why instead of
+    # failing as if the directory were wrong.
+    found="$(wt_find_config || true)"
+    if [ -n "$found" ]; then
+      cfg_repo="$(wt_flat "$found" | awk -F'\t' -v p="git${WLIB_US}repo" '$1 == p { print $2; exit }')"
+      case "$cfg_repo" in
+        workspace|none)
+          die "worktrees need the repo topology — git.repo is '$cfg_repo' here; a nested repo carries its own config"
+          ;;
+      esac
+    fi
+    die "not inside a git repository"
+  fi
   # The common dir is shared by every worktree; its parent is the main checkout.
   MAIN="$(cd "$common/.." && pwd -P)"
   CONFIG="$MAIN/.sassywares/config.yaml"
@@ -57,7 +85,7 @@ wt_flat() {
       path = ""
       for (i = 1; i <= sp; i++) if (sd[i] < d) path = path (path == "" ? "" : us) sk[i]
       print path (path == "" ? "" : us) key "\t" val
-    }' "${CONFIG:-/dev/null}" 2>/dev/null
+    }' "${1:-${CONFIG:-/dev/null}}" 2>/dev/null
 }
 
 # wt_cfg KEY DEFAULT — a dotted path under the `worktrees:` block.
