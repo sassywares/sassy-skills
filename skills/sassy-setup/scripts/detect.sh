@@ -205,12 +205,17 @@ recipe_lint() {
       if (index($0, "-->")) incomment = 0
       next
     }
-    # The two inventories are file level: names of surfaces, not a surface.
-    index($0, "**Uncovered:**") {
-      line = $0; sub(/^\*\*Uncovered:\*\*[[:space:]]*/, "", line); inventory(line, "unc"); next
-    }
-    index($0, "**Out of scope:**") {
-      line = $0; sub(/^\*\*Out of scope:\*\*[[:space:]]*/, "", line); inventory(line, "oos"); next
+    # The two inventories are file level: names of surfaces, not a surface. Inside a
+    # section they are a mistake — a section states its own answer with **Prove it:**.
+    index($0, "**Uncovered:**") || index($0, "**Out of scope:**") {
+      if (sec != "") {
+        printf "\"**Uncovered:**\" and \"**Out of scope:**\" are file level only — section \"%s\" states its own answer with **Prove it:** none\n", sname
+        next
+      }
+      line = $0
+      if (index($0, "**Uncovered:**")) { sub(/^\*\*Uncovered:\*\*[[:space:]]*/, "", line); inventory(line, "unc") }
+      else                            { sub(/^\*\*Out of scope:\*\*[[:space:]]*/, "", line); inventory(line, "oos") }
+      next
     }
     index($0, "**Prove it:**") {
       prove = 1
