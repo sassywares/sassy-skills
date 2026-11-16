@@ -504,6 +504,10 @@ if (( CHECK )); then
     if [[ -f "$installed_lib" ]]; then
       lib_v="$(sed -n 's/^# workspace-git-version: //p' "$installed_lib" | head -n 1)"
       asset_lib_v="$(sed -n 's/^# workspace-git-version: //p' "$ASSET_WORKSPACE/_lib.sh" | head -n 1)"
+      lib_var="$(sed -n 's/^WORKSPACE_GIT_VERSION="\(.*\)"/\1/p' "$installed_lib" | head -n 1)"
+      if [[ -n "$lib_var" && -n "$lib_v" && "$lib_var" != "$lib_v" ]]; then
+        bad ".sassywares/workspace/_lib.sh header says v${lib_v} but the script reports v${lib_var} — the file was half-bumped"
+      fi
       if [[ -z "$lib_v" ]]; then
         bad "installed .sassywares/workspace/_lib.sh has no workspace-git-version line"
       elif [[ -n "$asset_lib_v" && "$lib_v" != "$asset_lib_v" ]]; then
@@ -743,6 +747,10 @@ if (( CHECK )); then
       if [[ -f "$wt_lib" ]]; then
         installed_wt="$(sed -n 's/^# worktree-version: //p' "$wt_lib" | head -n 1)"
         asset_wt="$(sed -n 's/^# worktree-version: //p' "$ASSET_WORKTREE/_lib.sh" | head -n 1)"
+        installed_wt_var="$(sed -n 's/^WT_VERSION="\(.*\)"/\1/p' "$wt_lib" | head -n 1)"
+        if [[ -n "$installed_wt_var" && -n "$installed_wt" && "$installed_wt_var" != "$installed_wt" ]]; then
+          bad ".sassywares/worktree/_lib.sh header says v${installed_wt} but the script reports v${installed_wt_var} — the file was half-bumped"
+        fi
         if [[ -z "$installed_wt" ]]; then
           bad "installed .sassywares/worktree/_lib.sh has no worktree-version line"
         elif [[ -n "$asset_wt" && "$installed_wt" != "$asset_wt" ]]; then

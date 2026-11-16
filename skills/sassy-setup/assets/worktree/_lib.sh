@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-WT_VERSION="1"
+WT_VERSION="2"
 WT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log()  { printf '%s\n' "$*"; }
