@@ -140,7 +140,13 @@ keeps a recipe runnable outside a worktree.
 two dangerous facts visible without reading every step: which third-party services
 the recipe depends on, and which parts have no machine verdict at all. `Uncovered`
 may name a sub-area of a covered surface — "the web surface's auth and write
-flows" — which is where a no-third-party-mutation rule usually lands. A section
+flows" — which is where a third-party rule usually lands.
+
+**`**Out of scope:**` is different from `**Uncovered:**`** and the difference is the
+whole point: `Uncovered` means *no path yet* — a later discovery is expected to ask
+again — while `Out of scope` means *decided against*, and a later discovery must
+leave it alone. Without the two words, "we have not built this" and "we do not want
+this" read the same, and discovery asks about both for ever. A section
 with no verdict ends `**Prove it:** none`, so a plan keeps its rows `Manual`
 instead of inventing an Auto row for a check that does not exist.
 
@@ -289,6 +295,8 @@ Structural, never executed:
   once committed would be drift nobody catches later. The same check covers
   `.sassywares/session` whenever that directory exists — a committed session is a
   credential leak, not a heavy history.
+- A surface named under `**Out of scope:**` has no section; one under
+  `**Uncovered:**` has a section ending `**Prove it:** none`.
 - The recipe has at least one `## ` section, every section has a `**Prove it:**`
   line whose value names a step (`step 3`) or is `none`, every numbered step has an
   `**Expect**`, and the file carries no secret-shaped strings. A `Prove it:` that

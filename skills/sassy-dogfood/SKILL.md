@@ -53,7 +53,10 @@ recipe, and the next `run` is what proves it.
 ## Steps — `mode:discover`
 
 1. **Read what the project already says.** The existing recipe, the config, and the manifest's scripts (`package.json`, `Makefile`, `pyproject.toml`, `deno.json`, a CI workflow). **Reading is not deciding** — what exists is the starting point, never the target.
-2. **Find the surfaces.** What is this product? A web app, an API, a CLI, a library, a desktop app, a mobile app in a simulator, several of them. Each surface that a change can break gets its own answer — in a monorepo especially, one app having a suite says nothing about its siblings. **A surface is something this repository serves**; a backend it calls is not a surface — record it as `**Upstream:**` and let its outages be `env`.
+2. **Find the surfaces.** Read `**Out of scope:**` first and drop those from the
+   list — they were decided against, and asking again is how a decision gets
+   reopened every week. `**Uncovered:**` surfaces stay: they still want a path.
+   Then: what is this product? A web app, an API, a CLI, a library, a desktop app, a mobile app in a simulator, several of them. Each surface that a change can break gets its own answer — in a monorepo especially, one app having a suite says nothing about its siblings. **A surface is something this repository serves**; a backend it calls is not a surface — record it as `**Upstream:**` and let its outages be `env`.
 3. **Classify each surface, honestly.** Three classes and no fourth:
 
    | Class | Means | Becomes |
@@ -93,7 +96,7 @@ Run the `sassy-setup` skill's `scripts/detect.sh --root <path> --check` and repo
 | Improvise out loud, or not at all | Discovery may improvise, never silently: every action that is not a step is a deviation, and every deviation is promoted into a step or kills the surface. A run never improvises — it classifies and stops. |
 | The second run is the artifact | A recipe is proven by a clean checkout that has nothing but the recipe. If it only works with the discoverer's context, it does not work. |
 | Ask about every gap | Each uncovered surface gets one question: wrap a suite, add a runtime check, or leave it uncovered and visible. Silence is how a gap becomes a false green. |
-| No third-party mutation | A run never registers a user, sends mail, charges a card, or writes to a shared service it does not own. A public demo API is somebody else's database. |
+| No third-party mutation | A run never registers a user, sends mail, charges a card, or writes to a service it does not own — a public demo API is somebody else's database. **A project-owned test environment is the exception**: an E2E deployment the project built, seeded by its own provisioning script and named in `**Upstream:**`, is the project's call. Production never is. |
 | No dependency churn | A bring-up never changes a lockfile. Install frozen where the project has one; a broken lockfile is `env`, not something to repair mid-run. |
 | Not a test framework | If the project has a suite, the recipe wraps it. This skill never grows assertions of its own beyond a step's `Expect`. |
 
