@@ -46,8 +46,9 @@ one() { # $1 path, $2 branch
   case "$kind" in
     path) printf '%s\n' "$p" ;;
     address)
-      wt_has_ports || die "no port resource here — worktrees.ports is unset; try --preview"
-      port="$(wt_port_for "$slug")"
+      # A claimed port, or the one the recipe's preview line advertises.
+      port="$(wt_live_port "$slug")"
+      [ -n "$port" ] || die "no address here — worktrees.ports is unset and the preview line names no port; try --preview"
       printf 'http://localhost:%s\n' "$port"
       ;;
     preview)
@@ -82,11 +83,9 @@ while IFS=$'\t' read -r p b; do
   fi
   # The address is whatever the project says it is: a URL, a simulator, a window.
   line="$(wt_preview "$slug")"
-  port=""
-  if wt_has_ports; then
-    port="$(wt_port_for "$slug")"
-    [ -n "$line" ] || line="http://localhost:$port"
-  fi
+  port="$(wt_live_port "$slug")"
+  [ -n "$line" ] || line=""
+  if [ -z "$line" ] && [ -n "$port" ]; then line="http://localhost:$port"; fi
   if [ -n "$port" ]; then
     if tcp_up "$port"; then live="up"; else live="down"; fi
   else

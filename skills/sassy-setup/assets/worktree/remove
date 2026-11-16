@@ -60,12 +60,9 @@ if [ -n "$hooks" ] && [ "$hook_ok" -eq 0 ]; then
   exit 3
 fi
 
-port=""
-if wt_has_ports; then
-  port="$(wt_port_for "$slug")"
-  if tcp_up "$port"; then
-    die "something is still listening on :$port — stop <$slug> first"
-  fi
+port="$(wt_live_port "$slug")"
+if [ -n "$port" ] && tcp_up "$port"; then
+  die "something is still listening on :$port — stop <$slug> first"
 fi
 
 if [ "$force" -eq 0 ]; then
@@ -83,7 +80,8 @@ if [ "$force" -eq 1 ]; then
 else
   git worktree remove "$path"
 fi
-[ -n "$port" ] && wt_release "$port" "$slug"
-
-[ -n "$port" ] && ok released ":$port"
+if [ -n "$port" ] && [ "$(wt_owner "$port")" = "$slug" ]; then
+  wt_release "$port" "$slug"
+  ok released ":$port"
+fi
 ok removed "$path"

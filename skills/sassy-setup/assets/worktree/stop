@@ -15,10 +15,10 @@ usage() {
   cat <<'EOF'
 Usage: .sassywares/worktree/stop <slug|branch>
 
-Kill the processes listening on that worktree's port. Nothing listening is a
-success with a note, so stopping twice is safe. Only a project that configured
-`worktrees.ports` has something here to stop — for a simulator or a desktop app,
-stopping belongs to the project.
+Kill the processes listening on the address this checkout advertises — its claimed
+port if it has one, otherwise the port its recipe's preview line names. Nothing
+listening is a success with a note, so stopping twice is safe. A preview that names
+no port at all (a simulator, a window) is the project's to stop.
 EOF
 }
 
@@ -36,8 +36,8 @@ slug="$(wt_slug "$branch")"
 
 wt_is_main "$path" && die "the main checkout is not a worktree — nothing to stop"
 wt_managed "$path" || die "'$1' is not managed here — it is outside the worktree home, or it was cut before the wiring"
-wt_has_ports || die "no port resource here — stopping this preview is the project's job (its before_remove hook or the recipe)"
-port="$(wt_port_for "$slug")"
+port="$(wt_live_port "$slug")"
+[ -n "$port" ] || die "no address to stop — worktrees.ports is unset and the preview line names no port"
 
 if ! tcp_up "$port"; then
   ok status "nothing listening on :$port"

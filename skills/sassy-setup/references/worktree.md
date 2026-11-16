@@ -110,9 +110,14 @@ to the config for this — it is procedure, not identity.
 When a range *is* configured: the slug hashes into it, the claim is taken with an
 atomic `mkdir`, and a collision probes forward one port at a time. A claim
 belongs to a slug, so a restarted app returns to the same port and two slugs that
-hash alike do not fight. `list` probes for liveness and never trusts a recorded
-pid. Without a port there is nothing to probe, so `LIVE` reads `—` and stopping
-the preview is the project's job — its `before_remove` hook, or the recipe.
+hash alike do not fight.
+
+**Liveness and stopping follow the address, not the claim.** `list` probes the port
+the checkout advertises — its claim if it has one, otherwise the port its recipe's
+`**Preview:**` line names — and never trusts a recorded pid. `stop` kills by that
+same address, and `remove` refuses to delete a checkout while it answers. A preview
+that names no port at all (a simulator, a desktop window) has nothing to probe, so
+`LIVE` reads `—` and stopping it is the project's job.
 
 ## Hooks
 
@@ -172,7 +177,7 @@ writing down once in the recipe rather than rediscovering it.
 | It is the main checkout | the repo itself |
 | Dirty tree | uncommitted work |
 | Commits on no remote | nothing to recover from |
-| Something listening on its port | stop the app first (only when `ports:` is set) |
+| Something listening on its advertised address | stop the app first |
 | A `before_remove` hook not yet run | the project has cleanup to do |
 
 `remove` deletes the checkout, the port claim, and nothing else. **The branch

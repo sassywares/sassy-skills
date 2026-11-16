@@ -339,7 +339,15 @@ wt_preview() {
   recipe="${recipe:-.sassywares/dogfood/recipe.md}"
   case "$recipe" in /*) ;; *) recipe="$MAIN/$recipe" ;; esac
   [ -f "$recipe" ] || return 0
-  line="$(sed -n 's/^\*\*Preview:\*\*[[:space:]]*//p' "$recipe" 2>/dev/null | head -n 1)"
+  # The block is the line after `**Preview:**` plus its continuation lines, up to
+  # a blank line or the next `**Header:**` — a wrapped sentence is still one answer.
+  line="$(awk '
+    /^\*\*Preview:\*\*/ { sub(/^\*\*Preview:\*\*[[:space:]]*/, ""); buf = $0; inb = 1; next }
+    inb && /^[[:space:]]*$/   { inb = 0; next }
+    inb && /^\*\*/           { inb = 0; next }
+    inb                       { buf = buf " " $0 }
+    END { print buf }
+  ' "$recipe" 2>/dev/null | sed -E 's/[[:space:]]+/ /g; s/[[:space:]]+$//')"
   [ -n "$line" ] || return 0
   port=""
   if wt_has_ports; then
@@ -352,6 +360,28 @@ wt_preview() {
   line="$(wt_subst "$line" WT_PORT "$port")"
   line="$(wt_subst "$line" WT_BASE_URL "$base")"
   printf '%s' "$line"
+}
+
+# wt_preview_port SLUG — the port the preview line advertises, if it names one.
+# A project with no `worktrees.ports` still has an address; this is how the tools
+# find it without assuming a browser or a claim.
+wt_preview_port() {
+  local line
+  line="$(wt_preview "$1")"
+  [ -n "$line" ] || return 0
+  printf '%s' "$line" \
+    | grep -oE '(localhost|127\.0\.0\.1):[0-9]+' | head -n 1 | grep -oE '[0-9]+$'
+}
+
+# wt_live_port SLUG — where to probe this checkout: its claim if it has one, else
+# the port its preview advertises. Empty means "nothing to probe here".
+wt_live_port() {
+  local slug="$1" p
+  if wt_has_ports; then
+    p="$(wt_port_for "$slug")"
+    [ -n "$p" ] && { printf '%s' "$p"; return 0; }
+  fi
+  wt_preview_port "$slug"
 }
 
 # Newest dogfood verdict for a checkout, as `status  class` — or empty.

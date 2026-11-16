@@ -48,12 +48,9 @@ while IFS=$'\t' read -r p b; do
   state="$(wt_upstream_state "$p")"
   if wt_dirty "$p"; then dirty="yes"; else dirty="no"; fi
   unpushed="$(wt_unpushed "$p")"
-  port=""
+  port="$(wt_live_port "$slug")"
   live="no"
-  if wt_has_ports; then
-    port="$(wt_port_for "$slug")"
-    tcp_up "$port" && live="yes"
-  fi
+  [ -n "$port" ] && tcp_up "$port" && live="yes"
 
   action=""
   if [ "$state" = "unmerged" ]; then
