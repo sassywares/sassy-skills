@@ -5,7 +5,8 @@
 **Set up once:** <install, services to start, env files to copy; name variables,
 never values>
 
-**Reset:** <back to a known state>
+**Reset:** <the product back to a known state — a database, a cache, a temp dir.
+Never `reports/`: evidence must outlive the run that made it>`
 
 **Preview:** <what you look at once it is up — `http://localhost:$WT_PORT`, a simulator name, a window. Not the command; that is a step below.>
 

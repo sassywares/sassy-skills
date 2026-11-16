@@ -68,7 +68,7 @@ because a project that "helpfully" removes it commits screenshots by accident.
 **Set up once:** `bun install`; `docker compose up -d db`;
 copy `.env.example` → `.env` and fill `DOGFOOD_USER`, `DOGFOOD_PASS`.
 
-**Reset:** `bun run db:reset`; `rm -rf .sassywares/dogfood/reports/*`
+**Reset:** `bun run db:reset`
 
 **Preview:** open `http://localhost:${WT_PORT:-3000}`
 
@@ -119,7 +119,8 @@ answer. A section without one has no verdict.
 
 **One `**Preview:**` line**, optional: **what you look at**, not the command that
 starts it. The command belongs in the section's steps, where its `Expect` can be
-checked. The result — a URL, a simulator, a window — is the project's own answer
+checked — and no step has to consume this line: a suite that starts its own server
+never visits the address a human would. The result — a URL, a simulator, a window — is the project's own answer
 to "what is the address", and it is why the suite never has to assume a browser.
 
 `$WT_SLUG`, `$WT_NAMESPACE`, `$WT_PATH`, `$WT_PORT`, and `$WT_BASE_URL` are
@@ -262,6 +263,10 @@ one file to know where it stopped.
   note — `catalog-5 exit 1, run 20260514-093107` — which never depends on a path
   that will be deleted.
 - **Never committed.** Not the logs, the artifacts, or the traces.
+- **Never deleted by a recipe.** `**Reset:**` puts the *product* back to a known
+  state; it never touches `reports/`. Pruning to ten is the tooling's job, and a
+  recipe that deletes reports destroys the record of the failure you were about to
+  investigate — including the one that is still open.
 
 ## Two gates: `enabled` and the recipe
 

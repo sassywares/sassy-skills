@@ -38,7 +38,7 @@ recipe, and the next `run` is what proves it.
 
 1. **Resolve the target.** Read the `dogfood:` block. If `enabled` is not `true`, stop with one line: reporting is not enabled, and enabling it is `sassy-setup mode:init`. Load the recipe; a section the caller names (`section:<name>`) is the target, otherwise every section. A missing recipe, or one whose section has no `Prove it:` step, stops the run and names `mode:discover`. A section whose `**Prove it:**` says `none` is refused with one line — it has no machine verdict by design, so its QA rows are `Manual`, and running it would only manufacture an opinion. Never guess a verdict from a procedure that has none.
 2. **Open the report.** Create `<reports>/<YYYYMMDD-HHMMSS>/` with `steps/` and `artifacts/`, and write `summary.md` with `status: running`, the class blank, the recipe path with the current commit, and the start time. Prune older run directories down to ten.
-3. **Preflight, then the bring-up.** Preflight checks presence only: each env var the recipe **names** (never print a value), a session it refers to actually sitting in `.sassywares/session/`, and the commands' entry points existing. A missing entry point, a tool not on `PATH`, or an absent env var is `class: env` — write the report, report it, and stop.
+3. **Preflight, then the bring-up.** Preflight checks presence only: each env var the recipe **names** (never print a value), a session it refers to — only when it refers to one — actually sitting in `.sassywares/session/`, and the commands' entry points existing. A missing entry point, a tool not on `PATH`, or an absent env var is `class: env` — write the report, report it, and stop.
 
    Then **run the recipe's *Set up once*.** It is the bring-up, not a checklist: install frozen where the project has a lockfile, and continue. That is the only installing a run does — never install something the recipe does not name, never `docker pull`, never mutate the environment to make a step pass.
 
@@ -84,7 +84,7 @@ Run the `sassy-setup` skill's `scripts/detect.sh --root <path> --check` and repo
 | Rule | Requirement |
 |------|-------------|
 | The verdict is an exit code | A section's `Prove it:` step decides. Never a judgement, a screenshot someone liked, or "looks right". |
-| No tooling, no installs | Never name or require a browser, driver, emulator, or MCP server; never install one to make a run possible. Missing tooling is `class: env`. |
+| No tooling, no installs | Never name or require a browser, driver, emulator, or MCP server. **What the recipe names is allowed** — if *Set up once* says `bun install --frozen-lockfile` or downloads the browser its suite declares, that is the project's declared bring-up and a run executes it. Installing anything the recipe does not name is out of bounds, and so is choosing a tool the project has not committed to. A permitted command's own lifecycle hooks (a `postinstall`) come with it; the run adds none of its own. |
 | Never production | Local or staging only. A recipe step pointing at production is refused and reported, not run. |
 | The run may not edit the check | A red run never fixes itself by editing the recipe or its expectations. Propose the diff, ask, stop. |
 | Reports stay local | Never commit `reports/`. Never paste a full log to a caller, a plan, or a PR. |
