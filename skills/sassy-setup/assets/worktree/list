@@ -41,7 +41,7 @@ one() { # $1 path, $2 branch
   local p="$1" b="$2" slug port line
   slug="$(wt_slug "$b")"
   if wt_is_main "$p"; then
-    die "the main checkout has no derived port — it uses whatever the app defaults to"
+    die "the main checkout is not a worktree — read the recipe's preview line for its address"
   fi
   case "$kind" in
     path) printf '%s\n' "$p" ;;
@@ -74,7 +74,7 @@ while IFS=$'\t' read -r p b; do
   slug="$(wt_slug "$b")"
   shown="${p/#$HOME/~}"
   if wt_is_main "$p"; then
-    printf '  %-34s %-50s %-40s %-5s %s\n' "$b (main checkout)" "$shown" "—" "—" "—"
+    printf '  %-34s %-50s %-40.40s %-5s %s\n' "$(short_path "$b (main checkout)" 34)" "$(short_path "$shown" 50)" "—" "—" "—"
     continue
   fi
   if ! wt_managed "$p"; then
@@ -92,7 +92,7 @@ while IFS=$'\t' read -r p b; do
     live="—"
   fi
   last="$(wt_verdict "$p")"
-  printf '  %-34s %-50s %-40.40s %-5s %s\n' "$b" "$shown" "${line:-—}" "$live" "${last:-—}"
+  printf '  %-34s %-50s %-40.40s %-5s %s\n' "$(short_path "$b" 34)" "$(short_path "$shown" 50)" "${line:-—}" "$live" "${last:-—}"
 done < <(wt_all)
 
 [ "$count" -gt 0 ] || log "  no checkouts found — is this a git repository?"

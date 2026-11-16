@@ -76,8 +76,9 @@ if [ "$force" -eq 0 ]; then
 fi
 
 if ! { [ "$force" -eq 1 ] && git worktree remove --force "$path" || [ "$force" -eq 0 ] && git worktree remove "$path"; }; then
-  printf '  %-9s %s\n' "→" "a half-removed checkout is not a removal: if it is gone from 'git worktree list'" >&2
-  printf '  %-9s %s\n' "" "but the folder remains, delete the folder and run: git worktree prune" >&2
+  printf '  → %s\n' "git removed the registration but not the folder, so nothing here can reach it now:" >&2
+  printf '    %s\n' "stop whatever is still running there, then delete that folder yourself" >&2
+  printf '    %s\n' "(\`git worktree prune\` only matters if \`git worktree list\` still names it)" >&2
   exit 1
 fi
 if [ -n "$port" ] && [ "$(wt_owner "$port")" = "$slug" ]; then

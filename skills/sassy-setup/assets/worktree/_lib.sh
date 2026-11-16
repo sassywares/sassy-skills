@@ -10,11 +10,11 @@
 #   3. Everything resolves against the MAIN checkout, so running any of these
 #      from inside a worktree behaves identically.
 #
-# worktree-version: 3
+# worktree-version: 5
 
 set -euo pipefail
 
-WT_VERSION="3"
+WT_VERSION="5"
 WT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log()  { printf '%s\n' "$*"; }
@@ -179,7 +179,24 @@ wt_range() {
 # trace to go stale. The probe runs in a subshell so a successful connect cannot
 # leave a descriptor (or a fatal `exec`) behind in the caller.
 tcp_up() {
-  (exec 3<>"/dev/tcp/127.0.0.1/$1") >/dev/null 2>&1
+  local port="$1"
+  # IPv4, then IPv6: a dev server that binds `[::1]` only is up, and an IPv4-only
+  # probe reads it as down — which would make `LIVE` lie and `remove`'s
+  # live-preview refusal unreachable.
+  if (exec 3<>"/dev/tcp/127.0.0.1/$port") >/dev/null 2>&1; then return 0; fi
+  if (exec 3<>"/dev/tcp/::1/$port") >/dev/null 2>&1; then return 0; fi
+  # Last resort for a listener /dev/tcp cannot reach.
+  if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
+# short_path PATH WIDTH — keep the tail of a long path, because the tail holds the
+# slug and the start is always the same worktree home.
+short_path() {
+  local s="$1" w="$2"
+  if [ "${#s}" -gt "$w" ]; then printf '…%s' "${s: -$(( w - 1 ))}"; else printf '%s' "$s"; fi
 }
 
 wt_claim_dir() { printf '%s/ports/%s' "$(wt_home)" "$1"; }
