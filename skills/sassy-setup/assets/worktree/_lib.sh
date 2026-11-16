@@ -10,7 +10,7 @@
 #   3. Everything resolves against the MAIN checkout, so running any of these
 #      from inside a worktree behaves identically.
 #
-# worktree-version: 1
+# worktree-version: 2
 
 set -euo pipefail
 

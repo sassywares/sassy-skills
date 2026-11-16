@@ -790,6 +790,13 @@ if (( CHECK )); then
       done < <(git -C "$ROOT" worktree list --porcelain 2>/dev/null \
                  | awk '/^worktree /{p=$2} /^branch /{b=$2; sub(/^refs\/heads\//,"",b); print p "\t" b; p=""} /^detached/{print p "\t(detached)"; p=""}')
 
+      # A registration whose folder is gone is a ghost `list` still believes in.
+      while IFS= read -r ghost; do
+        [[ -n "$ghost" ]] || continue
+        bad "worktree '$ghost' is prunable — the folder is gone; run: git worktree prune"
+      done < <(git -C "$ROOT" worktree list --porcelain 2>/dev/null \
+                 | awk '/^worktree /{p=$2} /^prunable /{print p; p=""}')
+
       # Orphan port claims: the worktree is gone but its port is still taken, so
       # a later checkout is pushed off it for no reason.
       wt_homef=""

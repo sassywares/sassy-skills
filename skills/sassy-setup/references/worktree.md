@@ -101,6 +101,12 @@ checkout is addressed by the recipe's `**Preview:**` line instead. That covers a
 mobile app (a simulator named `$WT_NAMESPACE`), a desktop app (a window), and a
 CLI or library (nothing to look at).
 
+**One port models a single service.** A stack that serves a web app, a docs site,
+and a backend at once has more than one address per checkout; the claim covers the
+one a human opens, and the recipe's steps carry the rest (distinct ports per
+service, derived from `$WT_PORT` or fixed by the project). Do not add a port list
+to the config for this — it is procedure, not identity.
+
 When a range *is* configured: the slug hashes into it, the claim is taken with an
 atomic `mkdir`, and a collision probes forward one port at a time. A claim
 belongs to a slug, so a restarted app returns to the same port and two slugs that

@@ -35,6 +35,8 @@ A check run never edits the config and never rewrites the tree: it prints what `
 
 1. **Resolve the start and the mode.** The path argument, else the working directory; the mode per above. On `check`, run steps 7 → 8 → 9 and stop.
 2. **Detect.** Run `scripts/detect.sh --root <path>`. It prints a proposed config: topology (`repo`, `workspace`, `none`), the remote name, a probed base branch, and nested repos with their bases.
+
+   **A config that already exists is the proposal.** When `.sassywares/config.yaml` is found — an explicit `init` on a project that is already wired — the detector's output is only the starting point: take every value it **probes** (`git.repo`, `base_map`'s `"*"`, `repos`), and take every value it **emits as a default** from the existing file instead — the other `base_map` rungs, `hooks.*`, `worktrees.*`, `dogfood.*`, `pr.*`, `commit.branch`, `knowledge.*`, `artifacts.*`. A default is not an answer: writing the blank slate here would retarget `"*"` away from the integration branch the project actually uses and delete its hooks. Present the result as a **diff against the file, key by key**, and ask before writing.
 3. **Ask only what detection cannot answer.** Never re-ask what the tree already said.
    - **`workspace`** — the snapshot mirror: create a **private** GitHub repo, or connect an existing one? Creating it needs explicit approval and a named slug first.
    - **`none`** — confirm the intent: this folder is deliberately outside git, so commit, PR, and babysit refuse here.
@@ -118,6 +120,7 @@ A check run never edits the config and never rewrites the tree: it prints what `
 | Never edit the manifest | No dependencies, no `postinstall`, no `skills:*` scripts. The one exception is step 6's `worktree:*` and `workspace:*` aliases: appended or corrected, never removed, and nothing else in the file touched. Setup installs the suite; the user or project decides how it updates. |
 | Write boundary | Only `.sassywares/` (the config, the setup README, the dogfood scaffold, and the worktree tooling), the skills and agent files step 5 installed in the scope the user chose, `skills-lock.json` (project scope), and one `.gitignore` line — and the project-scope part of that list is step 8's commit. Never `package.json` outside step 6's `worktree:*` and `workspace:*` aliases, never a root `.gitignore` in a workspace. Workspace git helpers land in `.sassywares/workspace/`, never in a project's `bin/`. |
 | Detect, don't guess | An unknown base branch stays unknown and gets asked about. A probed value is reported as probed. |
+| A re-apply is a diff | On a project that already has a config, every key the detector only *defaults* keeps its value from that file. Changing one needs the user to say so — never a detector default, and never a silent deletion. |
 | Comments are part of the file | Every key keeps its description and allowed values. A stripped config is an incomplete config. |
 | Hooks are named, not written | Setup records hook skill names. Creating those skills is the project's work. |
 | Dogfood is a pointer | The block names a recipe, a reports path, a timeout, and whether Auto rows are allowed — four keys. Never a command and never a tool: a copied command duplicates the manifest and cannot express step order. |
