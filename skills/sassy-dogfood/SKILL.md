@@ -13,7 +13,7 @@ argument-hint: "[section:<name>] [mode:run|discover|check]"
 
 # Sassy Dogfood
 
-**Outcome:** a report with a verdict — `pass`, `failed` with the failing step and its output tail, or `env`/`recipe` explaining why the run could not judge the work — in `.sassywares/dogfood/reports/<run-id>/`, plus, in `mode:discover`, a `recipe.md` that a fresh agent can follow with no other context.
+**Outcome:** a report with a verdict — `pass`, `failed` with the failing step and its output tail, or `env`/`recipe` explaining why the run could not judge the work — in `.sassywares/dogfood/reports/<run-id>/`; or, in `mode:discover`, a `recipe.md` a fresh agent can follow with no other context; or, in `mode:check`, a lint and the last verdict, printed.
 
 **A procedure is the artifact.** The project stores how to dogfood itself in `.sassywares/dogfood/recipe.md`: ordered steps, each with an observable expectation, ending in one `Prove it:` step whose exit code is the verdict. The config points at it; it never restates it. Read the `sassy-setup` skill's `references/dogfood.md` first — it owns the recipe format, the report layout, and the verdict classes, and this skill only executes them.
 
@@ -25,80 +25,26 @@ argument-hint: "[section:<name>] [mode:run|discover|check]"
 
 ## Modes
 
-| Mode | What it does |
-|------|--------------|
-| `run` (default) | Preflight, execute the procedure from the recipe, write the report, classify, report back |
-| `discover` | Build or repair the recipe: probe the repo, try the cheapest proof that could work, write down what actually worked |
-| `check` | Lint the config and the recipe and print the last report's verdict; runs nothing, changes nothing |
+| Mode | Load | It ends with |
+|---|---|---|
+| `run` (default) | `references/run.md` | a verdict from a report, returned compactly |
+| `discover` | `references/discover.md` | a `recipe.md` proven by a clean run, with every gap visible |
+| `check` | `references/check.md` | a printed lint and the last verdict; nothing written |
 
-`run` never edits the recipe. `discover` never gates anything: it produces a
-recipe, and the next `run` is what proves it.
+Resolve the mode: an explicit `mode:` token wins. With none, it is `run`; a request to check or lint the setup is `check`, and a request to build, repair, or set up the procedure is `discover`. Read the one reference for that mode **and only that one**.
 
-## Steps — `mode:run`
+`run` never edits the recipe, and `discover` never gates anything: it produces a recipe, and the next `run` is what proves it. Only `discover` improvises; a run executes what the recipe names, classifies what it cannot, and stops.
 
-1. **Resolve the target.** Read the `dogfood:` block. If `enabled` is not `true`, stop with one line: reporting is not enabled, and enabling it is `sassy-setup mode:init`. Load the recipe; a section the caller names (`section:<name>`) is the target, otherwise every section. A missing recipe, or one whose section has no `Prove it:` step, stops the run and names `mode:discover`. A section whose `**Prove it:**` says `none` is refused with one line — it has no machine verdict by design, so its QA rows are `Manual`, and running it would only manufacture an opinion. Never guess a verdict from a procedure that has none.
-2. **Open the report.** Create `<reports>/<YYYYMMDD-HHMMSS>/` with `steps/` and `artifacts/`, and write `summary.md` with `status: running`, the class blank, the recipe path with the current commit, and the start time. Prune older run directories down to ten.
-3. **Preflight, then the bring-up.** Preflight checks presence only: each env var the recipe **names** (never print a value), a session it refers to — only when it refers to one — actually sitting in `.sassywares/session/`, and the commands' entry points existing. A missing entry point, a tool not on `PATH`, or an absent env var is `class: env` — write the report, report it, and stop.
-
-   Then **run the recipe's *Set up once*.** It is the bring-up, not a checklist: install frozen where the project has a lockfile, and continue. That is the only installing a run does — never install something the recipe does not name, never `docker pull`, never mutate the environment to make a step pass.
-
-4. **Execute in order, stopping at the first broken expectation.** Per step: write `steps/<section>-<NN>.log`, capped head-and-tail, with the command and its output, values of every env var the recipe names masked, and the exit code. `Do` is a command *or* an instruction — satisfy it with whatever is available, and judge it only against its `Expect`. The step's own shell mechanics are part of the step: backgrounding a server, redirecting its output, creating the directory a log path lives in. Improvisation is what the recipe does **not** name. A step whose expectation fails ends that section: record it, keep everything already written, and skip to the report. Resume at the failed step on the next run, never from the top: the summary's `Next:` line says which.
-5. **Take the verdict from the prove step.** The section's `Prove it:` step decides: exit 0 is `pass`, non-zero is `failed`. A failure earlier in the section is `failed` regardless. This skill holds no opinion about the work — a check it judged by reading instead of running is not a verdict.
-   **The deadline is yours to hold.** Track wall-clock from the start and stop at `dogfood.timeout`, filing the run as `failed` with `class: env` and the step it stopped in. A step that can hang states its own bound in its `Expect`; the recipe-wide deadline is the backstop, not a substitute.
-
-6. **Classify.** `env` when the environment cannot produce a verdict: exit 75 or 127, a missing dependency, or **a service nobody in this run controls** being down (a third-party API, a shared backend). That last one is neither `code` nor `recipe` — report it, name the dependency, and stop. The line between the two is whose text is wrong: the named toolchain is right but absent → `env`; the recipe names the wrong version, script, or URL → `recipe`, because the procedure itself is what failed; `recipe` when a step cannot be followed at all (a script renamed, a URL that no longer exists, a UI that no longer matches) — that is the procedure being stale, not the code being wrong; `code` otherwise. When in doubt between `recipe` and `code`, ask: could a person follow this step as written and still be testing the app? If not, it is `recipe`.
-7. **Finalize and report.** A preflight or bring-up failure has no step id, so it logs to `steps/00-setup.log` and the summary's table row reads `setup`. Write the final `summary.md` (`status`, `class`, the per-step table, artifacts, `Next:`), then return compactly: verdict, class, section, failing step id, the last ~600 characters of that step's log, the report path, and — for `recipe` — the one-line diff you propose. Never paste a whole log to the caller.
-8. **On `recipe`, propose and stop.** Show the diff that would make the procedure followable and ask before writing it. Never edit the recipe to turn a red run green: the cheapest way to pass a check must not be to weaken it.
-
-## Steps — `mode:discover`
-
-1. **Read what the project already says.** The existing recipe, the config, and the manifest's scripts (`package.json`, `Makefile`, `pyproject.toml`, `deno.json`, a CI workflow). **Reading is not deciding** — what exists is the starting point, never the target.
-2. **Find the surfaces.** Read `**Out of scope:**` first and drop those from the
-   list — they were decided against, and asking again is how a decision gets
-   reopened every week. `**Uncovered:**` surfaces stay: they still want a path.
-   Then: what is this product? A web app, an API, a CLI, a library, a desktop app, a mobile app in a simulator, several of them. Each surface that a change can break gets its own answer — in a monorepo especially, one app having a suite says nothing about its siblings. **A surface is something this repository serves**; a backend it calls is not a surface — record it as `**Upstream:**` and let its outages be `env`.
-3. **Classify each surface, honestly.** Three classes and no fourth:
-
-   | Class | Means | Becomes |
-   |---|---|---|
-   | `runtime` | something already drives the running product — e2e, integration, a smoke script | a section that wraps it |
-   | `unit-only` | tests exist, but they never start the product | an **uncovered** section |
-   | `none` | nothing | an **uncovered** section |
-
-   **A unit test is not a dogfood path**, and neither is `lint`, `tsc`, or `build`: they never start the product. Recording one as coverage is the failure this step exists to prevent — it makes an untested app look tested, and nobody can tell afterwards that the gap was never closed.
-4. **Ask, one surface at a time — and stop until answered.** With what you found: *"`web`, `api`, and `admin` have no runtime path — `web` has Playwright, the other two only unit tests. Set up a runtime check for `api` and `admin`?"* The options are wrap an existing suite, add a small runtime check, or leave it uncovered and say so. **This step blocks steps 5–8**: the answer decides what gets written, so with no user to ask, stop and report the question verbatim — never write a recipe on a guessed answer. Never leave a surface uncovered silently, and never fill the gap with what happens to exist.
-
-   A **small runtime check is in scope**: a boot plus one assertion, a `curl`, a screenshot diff — written into the recipe as steps. That is not a test framework, and it is the only check this skill authors. Installing a driver or a runner to make one possible is out of bounds; without one already present, the surface is uncovered.
-5. **Write the draft, one section per surface, gaps included.** With more than one surface, that surface's `**Preview:**` and `**Upstream:**` go **inside its own section** — a file-level address on a multi-app project can only describe one app. With exactly one surface, keep the file flat. Every surface in the inventory gets a section: an uncovered one ends with `**Prove it:** none`, explicitly, so a plan keeps its rows `Manual`; an out-of-scope one gets no section at all. Name both lists in the header (`**Uncovered:** api (unit tests only)` / `**Out of scope:** admin`) so the gaps are visible without reading every section.
-6. **Run it, and log every deviation.** Bring the product up and run the draft. Anything you do that is **not a step in the recipe** — an install, an export, a patch, a workaround, a second terminal — is a *deviation*, written down as you go. This is the only step where improvising is allowed, and it is never silent.
-7. **Reconcile.** Every deviation becomes exactly one of two things: a step in the recipe, or the reason this surface is unprovable (`**Prove it:** none`). A recipe whose check passed only with help the recipe does not contain is wrong. If you cannot capture a deviation as a step, the surface is uncovered — say so rather than shipping a procedure nobody else can follow.
-8. **Prove the procedure, not the day — with a fresh agent.** Hand the recipe to a run that has **nothing but the recipe and the config**: a new session, or a dispatched agent, but never this one. It is run once from a clean checkout, allowing no deviation. If you cannot get one, say the recipe is **unverified** rather than claiming it. That second run is the artifact. If it needs improvising, the recipe is wrong: fix it and repeat once; still failing means uncovered and visible.
-9. **Report.** Per surface: its class, its proof, whether it was asked about, the deviations you reconciled, and what is still unknown. Mark a check you wrote as **unproven** if you never watched it fail — breaking the thing once is the way to earn that. Say plainly that `sassy-setup` flips `dogfood.enabled` and that the switch alone changes nothing.
-
-## Steps — `mode:check`
-
-Run the `sassy-setup` skill's `scripts/detect.sh --root <path> --check` and report the `dogfood` and recipe lines verbatim; print the newest report's `status`, `class`, and timestamp, or that there is none. Write nothing.
-
-## Hard rules
+## Hard rules — every mode
 
 | Rule | Requirement |
 |------|-------------|
 | The verdict is an exit code | A section's `Prove it:` step decides. Never a judgement, a screenshot someone liked, or "looks right". |
 | No tooling, no installs | Never name or require a browser, driver, emulator, or MCP server. **What the recipe names is allowed** — if *Set up once* says `bun install --frozen-lockfile` or downloads the browser its suite declares, that is the project's declared bring-up and a run executes it. Installing anything the recipe does not name is out of bounds, and so is choosing a tool the project has not committed to. A permitted command's own lifecycle hooks (a `postinstall`) come with it; the run adds none of its own. |
 | Never production | Local or staging only. A recipe step pointing at production is refused and reported, not run. |
-| The run may not edit the check | A red run never fixes itself by editing the recipe or its expectations. Propose the diff, ask, stop. |
-| Reports stay local | Never commit `reports/`. Never paste a full log to a caller, a plan, or a PR. |
 | No secrets, ever | Env var **names** only, and session material stays in the gitignored `.sassywares/session/`. Mask values before a log is written, and never echo one in a report. |
-| Env is not code | Exit 75/127, a missing dependency, or an unreachable service is `env`: report and park. Looping on a broken toolchain burns a run for nothing. |
-| Resume, don't restart | Re-run from the failed step; the summary says where. Starting over hides the state that made the failure happen. |
-| Reports are disposable | Pruned to ten. The durable record is the QA row's note, which names the verdict and the run id, never a path that will vanish. |
-| Never promote what exists | A unit test, `lint`, or `build` is not a dogfood path. Discovery records what the product needs, and says so when that is nothing yet. |
-| Improvise out loud, or not at all | Discovery may improvise, never silently: every action that is not a step is a deviation, and every deviation is promoted into a step or kills the surface. A run never improvises — it classifies and stops. |
-| The second run is the artifact | A recipe is proven by a clean checkout that has nothing but the recipe. If it only works with the discoverer's context, it does not work. |
-| Ask about every gap | Each uncovered surface gets one question: wrap a suite, add a runtime check, or leave it uncovered and visible. Silence is how a gap becomes a false green. |
 | No third-party mutation | A run never registers a user, sends mail, charges a card, or writes to a service it does not own — a public demo API is somebody else's database. **A project-owned test environment is the exception**: an E2E deployment the project built, seeded by its own provisioning script and named in `**Upstream:**`, is the project's call. Production never is. |
-| No dependency churn | A bring-up never changes a lockfile. Install frozen where the project has one; a broken lockfile is `env`, not something to repair mid-run. |
-| Not a test framework | If the project has a suite, the recipe wraps it. This skill never grows assertions of its own beyond a step's `Expect`. |
+| Reports stay local and disposable | Never commit `reports/`, which are pruned to ten. Never paste a full log to a caller, a plan, or a PR. The durable record is the QA row's note, which names the verdict and the run id, never a path that will vanish. |
 
 ## What dogfood is not
 

@@ -13,6 +13,7 @@ Read the skill and say which of these it is, in one line. "It feels long" is not
 | **Won't trigger** | Rewrite the description: what + when, concrete verbs, the user's own words. Not the body. |
 | **Fires when it shouldn't** | Tighten the description's *when* half, or add `disable-model-invocation: true` if it is an explicit-only skill. |
 | **One path's rules bleed into another's** (a mode doing the neighbouring mode's job) | A shape bug, not a wording bug: split the divergent outcomes into `references/`, one file per path, and give the body a dispatch table naming exactly one file per mode. Rewording the paragraph does not fix adjacency. |
+| **Two modes' steps interleaved through one body** (every step carries a "on `check`, do this instead") | Route it: one reference per mode, a dispatch table naming exactly one per run, and the genuinely shared steps left in the body once. Interleaved branches are how two modes drift into contradicting each other. |
 | **Too long / bloated** | Extract conditional content to `references/`, or delete what never gets used. Never delete a hard rule to save lines. |
 | **Wrong or stale steps** | Correct the workflow against the current tree — read the files the steps name before trusting them. |
 | **Wrong scope** | Move it between project and user: into the project when the team needs it, out to the user when only one person does. |
@@ -24,7 +25,7 @@ If the request names no failure, ask for one. A retune without a failure is a re
 
 - One failure, the smallest edit that kills it, no drive-by rewrites or tidy-ups.
 - Re-read the surrounding lines so the fix does not contradict a rule elsewhere in the file.
-- If the fix moves content into `references/`, the body must dispatch to it by name and say to read only that one.
+- If the fix moves content into `references/`, the body must dispatch to it by name and say to read only that one. Gate-only modes stay in the body: splitting an approver is not a retune.
 
 ## 4. Save and re-verify
 

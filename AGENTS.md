@@ -51,9 +51,9 @@ There is nothing to build or start. Consumers install with `npx skills add sassy
 
 ## Adding a skill
 
-1. Create `skills/<name>/SKILL.md`.
+1. Create `skills/<name>/SKILL.md` through the `sassy-skill` skill (`mode:create`) — it owns the shape, the frontmatter, and the checklist; do not hand-roll one from memory.
 2. Use valid frontmatter: `name`, `description`, and optional `argument-hint`.
-3. Keep the body lean: outcome → hard rules → workflow → reference pointers.
+3. Keep the body lean: outcome → hard rules → workflow → dispatch to one reference per outcome path.
 4. Link it globally — see [Global symlinks](#global-symlinks-maintainer-machine).
 5. Add its name to `skills/sassy-setup/assets/roster` (one per line, sorted) in the same commit; `tests/sassy-setup-roster.sh` and `publish.yml` fail when the roster differs from `ls skills/`.
 6. Update README.md (skill list) and CONCEPTS.md as [Docs upkeep](#docs-upkeep) says, then ship — see [Releasing](#releasing).
@@ -131,6 +131,7 @@ Any change to user-visible behavior, install steps, commands or keys, configurat
 
 ## Conventions
 
+- **Skill shape follows `sassy-skill`.** Every skill written, edited, restructured, or reviewed here goes through that skill's rules, not by eye: outcome paths that end differently get their own `references/<path>.md` with a body dispatch table naming exactly one per run, shared surfaces stay in the body, gate-only modes stay in the body too, and suite-wide facts stay in `sassy-setup`'s references. Run its self-check checklist before shipping; `sassy-skill mode:verify` is the gate for an existing skill.
 - **Lean first.** Skills are indexes and workflows, not documentation dumps. Move only conditionally read detail into `references/`.
 - **Model invocation.** No suite skill sets `disable-model-invocation`; the model may invoke any of them. Skills that write, commit, push, or open anything keep their own gates (e.g. `sassy-ship`'s `mode:manual`).
 - **Source of truth.** Do not store skill content outside this repo.

@@ -16,8 +16,8 @@ Walk the shared **Self-check checklist** item by item. For each, the evidence is
 
 - Description: quote it and count the characters; does it name the *moment* it fires?
 - References: every pointer resolves to a file that exists, and the body says read only one at a time.
-- Shape: do the divergent paths sit in separate files, and is each shared surface back in the body?
-- Leanness: is anything in the body only sometimes needed, or anything in a reference read on every run?
+- Shape: do the divergent paths sit in separate files, is each shared surface back in the body, and did gate-only modes (who approves) stay in the body?
+- Leanness: is anything in the body only sometimes needed, or anything in a reference read on every run — other than a suite-wide surface such as `config.md` or `harness.md`?
 
 ## 3. Run the skill, if it is installed
 

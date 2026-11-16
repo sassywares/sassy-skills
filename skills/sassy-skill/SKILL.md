@@ -67,8 +67,10 @@ Paths in the table are the defaults. `.agents/skills/` is read by pi and others;
 - **One `SKILL.md` is the default, but it is a decision, not a reflex.** Length never decides the shape; the paths do.
 - **Split whenever the skill branches into paths that end differently.** A mode, trigger, or branch that writes a different thing, forbids a different thing, or is never needed in the same run as its sibling gets its own `references/<path>.md` — **even at three paragraphs**. How small each path is does not matter: what matters is that a model running path A never reads path B's instructions next to A's. Divergent outcomes sharing one file bleed into each other, and the bleed looks like helpfulness until it has already written the wrong thing. Think ahead when you write it, not after the first misfire. This skill is shaped by its own rule.
 - **Never split a shared surface.** What every path needs — ids, board or table values, hard rules, API quirks, house style — stays in `SKILL.md`, or each path pays to load it and they drift apart. One reference per **outcome**, never one per **section**: `references/` holding five short topic files is the oversplit, and it makes routing vaguer, not sharper.
+- **A gate or a picker is not a path.** A mode that only changes *who* approves — `manual` asks, `auto` proceeds, `return` reports — while the steps and the artifacts stay the same belongs in the body, as a one-line gate table. So does a picker: mutually exclusive choices the user picks from, each a line that hands off to another skill or stops, is read as a whole on purpose, because presenting the choice is the work. Neither has path-specific instructions to bleed, so splitting them produces empty files and a vaguer body. `sassy-review`, `sassy-simplify`, `sassy-validate`, `sassy-ship`, `sassy-compound`, and `sassy-debug`'s Phase-2 options are shaped this way on purpose. Split when the steps or the ending differ and the user does not choose between them at read time.
+- **Suite-wide facts live in one place, outside the body.** Config resolution, harness commands, and branch policy are read by every skill, and they live once in the `sassy-setup` skill's `references/` (`config.md`, `harness.md`, `branching.md`, `worktree.md`, `dogfood.md`). Pointing a skill's body at them is correct; copying them into each body is the drift the shared-surface rule exists to prevent. `sassy-dogfood` reading `references/dogfood.md` on every run is the same case, and these are not "topic files" for the oversplit rule — they are one surface owned by one skill.
 - **`SKILL.md` becomes routing.** State the dispatch explicitly — a table naming exactly one reference per path, plus "read that one only". That sentence is what prevents the bleed; a pointer buried in a paragraph does not.
-- A reference that is read on *every* run saves nothing and may cost a little, so it belongs in the body.
+- A reference that is read on *every* run saves nothing and may cost a little, so it belongs in the body — unless it is a suite-wide surface, which stays where the suite keeps it.
 - Keep `SKILL.md` an index: outcome → hard rules → workflow → explicit pointers ("read `references/x.md` before doing Y"). Never bury path-specific detail in a monolithic file.
 
 ## Self-check checklist
@@ -80,7 +82,9 @@ The gate for a new or edited skill, and the instrument in `mode:verify`.
 - [ ] Frontmatter is valid YAML with the required fields.
 - [ ] Every `references/…` path exists and is pointed to explicitly in the body.
 - [ ] Each outcome path that ends differently has its own reference, and the body dispatches to exactly one of them per run.
+- [ ] Gate-only modes (who approves) and pickers (the user chooses) stayed in the body; only paths that change the steps or the ending and are not chosen at read time were split.
 - [ ] No reference exists merely because its content was a separate section — that is oversplitting, not shaping.
+- [ ] A suite-wide surface is named as the `sassy-setup` skill's reference, not copied into the body.
 - [ ] The body is lean; no always-read detail needlessly hidden in a reference.
 - [ ] No secrets, and no capability the skill cannot actually use.
 
