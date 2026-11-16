@@ -188,16 +188,35 @@ list_items() {
 # check run validates the shape of a procedure, it never runs the product.
 recipe_lint() {
   awk '
-    BEGIN { pending = 0; sec = ""; sname = ""; prove = 0; step = ""; incomment = 0 }
+    function inventory(rest, kind,   n, parts, i, name) {
+      n = split(rest, parts, ",")
+      for (i = 1; i <= n; i++) {
+        name = parts[i]
+        sub(/^[[:space:]]+/, "", name)
+        sub(/[[:space:]\(].*$/, "", name)
+        if (name == "") continue
+        if (kind == "unc") unc[++nunc] = name
+        else oos[++noos] = name
+      }
+    }
+    BEGIN { pending = 0; sec = ""; sname = ""; prove = 0; step = ""; incomment = 0; nunc = 0; noos = 0 }
     index($0, "<!--") { incomment = 1 }
     incomment {
       if (index($0, "-->")) incomment = 0
       next
     }
+    # The two inventories are file level: names of surfaces, not a surface.
+    index($0, "**Uncovered:**") {
+      line = $0; sub(/^\*\*Uncovered:\*\*[[:space:]]*/, "", line); inventory(line, "unc"); next
+    }
+    index($0, "**Out of scope:**") {
+      line = $0; sub(/^\*\*Out of scope:\*\*[[:space:]]*/, "", line); inventory(line, "oos"); next
+    }
     index($0, "**Prove it:**") {
       prove = 1
       val = $0; sub(/^.*\*\*Prove it:\*\*[[:space:]]*/, "", val)
       low = tolower(val)
+      if (sname != "") pval[sname] = low
       if (low !~ /^none/ && low !~ /^step[[:space:]]+[0-9]/)
         printf "a **Prove it:** line must name a step (`step 3`) or say `none` — got \"%s\"\n", val
       next
@@ -210,6 +229,7 @@ recipe_lint() {
       pending = 0; prove = 0
       sec = $0; sub(/^## +/, "", sec)
       split(sec, parts, /[ \t]+/); sname = parts[1]
+      insection[sname] = 1
       next
     }
     /^[0-9]+\. / && index($0, "**Do**") {
@@ -226,6 +246,19 @@ recipe_lint() {
         printf "section \"%s\" has no **Prove it:** line — it has no verdict\n", sname
       if (sec == "")
         printf "has no \"## <section>\" heading — there is nothing to prove\n"
+      # The inventory and the sections must agree, or the gap list lies.
+      for (i = 1; i <= nunc; i++) {
+        n = unc[i]
+        if (!(n in insection))
+          printf "**Uncovered:** names \"%s\" but there is no \"## %s\" section — an uncovered surface gets a section saying **Prove it:** none\n", n, n
+        else if (pval[n] !~ /^none/)
+          printf "**Uncovered:** names \"%s\" but its section has a verdict — uncovered means **Prove it:** none\n", n
+      }
+      for (i = 1; i <= noos; i++) {
+        n = oos[i]
+        if (n in insection)
+          printf "\"%s\" is listed **Out of scope:** but gets a \"## %s\" section — out of scope means no section\n", n, n
+      }
     }
   ' "$1"
 }

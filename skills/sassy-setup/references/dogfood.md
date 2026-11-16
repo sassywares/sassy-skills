@@ -65,19 +65,20 @@ because a project that "helpfully" removes it commits screenshots by accident.
 
 **Never** production. Local or staging only.
 
-**Set up once:** `bun install`; `docker compose up -d db`;
-copy `.env.example` → `.env` and fill `DOGFOOD_USER`, `DOGFOOD_PASS`.
+**Set up once:** `bun install` — shared by every section below.
 
 **Reset:** `bun run db:reset`
+
+**Uncovered:** mobile (unit tests only)
+
+**Out of scope:** admin — decided against
+
+## catalog — a search returns matching products
 
 **Preview:** open `http://localhost:${WT_PORT:-3000}`
 
 **Upstream:** `api.example.com` — a service this run does not control. Down is
 `env`, never a retry.
-
-**Uncovered:** mobile (nothing), admin (unit tests only)
-
-## catalog — a search returns matching products
 
 1. **Do** `bun run db:seed -- --fixtures catalog-small`
    **Expect** `seeded 12 products`
@@ -92,10 +93,12 @@ copy `.env.example` → `.env` and fill `DOGFOOD_USER`, `DOGFOOD_PASS`.
 
 **Prove it:** step 5 — its exit code is the verdict.
 
-## auth — an expired session re-authenticates
+## mobile — no runtime path yet
 
-1. …
-**Prove it:** step 2.
+**Uncovered:** 100+ unit tests that never start the app; a later discovery builds its
+runtime check.
+
+**Prove it:** none
 ```
 
 **A section is one testable area** — `catalog`, `auth`, `mobile`, `api`. A QA row
@@ -116,6 +119,28 @@ change the exit code, and that is where a port is freed or a process is stopped.
 Putting teardown before the verdict means a failed run leaves the port held. Steps before
 it set up state and assert along the way; the prove step is the machine-readable
 answer. A section without one has no verdict.
+
+### File level and section level
+
+`**Preview:**`, `**Upstream:**`, `**Set up once:**`, and `**Reset:**` can be written at
+file level **or inside a `## ` section**. A section's own value wins for that section;
+the file-level value is the default every section inherits.
+
+- **One surface: keep it flat.** File-level lines, one section — the shape most
+  projects want, and nothing below changes it.
+- **Several surfaces: nest.** Each app's address and backend belong in that app's
+  section. A file-level `**Preview:**` on a five-app project can only describe one of
+  them, which is how a recipe ends up talking about the web app while claiming to
+  describe the project.
+
+For a **checkout's address**, `sassy-worktree` reads the file-level line; with no
+file-level line and exactly one section it uses that section's; with several sections
+and none at file level it shows nothing, because guessing which app a checkout serves
+is worse than saying nothing.
+
+`**Uncovered:**` and `**Out of scope:**` stay **file level** — they are the inventory of
+surfaces, not a description of one. Each name in that inventory still needs its own
+section (see `**Uncovered:**` below).
 
 **One `**Preview:**` line**, optional: **what you look at**, not the command that
 starts it. The command belongs in the section's steps, where its `Expect` can be

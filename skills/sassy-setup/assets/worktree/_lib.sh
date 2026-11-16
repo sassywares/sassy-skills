@@ -10,11 +10,11 @@
 #   3. Everything resolves against the MAIN checkout, so running any of these
 #      from inside a worktree behaves identically.
 #
-# worktree-version: 5
+# worktree-version: 6
 
 set -euo pipefail
 
-WT_VERSION="5"
+WT_VERSION="6"
 WT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log()  { printf '%s\n' "$*"; }
@@ -348,23 +348,44 @@ wt_subst() {
   fi
 }
 
-# wt_preview SLUG — the recipe's `**Preview:**` line with WT_* substituted.
-# Empty when the project has no recipe or no preview line.
+# _wt_preview_block RECIPE [SECTION] — the `**Preview:**` block, joined to one line.
+# With no section it reads only what sits *before* the first `## ` heading, so a
+# nested recipe's first app cannot masquerade as the file-level address.
+_wt_preview_block() {
+  awk -v want="${2:-}" '
+    /^## / {
+      if (want == "") exit
+      s = $0; sub(/^## +/, "", s); split(s, pr, /[ \t]+/); cur = pr[1]; inb = 0; next
+    }
+    want != "" && cur != want { next }
+    /^\*\*Preview:\*\*/ { sub(/^\*\*Preview:\*\*[[:space:]]*/, ""); buf = $0; inb = 1; next }
+    inb && /^[[:space:]]*$/ { inb = 0; next }
+    inb && /^\*\*/ { inb = 0; next }
+    inb { buf = buf " " $0 }
+    END { printf "%s", buf }
+  ' "$1" | sed -E 's/[[:space:]]+/ /g; s/[[:space:]]+$//'
+}
+
+# wt_preview SLUG [SECTION] — how to see this checkout, substituted.
+# A section's own line wins when one is asked for; otherwise the file-level line is
+# the checkout's address. With no file-level line and exactly one section, that
+# section is the answer; with several, nothing is returned rather than guessing which
+# app a checkout is serving.
 wt_preview() {
-  local slug="$1" recipe line port base
+  local slug="$1" sect="${2:-}" recipe line="" n first port base
   recipe="$(wt_flat | awk -F'\t' -v p="dogfood${WLIB_US}recipe" '$1 == p { print $2; exit }')"
   recipe="${recipe:-.sassywares/dogfood/recipe.md}"
   case "$recipe" in /*) ;; *) recipe="$MAIN/$recipe" ;; esac
   [ -f "$recipe" ] || return 0
-  # The block is the line after `**Preview:**` plus its continuation lines, up to
-  # a blank line or the next `**Header:**` — a wrapped sentence is still one answer.
-  line="$(awk '
-    /^\*\*Preview:\*\*/ { sub(/^\*\*Preview:\*\*[[:space:]]*/, ""); buf = $0; inb = 1; next }
-    inb && /^[[:space:]]*$/   { inb = 0; next }
-    inb && /^\*\*/           { inb = 0; next }
-    inb                       { buf = buf " " $0 }
-    END { print buf }
-  ' "$recipe" 2>/dev/null | sed -E 's/[[:space:]]+/ /g; s/[[:space:]]+$//')"
+  if [ -n "$sect" ]; then line="$(_wt_preview_block "$recipe" "$sect")"; fi
+  if [ -z "$line" ]; then line="$(_wt_preview_block "$recipe" "")"; fi
+  if [ -z "$line" ]; then
+    n="$(grep -c '^## ' "$recipe" 2>/dev/null || true)"
+    if [ "${n:-0}" = "1" ]; then
+      first="$(sed -n 's/^## \([^ 	]*\).*/\1/p' "$recipe" | head -n 1)"
+      [ -n "$first" ] && line="$(_wt_preview_block "$recipe" "$first")"
+    fi
+  fi
   [ -n "$line" ] || return 0
   port=""
   if wt_has_ports; then
