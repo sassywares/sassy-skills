@@ -10,11 +10,11 @@
 #   3. Everything resolves against the MAIN checkout, so running any of these
 #      from inside a worktree behaves identically.
 #
-# worktree-version: 6
+# worktree-version: 7
 
 set -euo pipefail
 
-WT_VERSION="6"
+WT_VERSION="7"
 WT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log()  { printf '%s\n' "$*"; }
@@ -372,7 +372,7 @@ _wt_preview_block() {
 # section is the answer; with several, nothing is returned rather than guessing which
 # app a checkout is serving.
 wt_preview() {
-  local slug="$1" sect="${2:-}" recipe line="" n first port base
+  local slug="$1" sect="${2:-}" recipe line="" cand count sl port base
   recipe="$(wt_flat | awk -F'\t' -v p="dogfood${WLIB_US}recipe" '$1 == p { print $2; exit }')"
   recipe="${recipe:-.sassywares/dogfood/recipe.md}"
   case "$recipe" in /*) ;; *) recipe="$MAIN/$recipe" ;; esac
@@ -380,11 +380,18 @@ wt_preview() {
   if [ -n "$sect" ]; then line="$(_wt_preview_block "$recipe" "$sect")"; fi
   if [ -z "$line" ]; then line="$(_wt_preview_block "$recipe" "")"; fi
   if [ -z "$line" ]; then
-    n="$(grep -c '^## ' "$recipe" 2>/dev/null || true)"
-    if [ "${n:-0}" = "1" ]; then
-      first="$(sed -n 's/^## \([^ 	]*\).*/\1/p' "$recipe" | head -n 1)"
-      [ -n "$first" ] && line="$(_wt_preview_block "$recipe" "$first")"
-    fi
+    # Fall back to the single section that *declares* an address. Counting sections
+    # would fail on a recipe with one app and one uncovered surface, which is a
+    # perfectly ordinary shape: only the app has somewhere to look.
+    count=0; cand=""
+    while IFS= read -r sl; do
+      [ -n "$sl" ] || continue
+      cand="$(_wt_preview_block "$recipe" "$sl")"
+      [ -n "$cand" ] || continue
+      count=$((count + 1))
+      line="$cand"
+    done < <(sed -n 's/^## \([^ 	]*\).*/\1/p' "$recipe")
+    [ "$count" -eq 1 ] || line=""
   fi
   [ -n "$line" ] || return 0
   port=""
