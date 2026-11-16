@@ -10,11 +10,11 @@
 #   3. Everything resolves against the MAIN checkout, so running any of these
 #      from inside a worktree behaves identically.
 #
-# worktree-version: 2
+# worktree-version: 3
 
 set -euo pipefail
 
-WT_VERSION="2"
+WT_VERSION="3"
 WT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log()  { printf '%s\n' "$*"; }

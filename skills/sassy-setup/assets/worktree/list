@@ -92,7 +92,7 @@ while IFS=$'\t' read -r p b; do
     live="—"
   fi
   last="$(wt_verdict "$p")"
-  printf '  %-34s %-50s %-40s %-5s %s\n' "$b" "$shown" "${line:-—}" "$live" "${last:-—}"
+  printf '  %-34s %-50s %-40.40s %-5s %s\n' "$b" "$shown" "${line:-—}" "$live" "${last:-—}"
 done < <(wt_all)
 
 [ "$count" -gt 0 ] || log "  no checkouts found — is this a git repository?"

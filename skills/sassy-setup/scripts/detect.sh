@@ -758,6 +758,12 @@ if (( CHECK )); then
         else
           note "  worktree tooling v${installed_wt}"
         fi
+        # The version is hand-maintained, so a shipped change that forgot to bump
+        # it would look current. Say so when the bytes differ but the numbers do not.
+        if [[ -n "$installed_wt" && "$installed_wt" == "$asset_wt" ]] \
+           && ! cmp -s "$wt_lib" "$ASSET_WORKTREE/_lib.sh"; then
+          note "  .sassywares/worktree/_lib.sh matches v${installed_wt} but differs from the shipped copy — extended here, or the assets changed without a bump"
+        fi
         for helper in create list stop remove prune; do
           [[ -x "$ROOT/.sassywares/worktree/$helper" ]] \
             || bad "missing or not executable: .sassywares/worktree/$helper"

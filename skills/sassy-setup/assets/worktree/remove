@@ -75,10 +75,10 @@ if [ "$force" -eq 0 ]; then
   esac
 fi
 
-if [ "$force" -eq 1 ]; then
-  git worktree remove --force "$path"
-else
-  git worktree remove "$path"
+if ! { [ "$force" -eq 1 ] && git worktree remove --force "$path" || [ "$force" -eq 0 ] && git worktree remove "$path"; }; then
+  printf '  %-9s %s\n' "→" "a half-removed checkout is not a removal: if it is gone from 'git worktree list'" >&2
+  printf '  %-9s %s\n' "" "but the folder remains, delete the folder and run: git worktree prune" >&2
+  exit 1
 fi
 if [ -n "$port" ] && [ "$(wt_owner "$port")" = "$slug" ]; then
   wt_release "$port" "$slug"
