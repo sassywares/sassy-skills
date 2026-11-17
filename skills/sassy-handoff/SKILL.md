@@ -5,8 +5,8 @@ description: >-
   self-contained handoff file under /tmp/sassywares and gives the user a
   command to continue in a fresh session; mode:read takes a handoff file,
   explains what was done, why, and where things stand, then asks what to do
-  next. Use at a phase boundary, when context is getting long, when the user
-  asks to hand off, or to pick up a handoff file.
+  next. Use when the user asks to hand off or to pick up a handoff file — it is
+  never proposed on the model's own initiative.
 argument-hint: "[mode:write|read] [goal for the next session | handoff file path]"
 ---
 
@@ -63,4 +63,5 @@ Anything unresolved, and anything the next session must not do.
 - **Pointer-first.** Plan paths, phases, files, and decisions are named, not reproduced. The plan is the source of truth; the file points at it.
 - **Outside the repo.** Handoff files live under `/tmp/sassywares/` only — never committed, never inside the working tree.
 - **No secrets.** A handoff file never carries credentials, tokens, or unrelated personal data, and `read` never echoes one.
+- **The user's call alone.** No skill in the plan → work → ship pipeline writes, offers, or suggests a handoff. Run this only when the user asks for one; a run that reaches a natural stopping point reports and ends there.
 - **The skill does not switch sessions.** Never claim it did.

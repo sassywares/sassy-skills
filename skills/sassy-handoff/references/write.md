@@ -1,7 +1,7 @@
 # Mode: write — capture the session for a fresh one
 
 1. **Determine the continuation goal.**
-   - At a sassy plan phase boundary: the next phase that is not `Done`, continued by invoking `sassy-work <plan> phase:<n>`.
+   - When the user stops after a phase: the next phase that is not `Done`, continued by invoking `sassy-work <plan> phase:<n>`.
    - After a `sassy-plan` run that kept the work in a brief instead of writing a plan: continue from that brief. There is no plan path, so the brief itself — goal, decisions, constraints, done-when — goes in the file.
    - Otherwise: the user's stated objective for the next session.
    - If the goal is genuinely unclear, ask. Do not fabricate a handoff.

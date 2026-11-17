@@ -778,7 +778,7 @@ if (( CHECK )); then
         note "  worktrees: no port resource — a checkout is addressed by the recipe's preview line"
       fi
       if [[ "$(yflat "commit${US}branch" 2>/dev/null || true)" == "current" ]]; then
-        note "  worktrees.enabled with commit.branch: current — a run never cuts a branch, so no run creates one"
+        note "  worktrees.enabled with commit.branch: current — a run never cuts a branch, so no run offers a checkout"
       fi
 
       wt_lib="$ROOT/.sassywares/worktree/_lib.sh"
@@ -1377,9 +1377,10 @@ cat <<'EOF'
 # --- Worktrees ------------------------------------------------------------
 # Parallel work in one repo: a checkout per branch, each with its own derived
 # namespace, so two runs never fight over one working tree. enabled: true lets a
-# run create one instead of working here — and needs commit.branch: new, because
-# `current` never cuts a branch. The scripts in .sassywares/worktree/ own the
-# mechanics; nothing else reads these values.
+# run offer one instead of working here — the run asks, and stays here unless the
+# answer is yes. It needs commit.branch: new, because `current` never cuts a
+# branch. The scripts in .sassywares/worktree/ own the mechanics; nothing else
+# reads these values.
 #
 # Repo topology only: a workspace root has no repo to cut a checkout from, and a
 # `none` folder has no git at all.
@@ -1389,7 +1390,7 @@ cat <<'EOF'
 # preview line instead (`$WT_NAMESPACE` names a simulator, a window, a path).
 worktrees:
 EOF
-kv enabled false 34 '# true = a run may work in its own checkout'
+kv enabled false 34 '# true = a run may offer its own checkout'
 kv dir '~/.sassywares/worktrees' 34 '# parent of the per-repo folder; ~ is allowed'
 kv ports 3000-3099 34 '# a private port per checkout; delete for non-port previews'
 cat <<'EOF'

@@ -54,6 +54,10 @@ owns the lifecycle; the scripts in `.sassywares/worktree/` own the git.
   `~/.sassywares/worktrees/<repo>/<slug>`. It shares one object store and one
   branch lock with the main checkout, so the same branch can never be held twice
   — the property that makes it safe where a `git clone` per agent is not.
+- **Permission, not a default** — `worktrees.enabled: true` means a checkout may
+  be offered. A run asks before taking one and otherwise works in the main
+  checkout: two runs only collide when they are actually parallel, and an unasked
+  checkout relocates the work and leaves the uncommitted tree behind.
 - **Slug** — the branch with `/` flattened (`feat/catalog` → `feat-catalog`). It
   names the directory, the port, and the registry entry.
 - **Namespace** — the slug prefixed with the repo (`shop-feat-catalog`), and the
@@ -114,7 +118,7 @@ A settled in-context brief produced by `sassy-plan` when the user picks "start w
 
 ## Handoff
 
-`sassy-handoff` in `mode:write` writes a self-contained handoff file under `/tmp/sassywares/handoffs/` and gives the user a `sassy-handoff mode:read <path>` command; `mode:read` in the fresh session summarizes what was done, why, and the current state against the tree, then asks what to do next. A skill cannot start a session, so the user opens the fresh one; the file is the only bridge, in any harness.
+`sassy-handoff` in `mode:write` writes a self-contained handoff file under `/tmp/sassywares/handoffs/` and gives the user a `sassy-handoff mode:read <path>` command; `mode:read` in the fresh session summarizes what was done, why, and the current state against the tree, then asks what to do next. A skill cannot start a session, so the user opens the fresh one; the file is the only bridge, in any harness. Reaching for it is the user's call alone: no skill in the plan → work → ship pipeline writes, offers, or suggests one, and a run ends at its own report.
 
 ## Release
 

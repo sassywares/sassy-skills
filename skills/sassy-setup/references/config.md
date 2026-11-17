@@ -84,7 +84,7 @@ hooks:
   #     after_create: []      # derive .env, seed, copy the session
   #     before_remove: []     # drop the database, shut the device
 worktrees:
-  enabled: false              # true = a run may work in its own checkout
+  enabled: false              # true = a run may offer its own checkout
   dir: ~/.sassywares/worktrees     # parent of the per-repo folder; ~ is allowed here
   ports: 3000-3099            # optional; delete for a non-port preview
 dogfood:
@@ -117,7 +117,7 @@ dogfood:
 | `dogfood.recipe` | `.sassywares/dogfood/recipe.md` | The stored procedure `sassy-dogfood` executes. Its `Prove it:` step is the verdict |
 | `dogfood.reports` | `.sassywares/dogfood/reports` | Where a run writes its summary, step logs, and artifacts. Must be gitignored |
 | `dogfood.timeout` | `900` | Wall-clock for one run. A timeout is a failure, never a hang |
-| `worktrees.enabled` | `false` | `true` lets a run work in its own checkout instead of this one. Needs `commit.branch: new` |
+| `worktrees.enabled` | `false` | `true` lets a run *offer* its own checkout; it asks, and the run stays in this one unless you say yes. Needs `commit.branch: new` |
 | `worktrees.dir` | `~/.sassywares/worktrees` | Parent of the per-repo worktree folder. The one path here that may be absolute or `~/` |
 | `worktrees.ports` | `3000-3099` | The range a checkout claims its private port from. **Optional**: without it a checkout holds no port and is addressed by the recipe's preview line — which is how a mobile, desktop, or CLI project previews |
 
@@ -196,8 +196,8 @@ branch from `origin/<base>` then leaves them behind entirely.
 | `new` (default) | Never commit on a base branch. Cut one first, then stay on it for the rest of the run |
 
 A branch that is already checked out and is **not** a base is reused, whatever
-the config says. That is what makes a second phase, a resumed run, or a
-handed-off session converge on the branch the first one cut instead of cutting
+the config says. That is what makes a second phase, a resumed run, or
+`sassy-lfg` after `sassy-work` converge on the branch the first one cut instead of cutting
 another.
 
 A base is **any `base_map` value**, plus the remote default — not the remote
@@ -409,6 +409,12 @@ worktrees:
 Three keys, no commands. The scripts in `.sassywares/worktree/` own the
 mechanics and `sassy-worktree` orchestrates them.
 
+**`enabled: true` is permission, not a default.** It makes a checkout available;
+`branching.md` still asks before a run takes one, and the run works in the main
+checkout until the answer is yes. Two runs only collide when they are actually
+parallel, and an unasked checkout relocates the work, leaves the uncommitted tree
+behind, and pays the setup hooks for a checkout nobody needed.
+
 **A port is a resource, not the model.** Delete `ports` for an app whose preview
 is not a URL: no port is derived, `WT_PORT` and `WT_BASE_URL` are absent, and
 `list` shows the recipe's `**Preview:**` line instead. `dir` is the one path in this
@@ -418,7 +424,7 @@ something a teammate clones.
 **Two conditions.**
 
 - `enabled: true` needs `commit.branch: new`. Under `current` a run commits where
-  it stands and never cuts a branch, so nothing would ever create a worktree;
+  it stands and never cuts a branch, so nothing would ever offer a worktree;
   `--check` says so rather than leaving a switch that does nothing.
 - It needs the `repo` topology. A `workspace` root and a `none` folder have no
   git to cut a checkout from.

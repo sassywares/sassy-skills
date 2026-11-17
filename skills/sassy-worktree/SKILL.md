@@ -5,7 +5,8 @@ description: >-
   worktree per branch, each with its own derived namespace and port, created and
   torn down safely. `mode:preview` brings a checkout up so you can look at it
   without setting it up by hand. Use when asked for parallel work, a second
-  checkout, or to see what a worktree looks like.
+  checkout, or to see what a worktree looks like, and when a run offers one and
+  the user accepts.
 argument-hint: "[slug] [mode:create|list|preview|remove|prune] [section:<name>]"
 ---
 
@@ -13,7 +14,7 @@ argument-hint: "[slug] [mode:create|list|preview|remove|prune] [section:<name>]"
 
 **Outcome:** a checkout per branch that a run or a human can use without touching the main one — created, addressed, previewed, and removed without losing work — or a table saying what exists and what is safe to delete.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. `worktrees.enabled` decides whether any of this runs; `dir` and `ports` are read by the scripts, not by you. Precedence: explicit token > session instruction > config > skill default. Read the `sassy-setup` skill's `references/worktree.md` before the first mode: it owns the directory, port, refusal, and hook rules the scripts implement.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. `worktrees.enabled` decides whether a checkout is available at all — permission, never an instruction to take one; `dir` and `ports` are read by the scripts, not by you. Precedence: explicit token > session instruction > config > skill default. Read the `sassy-setup` skill's `references/worktree.md` before the first mode: it owns the directory, port, refusal, and hook rules the scripts implement.
 
 **The scripts do the git.** `.sassywares/worktree/{create,list,stop,remove,prune}` are installed by `sassy-setup` and own the mechanics: `git worktree`, the port claim, the refusals. This skill never runs `git worktree` itself, never invents a port, and never deletes a directory.
 
@@ -37,6 +38,7 @@ Resolve the mode: an explicit `mode:` token wins. With none, it is `list` — th
 |------|-------------|
 | The scripts do the git | Never run `git worktree`, never invent a port, never `rm -rf` a checkout. `.sassywares/worktree/*` owns all of it. |
 | Repo topology only | `git.repo: workspace` or `none` means no worktrees at all. Say so in one line and stop — never create a checkout inside a nested repo to work around it. |
+| Enabled is permission | `worktrees.enabled: true` lets a run *offer* a checkout. `create` runs on the user's yes, or on a human asking outright — never because the config allowed it. |
 | Ours only | A checkout is managed when it sits under `worktrees.dir` **and** carries `.sassywares/config.yaml`. Never list, prune, stop, or remove one that is not — another tool made it, or it was cut before the wiring. `create` says so when that happens. |
 | Names come from the script | `WT_NAMESPACE` is derived once, and `WT_PORT` only when the project configured a range. Never build a database name, a compose project, or a device name by hand. |
 | Hooks are dispatched, not skipped | A declared `after_create` or `before_remove` runs. `remove` exits `3` rather than skipping it, and that is deliberate. |

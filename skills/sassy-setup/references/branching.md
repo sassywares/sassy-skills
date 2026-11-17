@@ -77,18 +77,30 @@ config. This applies to every token these skills forward, not just `branch`.
    "release" is not a neutral name.
 5. If the name already exists: reuse it when it descends from `start-point`;
    stop and ask when it has diverged.
-6. **Create the branch — in a worktree when the project asked for one.**
-   With `worktrees.enabled: true` (per `worktree.md`), run the `sassy-worktree`
-   skill's `create` for this run instead of checking out in place: it cuts the
-   branch and the checkout together, so the branch can never be held twice, and
-   it prints the `WT_*` namespace the run inherits. Two things follow, and both
-   are the orchestrator's to carry:
+6. **Create the branch — in place, or in a worktree if the user says so.**
+   `worktrees.enabled: true` (per `worktree.md`) means this project *allows* a
+   checkout. It is permission, not a default: two runs only collide when they are
+   actually parallel, so guessing wrong moves the work to another directory,
+   leaves the uncommitted tree behind, and spends the `after_create` setup on a
+   checkout nobody needed. Ask once, here, with the branch named — *this
+   checkout, or a worktree of its own?* — and take the answer. Silence is not a
+   yes, and never ask when the answer cannot matter: a run standing on a non-base
+   branch reuses its branch and its checkout (`reuse`), and a human who wanted a
+   checkout already ran `sassy-worktree create`. With the config off, do not ask:
+   a user who wants a checkout anyway gets `sassy-worktree`'s refusal and the
+   switch that turns it on.
+
+   On yes, run the `sassy-worktree` skill's `create` for this run instead of
+   checking out in place: it cuts the branch and the checkout together, so the
+   branch can never be held twice, and it prints the `WT_*` namespace the run
+   inherits. Two things follow, and both are the orchestrator's to carry:
    - **Every step from here on works in `WT_PATH`,** and every delegated brief
      names that absolute path. The main checkout is read-only for the rest of the
      run — config, listing, nothing else.
    - **A dirty tree does not come along,** unlike a checkout: the worktree starts
      clean from `start-point`. Say in the gate summary that uncommitted work stays
      behind, because that is a change in what a run means.
+
    Otherwise `git checkout -b <name> <start-point>` here, and uncommitted work
    comes along — say so in the gate summary if the tree was dirty.
 7. Report the branch, the start point, `pr-base`, and the checkout it landed in.
@@ -97,7 +109,7 @@ config. This applies to every token these skills forward, not just `branch`.
 
 Report `head` and the checkout you are in, and carry on. Do **not** re-cut because
 `commit.branch` is `new`:
-a second phase, a resumed run, or a handed-off session is already standing on
+a second phase, a resumed run, or `sassy-lfg` after `sassy-work` is already standing on
 the branch the first one cut. That is the whole reason this is inferred rather
 than forced. It is also what keeps a run inside its own worktree: it finds itself
 on a non-base branch and reuses it rather than nesting another checkout.

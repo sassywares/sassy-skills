@@ -10,8 +10,15 @@ nested repo carries its own config, so there is nothing to cut a checkout from; 
 says why, `--check` reports an `enabled: true` as drift, and the scripts refuse
 with that reason rather than "not a git repository".
 
-Read this when the project has `worktrees.enabled: true`, or when the user asks
-to run two agents in one project.
+Read this when the project has `worktrees.enabled: true`, when a run is about to
+cut a branch, or when the user asks to run two agents in one project.
+
+**`enabled: true` is permission, not a default.** A run asks before it takes a
+checkout and stays in the main one otherwise: two runs only collide when they are
+actually parallel, and one taken unasked moves the work to another directory,
+leaves the uncommitted tree behind, and spends the `after_create` setup on a
+checkout nobody needed. `branching.md` owns that ask. `sassy-worktree` runs after
+the answer is yes, or when a human asks for a checkout outright.
 
 ## Install
 
@@ -192,6 +199,8 @@ implied.
 - **One worktree per run.** `references/branching.md` decides; a run already on
   a non-base branch reuses it, so a second `sassy-work` in the same checkout does
   not nest another worktree.
+- **Enabled is permission, not a default.** A run offers a checkout and takes one
+  only on the user's yes; the main checkout is where work happens until then.
 - **Never operate on another worktree.** A delegation brief carries the absolute
   path of the checkout it may touch; `MAIN` is for reading config and listing.
 - **Never `git stash`.** It is repository-global: a stash taken in one worktree
@@ -202,5 +211,5 @@ implied.
   through one checkout corrupts the other. Let the package manager's store do
   the deduplicating.
 - **`worktrees.enabled` needs `commit.branch: new`.** Under `current` a run
-  commits where it stands and never cuts a branch, so no run would ever create a
+  commits where it stands and never cuts a branch, so no run would ever offer a
   worktree; `--check` notes the combination.

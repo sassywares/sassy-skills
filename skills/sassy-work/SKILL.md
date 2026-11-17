@@ -2,15 +2,15 @@
 name: sassy-work
 description: >-
   Execute exactly one phase of a sassy plan by delegating to sassy-cycle, then
-  hand off to a fresh session for the next phase (or close out via sassy-ship if
-  it was the last). Also runs one settled in-context brief and stops before ship.
-  The orchestrator only coordinates.
+  commit it (or close out via sassy-ship if it was the last). The next phase is
+  a run of its own when the user starts one. Also runs one settled in-context
+  brief and stops before ship. The orchestrator only coordinates.
 argument-hint: "<plan path | brief> [phase:<n>] [branch:infer|current|new]"
 ---
 
 # Sassy Work
 
-**Outcome:** one phase run through `sassy-cycle`, findings fixed, then a single gate that carries both the code approval and the phase's QA checklist (`Manual` rows from the user, `Auto` rows from a `sassy-dogfood` report), marked `Done` only when both pass, committed via `sassy-commit`; then a handoff that continues the **next** phase in a fresh session, or a `sassy-ship` close-out if this was the last phase.
+**Outcome:** one phase run through `sassy-cycle`, findings fixed, then a single gate that carries both the code approval and the phase's QA checklist (`Manual` rows from the user, `Auto` rows from a `sassy-dogfood` report), marked `Done` only when both pass, committed via `sassy-commit`; then the run ends, or a `sassy-ship` close-out when this was the last phase.
 
 **Brief input** runs one cycle, presents the code approval gate, commits, and **stops before shipping**.
 
@@ -50,7 +50,7 @@ Always gate before committing. The cycle has already fixed and verified its find
 1. **Load the phase.** Read the plan and only the selected phase's section. If it is already `Done`, stop and report.
 
    If the phase is `In progress`, an earlier run was interrupted before both gates passed. Ask one question — resume at the gate, or re-run the cycle from scratch — and take the answer. Resuming skips the cycle and goes straight to step 5, but **still resolve the branch at step 2 first**: on `reuse` it is a no-op, and on `create` it is the difference between committing on the base and not.
-2. **Resolve the branch, before touching code.** Follow the `sassy-setup` skill's `references/branching.md` with this run's `branch:` token, if any. On `create`, cut the branch now — not at commit time — so no change ever exists on a base branch. On `reuse`, stay where you are, which is how a handed-off later phase or a resumed run lands on the branch the first phase cut. On `stop-and-ask`, present the choice and wait. Carry the branch and its start point into every gate summary you present.
+2. **Resolve the branch, before touching code.** Follow the `sassy-setup` skill's `references/branching.md` with this run's `branch:` token, if any. On `create`, cut the branch now — not at commit time — so no change ever exists on a base branch. On `reuse`, stay where you are, which is how a later phase or a resumed run lands on the branch the first phase cut. On `stop-and-ask`, present the choice and wait. Carry the branch and its start point into every gate summary you present.
 3. **Run the cycle.** Set the phase `In progress` in the Phase tracking table, then load the `sassy-cycle` skill and follow it, with:
    - work brief = the phase's goal, work items, and "Done when" criteria
    - intent reference = the plan path and phase
@@ -60,21 +60,18 @@ Always gate before committing. The cycle has already fixed and verified its find
 5. **Present the phase gate.** Report the phase, what changed, findings raised and resolved (with the fix passes it took), the simplifications applied, the validator grade, the reviewer summary, and the reviewer's suggestions as options the user may pick. Then give the QA checklist verbatim: each row's ID, check, `Mode`, and — for `Manual` — how to run it and what passing looks like, and for `Auto` — the dogfood verdict and run id, with unreported rows `Pending`. Ask for both decisions — code approval (or the changes wanted, including any suggestions picked) and the result per `Manual` row. Wait.
 6. **Resolve the gate.** Three outcomes, nothing in between:
    - **Code approved and every QA row passes** → go to step 7.
-   - **Code approved, `Manual` rows still pending** → record that code is approved but leave the phase `In progress`, tick nothing, commit nothing, hand off nothing, and report that the phase is waiting on manual QA plus the command that resumes it.
+   - **Code approved, `Manual` rows still pending** → record that code is approved but leave the phase `In progress`, tick nothing, commit nothing, and report that the phase is waiting on manual QA plus the command that resumes it.
    - **Changes requested, or any row fails** → a rework cycle: load `sassy-cycle` with the requested changes and the failing rows as its findings, and the plan path and phase as the intent reference. On `done`, re-prove the `Auto` rows (step 4) and present the gate again from step 5; on `blocked`, mark the phase `Blocked` and stop. A QA row that fails again after its rework is `Blocked` with the reason and stops the phase. Change requests have no cap — each one is the user's call.
 7. **Commit the phase.** On both gates passing, first mark the phase's QA rows `Done` — `Manual` rows with the user's notes, `Auto` rows with the verdict and run id from the report — and the phase `Done` in the Phase tracking table, then persist according to `git.repo`:
 
    - **A remote** — dispatch a `worker` whose task is: *load the `sassy-commit` skill and follow it with `branch:current`*, naming that the commit must include the phase's code changes, the QA table results, and the now-updated Phase tracking table. It returns the hash and subject. The branch already exists: step 2 cut it, so committing on it is the point of `branch:current` here.
    - **`workspace`** — dispatch a `worker` per affected repo to commit that repo's code on the run's shared branch, then run `.sassywares/workspace/snapshot` for the plan, QA results, and docs at the root. The gate's approval is the commit approval; the snapshot runs right after it and is never skipped. A missing or outdated `.sassywares/workspace/snapshot` is a blocker — say to run `sassy-setup`.
-   - **`none`** — nothing is persisted. Report that the phase's work is uncommitted and stop; never hand off on top of it.
+   - **`none`** — nothing is persisted. Report that the phase's work is uncommitted and stop; nothing follows an uncommitted phase.
 
-   Do not hand off or close out until the commit or snapshot succeeds.
+   Do not close out until the commit or snapshot succeeds.
 8. **On commit success:**
-   - **A next phase exists** → load the `sassy-handoff` skill in `mode:write` with the goal *Execute phase <next> of <plan> by invoking `sassy-work <plan> phase:<next>`*. It writes the handoff file and gives the user a `sassy-handoff mode:read <path>` command; the next phase starts when they run it in a fresh session and pick it.
-
    - **This was the last phase** → run the close-out: load the `sassy-ship` skill and follow it (under `commit.branch: current` ship commits and pushes, with no PR).
-
-**Why a fresh session:** one phase per context keeps every phase's context small. A skill cannot start a session itself, so the handoff file is the bridge and the user opens the session.
+   - **Any phase is left** → report the commit and stop. Name the next phase and the command that picks it up — `sassy-work <plan>` takes the first phase that is not `Done` — and never start it in this session. Continuing, stopping for now, or choosing another executor is the user's call; do not offer or write a handoff.
 
 ## Brief input
 
@@ -93,8 +90,9 @@ When the argument is not a plan path, it is one settled brief:
 | Orchestrator only | Delegate all implementation and quality work to `sassy-cycle`. |
 | Branch before code | Resolve the branch per the `sassy-setup` skill's `references/branching.md` before the cycle runs, so no change ever lands on a base branch. |
 | One phase per run | Do exactly one phase. Never continue into the next phase in this session. |
-| Gate before commit and handoff | Do not commit, hand off, or close out until the user approves the code and the phase QA rows pass. |
-| Commit per phase | Commit the phase, its QA results, and the plan update via `sassy-commit` before handoff or close-out. |
+| Gate before commit and close-out | Do not commit or close out until the user approves the code and the phase QA rows pass. |
+| Commit per phase | Commit the phase, its QA results, and the plan update via `sassy-commit` before close-out. |
+| Handing off is the user's | Never write a handoff or suggest one. The run ends at its report; `sassy-handoff` is invoked by the user, in their own session and on their own initiative. |
 | Done needs both gates | Mark a phase `Done` only when the user approves the code and every QA row for that phase is `Done`, never before. |
 | QA rows follow their mode | Tick a `Manual` row `Done` only from the user's explicit confirmation, and an `Auto` row only from a passing dogfood report; keep unreported rows `Pending`; a failed row is a finding for a rework cycle. |
 | Send-backs are rework | Requested changes and failed QA rows go through `sassy-cycle` as findings — verified, two fix passes at most — never a direct edit. |
@@ -103,7 +101,7 @@ When the argument is not a plan path, it is one settled brief:
 ## Failure handling
 
 - `sassy-cycle` returns `blocked` → mark the phase `Blocked`, stop, report the open findings and the diagnostic.
-- QA stays pending, or a row fails again after its rework → keep the phase `In progress` (or `Blocked` with the reason), commit nothing, hand off nothing, and report.
-- `sassy-commit` fails or leaves the phase changes uncommitted → stop and report; never hand off on top of uncommitted phase work.
-- The validator returns **Blocked — insufficient grounding** → treat it as a real blocker; do not advance or hand off.
+- QA stays pending, or a row fails again after its rework → keep the phase `In progress` (or `Blocked` with the reason), commit nothing, and report.
+- `sassy-commit` fails or leaves the phase changes uncommitted → stop and report; never close out on top of uncommitted phase work.
+- The validator returns **Blocked — insufficient grounding** → treat it as a real blocker; do not advance.
 - Ambiguous or unsafe failure → stop and ask.

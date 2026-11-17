@@ -89,9 +89,9 @@ Debugging:
 | **`sassy-plan`** | Grills you one question at a time through every branch of the work — pushing back, assuming nothing, sketching UI on request — until nothing is open, then offers three choices: write the plan, start working via `sassy-work`, or implement and ship via `sassy-lfg`. |
 | **`sassy-goal`** | Runs a project too big for one plan — a migration, an epic — as a goal split into slices that each ship something complete. `mode:write` (default) grills and writes the goal, `mode:next` plans the next slice via `sassy-plan`, `mode:check` validates a shipped slice and carries its lessons forward, `mode:close` verifies the whole goal. You run every step. |
 | **`sassy-scout`** | Grounds an area on demand and writes the shared grounding brief other agents read instead of re-exploring. |
-| **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, commits after code approval, then hands off the next phase — a brief stops before ship. |
+| **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, commits after code approval, then stops — the next phase is a run you start. A brief stops before ship. |
 | **`sassy-lfg`** | Executes every phase of a plan, or one in-context brief, then closes out via `sassy-ship` after code approval. |
-| **`sassy-worktree`** | One checkout per branch, each with its own derived namespace and port, so two agents can work in one repo. `create`, `list`, `preview`, `remove`, `prune` — and `preview` brings a checkout up so you can look at it without setting it up by hand. |
+| **`sassy-worktree`** | One checkout per branch, each with its own derived namespace and port, so two agents can work in one repo — taken when you ask, never because the config allows it. `create`, `list`, `preview`, `remove`, `prune` — and `preview` brings a checkout up so you can look at it without setting it up by hand. |
 | **`sassy-cycle`** | Runs one unit of work through implement → review + simplify + validate → fix → verify, with at most two verified fix passes. Also reworks finished work from requested changes or failed QA rows. |
 | **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-work` (cycle, code approval, commit), then ships. Debug takes no mode and always leaves ship's review gate in place unless you invoke ship yourself with `mode:auto`. |
 | **`sassy-handoff`** | `mode:write` (default) writes a self-contained handoff file to `/tmp/sassywares/handoffs/` and gives you a `sassy-handoff mode:read <path>` command for a fresh session; `mode:read` explains what the handoff did, why, and where things stand now, then asks what to do next. Works in any harness. |
@@ -177,7 +177,7 @@ hooks:
   #     after_create: []          # derive .env, seed, copy the session in
   #     before_remove: []         # drop the database, shut the device
 worktrees:                       # parallel checkouts of this repo
-  enabled: false                 # true = a run may work in its own checkout
+  enabled: false                 # true = a run may offer its own checkout
   dir: ~/.sassywares/worktrees   # parent of the per-repo folder
   ports: 3000-3099               # optional; delete for a non-port preview
 dogfood:                         # agent QA: a stored procedure that proves a change runs
@@ -203,6 +203,11 @@ Only checkouts this tooling manages are listed or pruned: one under `worktrees.d
 that also carries `.sassywares/config.yaml`. Anything else — another tool's
 worktree, or one cut from a ref that predates the wiring — is counted in a footer
 and left alone.
+
+`enabled: true` makes a checkout **available**, never default: a run asks before it
+takes one and otherwise works in the main checkout, because two runs only collide
+when they are actually parallel. `sassy-worktree create` takes one whenever you
+ask for it.
 
 `create` derives the identity from the branch and prints it — `WT_PATH`,
 `WT_SLUG`, `WT_NAMESPACE` — so a project's hook derives `.env`, a database name,
@@ -307,7 +312,7 @@ flowchart LR
 
 Option 1 produces a durable plan with phased slices and QA tables. Options 2 and 3 keep the whole job as one settled in-context brief and write no plan file.
 
-`sassy-work` handles one phase and hands off the next. `sassy-lfg` drains the whole plan in one session. Both delegate to `sassy-cycle` and stop at one gate carrying code approval plus the QA checklist; nothing is `Done`, committed, or shipped until both pass. `Manual` rows are yours to run. `Auto` rows are proved before the gate by `sassy-dogfood`, and a failed one goes back through the cycle as a finding. With an in-context brief there are no QA rows, so the gate is code approval alone.
+`sassy-work` handles one phase and stops after its commit. `sassy-lfg` drains the whole plan in one session. Both delegate to `sassy-cycle` and stop at one gate carrying code approval plus the QA checklist; nothing is `Done`, committed, or shipped until both pass. `Manual` rows are yours to run. `Auto` rows are proved before the gate by `sassy-dogfood`, and a failed one goes back through the cycle as a finding. With an in-context brief there are no QA rows, so the gate is code approval alone.
 
 Inside the cycle, every finding is fixed and then **verified**: a reviewer scoped to the fix confirms each finding resolved, and checks the fix itself for anything new. Whatever is still open gets a second fix pass; anything open after that comes back `blocked` rather than looping. Critical findings, warnings, and validator gaps are fixed automatically; the simplifier's findings are applied in the same pass but never block; the reviewer's suggestions are listed at the gate for you to pick. Changes you request at the gate and QA rows that fail go through the same loop as findings, then the gate comes back.
 
@@ -379,13 +384,14 @@ The artifact decides QA: a plan document carries QA tables that gate phase compl
 
 ## Branching
 
-`sassy-work`, `sassy-lfg`, and `sassy-debug` decide the branch **before they touch code**, from `commit.branch` (default `new`) compared against `base_map`. On `new`, the run cuts a branch and every commit — phases, docs, ship — lands on it, so no change ever exists on a base branch. A run that is already on a branch that is not a base reuses it, which is how a handed-off phase, a resumed run, or `sassy-lfg` after `sassy-work` converges instead of cutting a second branch.
+`sassy-work`, `sassy-lfg`, and `sassy-debug` decide the branch **before they touch code**, from `commit.branch` (default `new`) compared against `base_map`. On `new`, the run cuts a branch and every commit — phases, docs, ship — lands on it, so no change ever exists on a base branch. A run that is already on a branch that is not a base reuses it, which is how a resumed run, a second `sassy-work` for the next phase, or `sassy-lfg` after `sassy-work` converges instead of cutting a second branch.
 
-With `worktrees.enabled`, `create` runs in a worktree instead of checking out in
-place, so the branch and its checkout appear together; the rest of the run works
-in `WT_PATH` and the main checkout stays read-only. A run that finds itself on a
-non-base branch reuses it, which is what keeps a resumed phase inside the
-worktree the first one cut.
+With `worktrees.enabled`, a run **offers** a worktree when it cuts a branch and
+takes one only if you say yes: the branch and its checkout appear together, the
+rest of the run works in `WT_PATH`, and the main checkout stays read-only. Say no
+and the branch is cut in place, as usual. A run that finds itself on a non-base
+branch reuses it, which is what keeps a resumed run inside the worktree the first
+one took.
 
 A base is **any `base_map` value**, not just the remote default: in a repo whose `"*"` targets `staging`, standing on `staging` counts as standing on a base. That distinction is the whole point of the key — see [`skills/sassy-setup/references/branching.md`](skills/sassy-setup/references/branching.md).
 
