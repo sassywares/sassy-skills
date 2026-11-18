@@ -7,6 +7,7 @@
 # Usage:
 #   detect.sh [--root DIR]            print a proposed config to stdout
 #   detect.sh [--head BRANCH]         resolve the base and hooks for one head
+#   detect.sh --check [--goal SLUG]   resolve the goal hooks for one goal slug
 #   detect.sh --branch [--policy P]   resolve the branch decision for this run
 #   detect.sh [--root DIR] --check    compare the existing config, and the
 #                                    vendored pin, to reality
@@ -16,10 +17,13 @@
 # is silent. --branch is read-only; it prints the decision, it never cuts.
 # --name BRANCH resolves pr-base for the name a run is about to pick, because a
 # new name can match a base_map family (release/*) and retarget the PR.
+# --goal SLUG resolves the goal hooks for one goal slug, the same way --head does
+# for a branch; the slug keys hooks.goal, not a branch.
 set -euo pipefail
 
 ROOT_ARG=""
 HEAD_ARG=""
+GOAL_ARG=""
 POLICY_ARG=""
 NAME_ARG=""
 CHECK=0
@@ -31,13 +35,15 @@ while (( $# )); do
     --root=*) ROOT_ARG="${1#*=}" ;;
     --head)   shift; [[ $# -ge 1 ]] || { echo "missing BRANCH after --head" >&2; exit 2; }; HEAD_ARG="$1" ;;
     --head=*) HEAD_ARG="${1#*=}" ;;
+    --goal)   shift; [[ $# -ge 1 ]] || { echo "missing SLUG after --goal" >&2; exit 2; }; GOAL_ARG="$1" ;;
+    --goal=*) GOAL_ARG="${1#*=}" ;;
     --policy) shift; [[ $# -ge 1 ]] || { echo "missing POLICY after --policy" >&2; exit 2; }; POLICY_ARG="$1" ;;
     --policy=*) POLICY_ARG="${1#*=}" ;;
     --name)   shift; [[ $# -ge 1 ]] || { echo "missing BRANCH after --name" >&2; exit 2; }; NAME_ARG="$1" ;;
     --name=*) NAME_ARG="${1#*=}" ;;
     --branch) BRANCH=1 ;;
     --check)  CHECK=1 ;;
-    -h|--help) sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's|^# \{0,1\}||'; exit 0 ;;
+    -h|--help) sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's|^# \{0,1\}||'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
   shift
@@ -48,6 +54,12 @@ START="${ROOT_ARG:-$PWD}"
 # --branch prints a decision; --check validates a config. One at a time, or the
 # second is silently ignored.
 (( BRANCH && CHECK )) && { echo "--branch and --check are separate modes; run them one at a time" >&2; exit 2; }
+# --goal resolves hooks inside --check. Anywhere else the flag would print the
+# proposal and drop itself silently.
+(( CHECK )) || [[ -z "$GOAL_ARG" ]] || { echo "--goal is read with --check; run them together" >&2; exit 2; }
+# --head is read by --check and by --branch; standalone it would print the
+# proposal and drop itself silently.
+(( CHECK || BRANCH )) || [[ -z "$HEAD_ARG" ]] || { echo "--head is read with --check or --branch; run them together" >&2; exit 2; }
 # Absolute, or the walk-up loop below re-reads "." forever.
 START="$(cd "$START" && pwd -P)"
 
@@ -293,7 +305,8 @@ map_match() {
 
 base_for_head() { map_match base_map "$1"; }
 
-# hook_patterns [KIND] — the head patterns declared under hooks.<kind> (pr by default).
+# hook_patterns [KIND] — the keys declared under hooks.<kind> (pr by default): a
+# head branch, or a goal slug for hooks.goal.
 hook_patterns() {
   yaml_flat | awk -F'\t' -v us="$US" -v k="${1:-pr}" '{n=split($1,a,us); if (n==4 && a[1]=="hooks" && a[2]==k) print a[3]}' | sort -u
 }
@@ -304,6 +317,7 @@ hook_points() {
     pr) printf '%s' "before_create after_create before_merge after_merge" ;;
     push) printf '%s' "after_push" ;;
     worktree) printf '%s' "after_create before_remove" ;;
+    goal) printf '%s' "before_slice after_close" ;;
   esac
 }
 
@@ -613,7 +627,7 @@ if (( CHECK )); then
   if [[ -n "$(yflat "hooks${US}pr${US}before_create")" ]]; then
     bad "hooks.pr.<point> is now nested by head branch — write hooks.pr.\"*\".<point>"
   fi
-  for kind in pr push worktree; do
+  for kind in pr push worktree goal; do
     while IFS= read -r pat; do
       [[ -n "$pat" ]] || continue
       case "$pat" in
@@ -637,17 +651,18 @@ if (( CHECK )); then
     done < <(hook_patterns "$kind")
   done
 
-  # `hooks.<kind>.<head>.<point>` is the only shape. hooks.pr has four points and
-  # hooks.push has one; any other point name is a step that never fires.
+  # `hooks.<kind>.<head-or-slug>.<point>` is the only shape. hooks.pr has four
+  # points, hooks.push one, hooks.worktree two, hooks.goal two; any other point
+  # name is a step that never fires.
   while IFS=$'\t' read -r depth hpath; do
     [[ -n "$depth" ]] || continue
     kind="${hpath#hooks$US}"; kind="${kind%%$US*}"
     case "$kind" in
-      pr|push|worktree) ;;
-      *) bad "hooks kind '$kind' is not one of pr|push|worktree"; continue ;;
+      pr|push|worktree|goal) ;;
+      *) bad "hooks kind '$kind' is not one of pr|push|worktree|goal"; continue ;;
     esac
     if [[ "$depth" != "4" ]]; then
-      bad "hooks entry '${hpath//$US/.}' is not head -> point -> list"
+      bad "hooks entry '${hpath//$US/.}' is not key -> point -> list"
       continue
     fi
     point="${hpath##*$US}"
@@ -669,6 +684,14 @@ if (( CHECK )); then
         resolved="$(hooks_for_head_point "$HEAD_ARG" "$point" "$kind")"
         note "  head '$HEAD_ARG' → $point: $( [[ -n "$resolved" ]] && printf '%s' "$resolved" || printf 'none' )"
       done
+    done
+  fi
+
+  # Goal hooks are keyed by goal slug, not a branch, so they resolve on their own.
+  if [[ -n "$GOAL_ARG" ]]; then
+    for point in $(hook_points goal); do
+      resolved="$(hooks_for_head_point "$GOAL_ARG" "$point" goal)"
+      note "  goal '$GOAL_ARG' → $point: $( [[ -n "$resolved" ]] && printf '%s' "$resolved" || printf 'none' )"
     done
   fi
 
@@ -1346,11 +1369,12 @@ cat <<'EOF'
 
 # --- Hooks ----------------------------------------------------------------
 # Project steps injected into the PR pipeline, after a push under
-# commit.branch: current, or across a worktree's life, keyed by the branch — the
-# branch the PR comes from, never the one it targets. `"*"` is the default;
-# a name overrides per point, and `release/*` matches a family. Each entry is
-# `<skill> <args…>`, resolved at .agents/skills/<name>/SKILL.md; args are passed
-# to the skill verbatim. Declared order, one worker each, missing skill fails closed.
+# commit.branch: current, across a worktree's life, or around a goal. Keyed by
+# the branch — the branch the PR comes from, never the one it targets — or by the
+# goal slug for hooks.goal. `"*"` is the default; a name overrides per point, and
+# `release/*` matches a family. Each entry is `<skill> <args…>`, resolved at
+# .agents/skills/<name>/SKILL.md; args are passed to the skill verbatim. Declared
+# order, one worker each, missing skill fails closed.
 hooks:
   pr:
     "*":
@@ -1364,6 +1388,14 @@ cat <<'EOF'
     #   before_create: []
     # release/*:          # a family of heads
     #   after_merge: [notify mode:auto]
+  goal:                 # keyed by the goal slug (the folder under artifacts.plans)
+    "*":
+EOF
+kv before_slice '[]' 30 '# sassy-goal mode:next: after the previous slice merges' '      '
+kv after_close '[]' 30 '# sassy-goal mode:close: after the status is persisted' '      '
+cat <<'EOF'
+    # migration-v2:       # one goal, by slug
+    #   before_slice: [db-migrate mode:auto]
   # push:                 # commit.branch: current only; keyed by the pushed branch
   #   "*":
   #     after_push: []

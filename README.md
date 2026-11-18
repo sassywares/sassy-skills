@@ -169,6 +169,10 @@ hooks:
       after_merge: []            # this run observed the merge
     staging:                     # a per-point override for one head
       before_create: []
+  goal:                          # keyed by the goal slug, not a branch
+    "*":
+      before_slice: []           # sassy-goal next: after the previous slice merges
+      after_close: []            # sassy-goal close: after the status is persisted
   push:                          # only under commit.branch: current
     "*":
       after_push: []             # right after the push succeeds
@@ -238,7 +242,7 @@ refuses a dirty tree, unpushed commits, a live app, or the main checkout.
 
 ### Extending the pipeline
 
-A project adds its own steps by naming a skill that lives in its own `.agents/skills/`. Nothing declared means nothing runs. Keys are the **head** branch — the one a PR comes from (for `hooks.push`, the pushed branch) — and every point can be overridden per head; entries may carry args (`<skill> <args…>`).
+A project adds its own steps by naming a skill that lives in its own `.agents/skills/`. Nothing declared means nothing runs. Keys are the **head** branch — the one a PR comes from (for `hooks.push`, the pushed branch) — and every point can be overridden per head, except `hooks.goal`, which is keyed by the goal slug, the goal's folder under `artifacts.plans`; entries may carry args (`<skill> <args…>`).
 
 | Hook | Runs | Typical use |
 |---|---|---|
@@ -249,8 +253,10 @@ A project adds its own steps by naming a skill that lives in its own `.agents/sk
 | `hooks.push` `after_push` | `commit.branch: current` only: after ship's push | notify, trigger a follow-up step |
 | `hooks.worktree` `after_create` | just after a checkout exists | derive `.env` and the port, seed the database, copy the session in |
 | `hooks.worktree` `before_remove` | before the checkout is deleted | drop the derived database, shut the simulator |
+| `hooks.goal` `before_slice` | `sassy-goal mode:next`: after the previous slice's merge is confirmed, before the slice is grilled | switch to the bases, pull, migrate, seed |
+| `hooks.goal` `after_close` | `sassy-goal mode:close`: after the goal's status is persisted | post the goal summary, notify, tear down per-slice previews |
 
-Hooks run in declared order, one subagent each, and fail closed: a declared skill that is missing or returns `blocked` stops the run. Which points may write, and how, is stated once in `sassy-setup`'s `references/config.md` (the hook contract). `before_merge` and `after_merge` never fire unless this run merges.
+Hooks run in declared order, one subagent each, and fail closed: a declared skill that is missing or returns `blocked` stops the run. Which points may write, and how, is stated once in `sassy-setup`'s `references/config.md` (the hook contract). `before_merge` and `after_merge` never fire unless this run merges. Goal hooks may do anything except touch the goal itself, as long as every base ends level with its remote; `before_slice` fires before `mode:next` checks the base, and neither is suppressed by `commit.branch: current`.
 
 This is deliberately not a fork mechanism. A project skill that *adds* a step is a hook; one that *restates* our steps is a copy, and copies rot. Rules are not hooks either — those belong in `AGENTS.md`.
 
@@ -336,9 +342,9 @@ flowchart LR
   I --> J[Goal Done, rides the last PR]
 ```
 
-A goal is a folder under `artifacts.plans` holding `goal.md` and one plan per started slice (`01-<slice>.md`, `02-…`). `mode:write` grounds every affected domain once, grills only goal-level branches — slice boundaries and order, coexistence, the goal's done-when, non-goals — and pushes back on any slice that would leave a half-built layer. Each slice's plan is grilled only when `mode:next` starts it, with the goal's decisions and every carry-forward entry already settled. The slice then runs the usual work or lfg → ship path on its own branch (`feat/<goal>/<NN-slice>`); ship marks it `Shipped` and babysits the PR without merging, so the check can still land in it.
+A goal is a folder under `artifacts.plans` holding `goal.md` and one plan per started slice (`01-<slice>.md`, `02-…`). `mode:write` grounds every affected domain once, grills only goal-level branches — slice boundaries and order, coexistence, the goal's done-when, non-goals — and pushes back on any slice that would leave a half-built layer. Each slice's plan is grilled only when `mode:next` starts it, with the goal's decisions and every carry-forward entry already settled; before that grill, and once the previous slice's merge is confirmed, `mode:next` runs the project's `before_slice` steps. The slice then runs the usual work or lfg → ship path on its own branch (`feat/<goal>/<NN-slice>`); ship marks it `Shipped` and babysits the PR without merging, so the check can still land in it.
 
-`mode:check` runs on the slice branch before the PR merges: it validates the whole slice plan against the branch's commits, and every gap is fixed now, deferred to a named later slice, or accepted with a reason. It appends the slice's carry-forward entry, marks it `Done` with its PR link, and pushes `goal.md` into the same PR. After the last slice, `mode:close` checks the goal's done-when against the whole tree and marks the goal `Done` in the last PR. One slice is in flight at a time, and nothing chains on its own.
+`mode:check` runs on the slice branch before the PR merges: it validates the whole slice plan against the branch's commits, and every gap is fixed now, deferred to a named later slice, or accepted with a reason. It appends the slice's carry-forward entry, marks it `Done` with its PR link, and pushes `goal.md` into the same PR. After the last slice, `mode:close` checks the goal's done-when against the whole tree and marks the goal `Done` in the last PR, then runs the project's `after_close` steps once the status is persisted. One slice is in flight at a time, and nothing chains on its own.
 
 ### From bug to ship
 

@@ -112,6 +112,10 @@ One step of a goal: its own plan (`NN-<slug>.md`, written only when `mode:next` 
 
 The append-only section of `goal.md` that `mode:check` adds to once per slice: what changed versus the plan, new decisions, impact on later slices, and gaps deferred or accepted. Every later slice's grill reads it as settled.
 
+## Goal hook
+
+A project skill run at a goal's boundaries, declared under `hooks.goal` and keyed by the goal slug — the goal's folder under `artifacts.plans`. `before_slice` runs in `mode:next` after the previous slice's merge is confirmed and before the next slice is grilled; `after_close` runs in `mode:close` after the status is persisted, on `Done` and on a goal left `Active`. Neither may touch the goal itself (`goal.md`, the slice plan, the status); anything else — switching to the bases, pulling, rebasing, committing, pushing, migrating — is the project's call, provided every base ends level with its remote. `before_slice` fires before `mode:next` checks the base, so it can be what freshens it. Entries are idempotent, and both fail closed. They are not PR-keyed, so `commit.branch: current` does not suppress them, and since `sassy-goal` has no approval gate the mode's report names what ran, that none are declared, or where it stopped.
+
 ## Brief
 
 A settled in-context brief produced by `sassy-plan` when the user picks "start working" (`sassy-work`) or "implement and ship" (`sassy-lfg`). It carries the goal, decisions, constraints, work, and done-when, but no plan file and no QA tables.

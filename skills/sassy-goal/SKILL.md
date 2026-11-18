@@ -20,7 +20,7 @@ argument-hint: "<idea | goal path> [mode:write|next|check|close] [slice:<ID>]"
 
 **The user drives every step.** Each mode ends by printing the next command; nothing chains on its own. This skill never implements: code changes belong to `sassy-work`, `sassy-lfg`, and `sassy-cycle`.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. Goals live under `artifacts.plans`; `git.repo` and `commit.branch` decide how check and close persist.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. Goals live under `artifacts.plans`; `git.repo` and `commit.branch` decide how check and close persist. `hooks.goal.<slug>` decides the project steps `mode:next` and `mode:close` fire.
 
 **Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
 
@@ -35,9 +35,9 @@ Slice statuses run `Pending` > `Planned` > `Shipped` > `Done`, plus `Blocked`. `
 | Mode | Load | Runs | It ends with |
 |---|---|---|---|
 | `write` (default) | `references/write.md` | anytime | a new or revised `goal.md`, and the `mode:next` command |
-| `next` | `references/next.md` | on the base, previous slice merged | the slice's plan written, the slice `Planned`, and the work / lfg commands |
+| `next` | `references/next.md` | previous slice merged; on the base once `before_slice` has run | the `before_slice` hooks run, the slice's plan written, the slice `Planned`, and the work / lfg commands |
 | `check` | `references/check.md` | on the slice branch after ship, before merge | the slice `Done`, carry-forward appended, pushed with the slice |
-| `close` | `references/close.md` | on the last slice's branch after its check, before merge | `**Status:** Done` (or `Active` with a slice to add), pushed with the last slice |
+| `close` | `references/close.md` | on the last slice's branch after its check, before merge | `**Status:** Done` (or `Active` with a slice to add), pushed with the last slice, then the `after_close` hooks run |
 
 Resolve the mode: an explicit `mode:` token wins. With none, it is `write` — an idea creates a goal, a path to an existing goal folder or `goal.md` revises it. Read the one reference for that mode **and only that one**.
 
@@ -51,7 +51,20 @@ write → next → work/lfg → ship → check → next → … → ship → che
 
 - **A remote** — dispatch a `worker`: *load the `sassy-commit-push-pr` skill and follow it with `branch:current` and `babysit:off`*, which commits, pushes, and updates the slice's open PR. Under `commit.branch: current` there is no PR: the worker loads `sassy-commit` with `branch:current`, then pushes the head to its upstream — never forced; a non-fast-forward rejection is a stop-and-report.
 - **`workspace`** — commit each affected repo on the run's shared branch, run `.sassywares/workspace/snapshot` for `goal.md` and the docs at the root, then push each repo. A missing or outdated snapshot script is a blocker: say to run `sassy-setup`.
-- **`none`** — nothing persists. Report that `goal.md` and any fixes are uncommitted, and stop.
+- **`none`** — nothing persists. Report that `goal.md` and any fixes are uncommitted, and carry on: the mode still runs its hooks and reports.
+
+## Hooks
+
+`hooks.goal.<slug>` in the project config, keyed by the goal folder's name, injects the project's own steps. Resolution, entry syntax, ordering, and failure behaviour are the config reference's contract.
+
+| Point | Owner | Fires |
+|---|---|---|
+| `before_slice` | `mode:next` | after the slice is picked, before the base check and the grill |
+| `after_close` | `mode:close` | after the status is persisted, before the report — on `Done` and on a goal left `Active` |
+
+- **The goal is off-limits; bases end level.** A goal hook never edits `goal.md` or the slice plan, or changes the goal status, `mode`, or `branch`. Anything else is the project's call — switch to the bases, pull, rebase, commit, push, migrate a dev database, seed, notify — provided every base it touches ends level with its remote, which `mode:next` verifies right after `before_slice`. Entries are idempotent.
+- **Not PR-keyed.** `commit.branch: current` does not suppress them; they fire in `remote`, `workspace` (once, at the workspace root), and `none`.
+- **Fail closed.** A missing skill or a `blocked` result stops that mode, and no plan is written on a blocked `before_slice`; the report names what ran or where it stopped. A `needs-decision` result goes to the user. This skill has no approval gate, so the report is where a hook becomes visible.
 
 ## Hard rules
 
@@ -66,6 +79,7 @@ write → next → work/lfg → ship → check → next → … → ship → che
 | Done is history | A revision never re-cuts, renumbers, or rewrites a `Done` slice or its plan. |
 | No unchosen gaps | A slice or the goal turns `Done` only when every gap is fixed, deferred to a named slice, or accepted with a recorded reason. |
 | Never default | Never push to a base branch outside `commit.branch: current`; never force-push. |
+| Goal hooks fire in place | `before_slice` runs in `mode:next` after the pick and before the base check and the grill; `after_close` runs in `mode:close` after the persist and before the report. A blocked hook or a missing skill stops that mode, and the report names what ran. |
 
 ## Non-goals
 

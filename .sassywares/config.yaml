@@ -49,10 +49,11 @@ pr:
   delete_branch: false  # true | false — delete the head branch once merged
 
 # --- Hooks ----------------------------------------------------------------
-# Project steps injected into the PR pipeline, or after a push under
-# commit.branch: current, keyed by the HEAD branch — the
-# branch the PR comes from, never the one it targets. `"*"` is the default;
-# a name overrides per point, and `release/*` matches a family. Each entry is
+# Project steps injected into the PR pipeline, after a push under
+# commit.branch: current, around a worktree, or around a goal. Keyed by the HEAD
+# branch — the branch the PR comes from, never the one it targets — except
+# hooks.goal, keyed by the goal slug. `"*"` is the default; a name overrides per
+# point, and `release/*` matches a family. Each entry is
 # `<skill> <args…>`, resolved at .agents/skills/<name>/SKILL.md; args are passed
 # to the skill verbatim. Declared order, one worker each, missing skill fails closed.
 hooks:
@@ -69,3 +70,9 @@ hooks:
   push:                 # commit.branch: current only; keyed by the pushed branch
     "*":
       after_push: [sassy-skills-release]   # the push just succeeded: tag and publish
+  # goal:               # keyed by the goal slug (the folder under artifacts.plans)
+  #   "*":
+  #     before_slice: []   # sassy-goal mode:next: after the previous slice merges
+  #     after_close: []    # sassy-goal mode:close: after the status is persisted
+  #   migration-v2:       # one goal, by slug
+  #     before_slice: [db-migrate mode:auto]

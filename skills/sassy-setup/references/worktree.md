@@ -128,7 +128,7 @@ that names no port at all (a simulator, a desktop window) has nothing to probe, 
 
 ## Hooks
 
-Two points, keyed by head branch like every other hook:
+Two points, keyed by head branch like the PR hooks:
 
 ```yaml
 hooks:

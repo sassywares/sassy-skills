@@ -13,7 +13,7 @@ A goal is a folder under `artifacts.plans`:
 └── 02-<slice-slug>.md    # S2's plan, written when S2 starts
 ```
 
-The goal slug is made the way `sassy-plan` makes a plan slug. `NN` is the slice's order and matches its ID: `S1` → `01-`, `S2` → `02-`. A slice plan is an ordinary sassy plan, so `sassy-work`, `sassy-lfg`, `sassy-ship`, and `sassy-validate` run on it unchanged.
+The goal slug is made the way `sassy-plan` makes a plan slug. The goal folder's name **is** the goal slug, and it is what keys `hooks.goal.<slug>` in the project config. `NN` is the slice's order and matches its ID: `S1` → `01-`, `S2` → `02-`. A slice plan is an ordinary sassy plan, so `sassy-work`, `sassy-lfg`, `sassy-ship`, and `sassy-validate` run on it unchanged.
 
 ## Rules
 

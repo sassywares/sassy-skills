@@ -22,7 +22,7 @@ mkproject() { # mkproject <dir> <hooks-yaml-body>
   local p="$1"
   mkdir -p "$p/.agents/skills" "$p/.sassywares"
   cp -R "$REPO"/skills/* "$p/.agents/skills/"
-  for s in sassy-tmp-release tap2-version; do
+  for s in sassy-tmp-release tap2-version proj-goal-hook; do
     mkdir -p "$p/.agents/skills/$s"
     printf -- '---\nname: %s\ndescription: project skill\n---\n' "$s" > "$p/.agents/skills/$s/SKILL.md"
   done
@@ -149,5 +149,47 @@ else
   fail "(j) hash definitions match the skills CLI" "current $got_current (want $want_current)
 legacy  $got_legacy (want $want_legacy)"
 fi
+
+# (k) goal hooks resolve per slug: the exact slug wins, the rest falls back to "*"
+# (an explicit [] is a value, and an absent entry inherits the "*" entry's args)
+CFG_GOAL='git:
+  repo: origin
+  base_map:
+    "*": main
+commit:
+  branch: current
+hooks:
+  goal:
+    "*":
+      before_slice: [proj-goal-hook mode:auto]
+      after_close: []
+    one-goal:
+      before_slice: [proj-goal-hook]'
+K="$TMP/k"; mkproject "$K" "$CFG_GOAL"
+out="$(bash "$K/.agents/skills/sassy-setup/scripts/detect.sh" --root "$K" --check --goal one-goal 2>&1)"
+out2="$(bash "$K/.agents/skills/sassy-setup/scripts/detect.sh" --root "$K" --check --goal other-goal 2>&1)"
+if printf '%s\n' "$out" | grep -q "goal 'one-goal' → before_slice: \[proj-goal-hook\]" \
+   && printf '%s\n' "$out" | grep -q "goal 'one-goal' → after_close: \[\]" \
+   && ! printf '%s' "$out" | grep -q 'drift:' \
+   && printf '%s\n' "$out2" | grep -q "goal 'other-goal' → before_slice: \[proj-goal-hook mode:auto\]" \
+   && printf '%s\n' "$out2" | grep -q "goal 'other-goal' → after_close: \[\]"; then
+  pass "(k) goal hooks resolve per slug with no drift"
+else fail "(k) goal hooks resolve per slug with no drift" "$out
+---
+$out2"; fi
+
+# (l) a point name that is not one of hooks.goal's two points is drift
+L="$TMP/l"; mkproject "$L" "$(printf '%s' "$CFG_GOAL" | sed 's/after_close: \[\]/after_check: [proj-goal-hook]/')"
+out="$(bash "$L/.agents/skills/sassy-setup/scripts/detect.sh" --root "$L" --check 2>&1)"
+if printf '%s' "$out" | grep -q "hooks.goal point 'after_check' is not one of before_slice|after_close"; then
+  pass "(l) a bogus goal point is drift"
+else fail "(l) a bogus goal point is drift" "$out"; fi
+
+# (m) a goal hook naming a suite skill is drift, exactly like hooks.pr
+M="$TMP/m"; mkproject "$M" "$(printf '%s' "$CFG_GOAL" | sed 's/proj-goal-hook/sassy-commit/')"
+out="$(bash "$M/.agents/skills/sassy-setup/scripts/detect.sh" --root "$M" --check 2>&1)"
+if printf '%s' "$out" | grep -q "'sassy-commit' is one of our skills"; then
+  pass "(m) a suite skill as a goal hook is drift"
+else fail "(m) a suite skill as a goal hook is drift" "$out"; fi
 
 (( fails == 0 )) && echo "all passed" || { echo "$fails failed"; exit 1; }

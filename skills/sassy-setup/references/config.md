@@ -76,6 +76,12 @@ hooks:
       before_create: [tap2-version mode:auto]
     staging:
       before_create: []
+  goal:
+    "*":                       # keyed by the goal slug (the folder under artifacts.plans)
+      before_slice: []         # sassy-goal mode:next: after the previous slice merges, before the grill
+      after_close: []          # sassy-goal mode:close: after the status is persisted
+    # migration-v2:            # one goal, by slug
+    #   before_slice: [db-migrate mode:auto]
   push:
     "*":
       after_push: []          # commit.branch: current only
@@ -112,7 +118,10 @@ dogfood:
 | `pr.merge` | `false` | `true` authorizes merging a single babysat PR |
 | `pr.delete_branch` | `false` | Delete the head branch once merged |
 | `hooks.pr.<pattern>.<point>` | `[]` | Project steps, keyed by the PR's head branch |
+| `hooks.goal.<slug>.before_slice` | `[]` | Project steps as `sassy-goal mode:next` picks a slice, keyed by goal slug (see Goal hooks) |
+| `hooks.goal.<slug>.after_close` | `[]` | Project steps as `sassy-goal mode:close` persists the status, keyed by goal slug |
 | `hooks.push.<pattern>.after_push` | `[]` | Project steps after a push, keyed by the pushed branch (see Hooks) |
+| `hooks.worktree.<pattern>.<point>` | `[]` | Project steps across a checkout's life, keyed by the head branch it holds |
 | `dogfood.enabled` | `false` | `true` lets a plan write automated QA rows. Absent means `false` — manual QA, today's behavior |
 | `dogfood.recipe` | `.sassywares/dogfood/recipe.md` | The stored procedure `sassy-dogfood` executes. Its `Prove it:` step is the verdict |
 | `dogfood.reports` | `.sassywares/dogfood/reports` | Where a run writes its summary, step logs, and artifacts. Must be gitignored |
@@ -207,8 +216,9 @@ phase work once got committed straight onto `staging`.
 
 Under `current` the close-out skips the PR pipeline: `pr.*` and `hooks.pr.*`
 are ignored (`before_create`, `after_create`, `before_merge`, `after_merge` never
-run), and there is no babysit or merge. `hooks.push.after_push` is the one hook
-that does run (see Hooks). A non-fast-forward push stops the run.
+run), and there is no babysit or merge. `hooks.push.after_push` runs (see Hooks),
+and so does `hooks.goal`, which is not PR-keyed. A non-fast-forward push stops
+the run.
 Only this config value triggers it. A typed `branch:current` token, or the one
 skills forward to `sassy-commit`, does not suppress the PR.
 
@@ -247,7 +257,10 @@ the repository considers work to land, not what every branch targets. Confirm it
 before writing.
 
 `--head <branch>` prints the resolution for one head: the base (repo topology)
-and all four hook points. Use it instead of merging maps by hand.
+and the PR, push, and worktree hook points; it is read under `--check`, or under
+`--branch`, where it names the branch to classify. `--goal <slug>` prints the two
+goal points the same way, under `--check`. Use them instead of merging maps by
+hand.
 
 In a `workspace`, `base_map` does not apply — there are no branches at the
 workspace level. A nested repo's base resolves in this order:
@@ -298,7 +311,8 @@ owns the moment, so they fire whichever pipeline the user started. Nothing
 declared means nothing runs.
 
 **Keys are the head branch** — the branch the PR comes from, never the one it
-targets. `hooks.pr.staging` means *PRs whose source is staging*.
+targets. `hooks.pr.staging` means *PRs whose source is staging*. The exception is
+`hooks.goal`, keyed by the goal slug (see Goal hooks below).
 
 | Key form | Matches |
 |----------|---------|
@@ -315,6 +329,8 @@ targets. `hooks.pr.staging` means *PRs whose source is staging*.
 | `hooks.push.after_push` | `sassy-ship` | right after a successful push under `commit.branch: current` |
 | `hooks.worktree.after_create` | `sassy-worktree` | just after a checkout exists, before anyone works in it |
 | `hooks.worktree.before_remove` | `sassy-worktree` | before the checkout is deleted — drop its database, shut its device |
+| `hooks.goal.before_slice` | `sassy-goal` | mode:next, once the slice is picked and the previous one's merge is confirmed, before the base check |
+| `hooks.goal.after_close` | `sassy-goal` | mode:close, once the goal status is persisted |
 
 `hooks.worktree` has the same shape and resolution as the other two kinds, keyed
 by the head branch the checkout holds. It needs `worktrees.enabled`; a shell
@@ -371,11 +387,49 @@ in review, and commented when it is deliberate.
   runs after an up-to-date push (nothing new) too.
 - **Per PR**: in a workspace fan-out the hooks run once per PR.
 
+### Goal hooks
+
+`hooks.goal` keys on the **goal slug** — the goal's folder under
+`artifacts.plans` — and resolves exactly like `hooks.pr`: exact slug, the
+longest matching family, then `"*"`. Its two points are in the table above;
+`sassy-goal` owns both.
+
+- **Early stop**: neither fires when that mode stops early — an unmerged PR,
+  nothing eligible, or a failed persist. A stale base does not stop
+  `before_slice`: it fires before `mode:next` checks the base, so a hook can be
+  what brings the base up to date.
+- **Writes**: the goal is off-limits — never an edit to `goal.md` or the slice
+  plan, and never a change to the goal's status, `mode`, or `branch`. Anything
+  else is the project's call: switch to the bases, fetch, pull, rebase, commit,
+  push, migrate a dev database, seed, notify. One invariant: every base the hook
+  touches ends **level with its remote**, because `mode:next` verifies exactly
+  that next and the slice branch is cut from `<remote>/<base>`. A commit left
+  unpushed on a base is a stop, not a slice's starting point. Entries must be
+  idempotent: a resumed `mode:next` re-fires `before_slice`, and a close-out
+  can be re-run.
+- **Both outcomes**: `after_close` fires for `**Status:** Done` and for a goal
+  left `Active` because a gap went to a new slice. The brief carries
+  `goal_status` so the hook can tell them apart.
+- **Not PR-keyed**: `commit.branch: current` does not suppress these, so the
+  `pr.*`, babysit, and merge rules that ignore `hooks.pr` under `current` do not
+  apply. They fire in `remote`, `workspace` (once, at the workspace root), and
+  `none`.
+- **Visibility**: `sassy-goal` has no approval gate, so the mode's final report
+  names the entries that ran, that none are declared, or where it stopped.
+- **Brief**: artifact paths, base, and branch, plus the goal path and slug.
+  `before_slice` also gets the slice ID and title, the plan path about to be
+  written, and the previous slice's PR URL — there are no changed files and no
+  slice PR yet. `after_close` also gets `goal_status`, every slice's ID, status,
+  and PR link, and the commit hash the persist step wrote, where it wrote one.
+
 ### When they do not fire
 
 `before_merge` and `after_merge` need a merge in this run. `pr.merge` defaults to
 `false`, so a project that declares them without enabling merging has inert
-hooks — the run says so in one line rather than skipping silently.
+hooks — the run says so in one line rather than skipping silently. `hooks.goal`
+never needs this run to merge anything — it fires on an observation, not on an
+action — but `before_slice` still waits until every earlier slice's PR is
+confirmed merged, because `mode:next` stops before it otherwise.
 
 ## Multi-repo runs
 
@@ -479,8 +533,9 @@ report layout, the verdict classes, and the lint are in
 - `git.remote` is required when `git.repo: workspace`; forbidden otherwise.
   `git.mirror_branch` and `repos` are workspace-only too.
 - `hooks` is allowed only with the four points under `hooks.pr`, `after_push`
-  under `hooks.push`, and `after_create`/`before_remove` under `hooks.worktree`,
-  each a list of skill names that resolve to `.agents/skills/<name>/SKILL.md`.
+  under `hooks.push`, `after_create`/`before_remove` under `hooks.worktree`, and
+  `before_slice`/`after_close` under `hooks.goal`, each a list of skill names
+  that resolve to `.agents/skills/<name>/SKILL.md`.
 - `worktrees.enabled` is `true` or `false`; when `worktrees.ports` is present it
   is `<from>-<to>` inside 1–65535 with `<from>` no greater than `<to>`. A checkout must resolve
   outside the working tree, must not hold a branch `base_map` names as a base,
