@@ -10,11 +10,11 @@
 #   3. Everything resolves against the MAIN checkout, so running any of these
 #      from inside a worktree behaves identically.
 #
-# worktree-version: 7
+# worktree-version: 8
 
 set -euo pipefail
 
-WT_VERSION="7"
+WT_VERSION="8"
 WT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log()  { printf '%s\n' "$*"; }
@@ -310,11 +310,17 @@ wt_is_main() { [ "$(cd "$1" && pwd -P)" = "$MAIN" ]; }
 
 wt_dirty() { [ -n "$(git -C "$1" status --porcelain 2>/dev/null)" ]; }
 
+# The ref a checkout's branch tracks, or empty. Read-only, and never a guess:
+# `create` prints this instead of deciding what a branch should follow.
+wt_upstream() {
+  git -C "$1" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true
+}
+
 # Commits that exist only here: ahead of the upstream, or — with none — reachable
 # from no remote at all.
 wt_unpushed() {
   local p="$1" up n
-  up="$(git -C "$p" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
+  up="$(wt_upstream "$p")"
   if [ -n "$up" ]; then
     n="$(git -C "$p" rev-list --count "$up..HEAD" 2>/dev/null || echo unknown)"
   else
@@ -325,7 +331,7 @@ wt_unpushed() {
 
 wt_upstream_state() { # merged | gone | unmerged
   local p="$1" up
-  up="$(git -C "$p" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
+  up="$(wt_upstream "$p")"
   if [ -z "$up" ]; then
     printf 'gone'
   elif git -C "$p" merge-base --is-ancestor HEAD "$up" 2>/dev/null; then

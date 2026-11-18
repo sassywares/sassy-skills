@@ -72,6 +72,20 @@ and crawled by every scanner that does not read `.gitignore` (`tsc`, Docker).
 **Never `rm -rf` the worktree home.** It is full of checkouts with uncommitted
 work; `remove` and `prune` are the only safe exits.
 
+## The branch
+
+`create` cuts a new branch **untracked** and prints the upstream it found:
+
+- **A fresh checkout's branch follows nothing.** Cut from `origin/staging`, git's
+  DWIM would make `staging` that branch's upstream, so the branch's own
+  `git push` aims at the base — a run that reads as healthy right up until it
+  ships. A checkout is a branch of its own, never a follower.
+- **An existing branch keeps whatever it tracks**, and `create` says so on its
+  `upstream` line; one that is not the branch's own name is called out with what
+  a plain push would hit. That is the state a branch cut by hand arrives in.
+- **`create` never resolves a base.** The base is `references/branching.md`'s
+  decision, and a push names its remote.
+
 ## The namespace
 
 `create` derives and prints, for the caller and the hook:

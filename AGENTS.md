@@ -85,9 +85,10 @@ done
 
 ## Testing
 
-There is no test suite beyond one script; skills are validated structurally.
+Two scripts, both offline and self-contained; skills are otherwise validated structurally.
 
 - **Roster and pin.** `bash tests/sassy-setup-roster.sh` checks that `skills/sassy-setup/assets/roster` equals `ls skills/` and runs `detect.sh --check` in project scope, user scope (three real Sassywares repos), and with the roster missing. It also builds its locks from `skills/sassy-setup/scripts/hash-skill.mjs` (never a private copy of the hash) and holds golden vectors for both lock eras: a change in the CLI's folder hash must break that test, not silently report every skill as drift.
+- **Worktree checkout.** `bash tests/worktree-create.sh` builds a throwaway repo with a real `origin`, runs `create --from origin/main`, and asserts the new branch has **no** upstream, that a reused checkout is still untracked, and that a branch already tracking the base is called out. Git's DWIM gives a branch cut from a remote-tracking ref that ref as its upstream, so without `--no-track` the branch's own push aims at the base — invisible until someone ships. Deleting the flag must fail this test.
 
 - **Frontmatter.** Every `skills/*/SKILL.md` starts with `---` frontmatter holding `name` and `description` (`argument-hint` optional). `publish.yml` enforces `name` and `description` and fails the publish without them, so check locally first.
 - **Config tooling.** After changing `sassy-setup` or the config schema, run `bash skills/sassy-setup/scripts/detect.sh --root . --check` (config and vendored pin versus reality) and `bash skills/sassy-setup/scripts/detect.sh --root .` (proposed config) and confirm the output matches `references/config.md`.

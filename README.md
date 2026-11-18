@@ -217,6 +217,12 @@ ask for it, and a run carrying `worktree:on` has already been told yes.
 `WT_SLUG`, `WT_NAMESPACE` — so a project's hook derives `.env`, a database name,
 or a simulator from one source instead of inventing its own.
 
+A checkout's branch is cut **untracked**, and `create` prints the upstream it
+found — `none` on a fresh branch, and a plain-English warning when an existing
+branch tracks something other than its own name. Cut from `origin/staging`, git's
+DWIM would have made `staging` that branch's upstream, so the branch's own `git
+push` would aim at the base: a run that looks healthy until it ships.
+
 A **port is a resource, not the model**. With `ports:` configured, a checkout
 also gets `WT_PORT` and `WT_BASE_URL`, hashed into the range and claimed
 atomically so a restarted app returns to the same port. Delete `ports:` and there

@@ -64,6 +64,15 @@ report() { # $1 path, $2 branch
   fi
   ok worktree "$1"
   ok branch "$2"
+  # Say the tracking out loud. A branch cut from a remote-tracking ref used to
+  # inherit it as its upstream, so a plain push aimed at the base; and a branch
+  # that tracks something other than its own name is the state that made that
+  # invisible. `create` never sets a base — it reports what it found.
+  local up
+  up="$(wt_upstream "$1")"
+  ok upstream "${up:-none}"
+  [ -z "$up" ] || [ "${up#*/}" = "$2" ] \
+    || warn upstream "this branch tracks '$up', not '$2' — a plain 'git push' lands there"
   ok namespace "$ns"
   if [ -n "$port" ]; then
     ok port "$port"
@@ -112,7 +121,10 @@ printf '%s\n' "$MAIN" > "$(wt_home)/.repo"
 if git show-ref --verify --quiet "refs/heads/$branch"; then
   git worktree add --quiet "$path" "$branch"
 else
-  git worktree add --quiet -b "$branch" "$path" "$from"
+  # --no-track is the whole point: without it git's DWIM gives a branch cut from
+  # a remote-tracking ref that ref as its upstream, so the branch's own push
+  # targets the base. A checkout is a branch of its own, not a follower.
+  git worktree add --quiet --no-track -b "$branch" "$path" "$from"
 fi
 
 report "$path" "$branch"
