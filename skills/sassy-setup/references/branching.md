@@ -53,7 +53,9 @@ Pass `--policy` only when the **caller** asked for it — the user typed
 Never pass a token that is merely this skill's own default. Doing that launders
 a default into "explicit token", which outranks the project's config and makes
 `commit.branch` unreachable. Omitting `--policy` is how a skill defers to
-config. This applies to every token these skills forward, not just `branch`.
+config. This applies to every token these skills forward, not just `branch`: a
+`worktree:` token is carried only when the user typed it, and its absence is the
+ask at step 6, never a token of its own. There is no `worktree:ask`.
 
 ## Act on `action`
 
@@ -83,17 +85,33 @@ config. This applies to every token these skills forward, not just `branch`.
    actually parallel, so guessing wrong moves the work to another directory,
    leaves the uncommitted tree behind, and spends the `after_create` setup on a
    checkout nobody needed. Ask once, here, with the branch named — *this
-   checkout, or a worktree of its own?* — and take the answer. Silence is not a
-   yes, and never ask when the answer cannot matter: a run standing on a non-base
-   branch reuses its branch and its checkout (`reuse`), and a human who wanted a
-   checkout already ran `sassy-worktree create`. With the config off, do not ask:
-   a user who wants a checkout anyway gets `sassy-worktree`'s refusal and the
-   switch that turns it on.
+   checkout, or a worktree of its own?* — and take the answer, **unless the
+   caller forwarded a `worktree:` token**, which is the user answering before
+   being asked. Silence is not a yes, and never ask when the answer cannot
+   matter: a run already on a non-base branch reuses its branch and its
+   checkout (`reuse`), and a human who wanted a checkout already ran
+   `sassy-worktree create`. With the config off, do not ask: a user who wants a
+   checkout anyway gets `sassy-worktree`'s refusal and the switch that turns it
+   on.
+
+   A forwarded token is not a second question:
+   - **`worktree:on`** takes the checkout without asking. It fails closed — one
+     line naming the reason and the switch — with `worktrees.enabled: false`,
+     under `git.repo: workspace` or `none`, and under `commit.branch: current`,
+     where nothing ever cuts a branch. It never widens what the config allows.
+   - **`worktree:off`** cuts the branch in place and does not ask, even with
+     `worktrees.enabled: true`.
+   - Either is a no-op on `reuse`: a run already on a non-base branch keeps its
+     branch and its checkout, and never creates a second one.
 
    On yes, run the `sassy-worktree` skill's `create` for this run instead of
-   checking out in place: it cuts the branch and the checkout together, so the
-   branch can never be held twice, and it prints the `WT_*` namespace the run
-   inherits. Two things follow, and both are the orchestrator's to carry:
+   checking out in place: it cuts the branch and the checkout together, so no
+   `git checkout -b` follows and the branch can never be held twice, and it
+   prints the `WT_*` namespace the run inherits. `create` is idempotent: when
+   a managed checkout already exists for the branch, it is reused rather than a
+   branch cut in place, which is how a later phase of the plan, started from the
+   main checkout, resumes in the checkout an earlier phase made. Two things
+   follow, and both are the orchestrator's to carry:
    - **Every step from here on works in `WT_PATH`,** and every delegated brief
      names that absolute path. The main checkout is read-only for the rest of the
      run — config, listing, nothing else.
@@ -112,7 +130,9 @@ Report `head` and the checkout you are in, and carry on. Do **not** re-cut becau
 a second phase, a resumed run, or `sassy-lfg` after `sassy-work` is already standing on
 the branch the first one cut. That is the whole reason this is inferred rather
 than forced. It is also what keeps a run inside its own worktree: it finds itself
-on a non-base branch and reuses it rather than nesting another checkout.
+on a non-base branch and reuses it rather than nesting another checkout. Both
+`worktree:` tokens are no-ops here: the run already holds a non-base branch in
+its own checkout and never cuts a second.
 
 ### `commit-here`
 
@@ -122,7 +142,9 @@ summary that the commits are landing on `<head>`. When the config says
 `commit.branch: current`, the close-out commits and pushes `<head>` to its upstream with **no PR** — no
 `sassy-commit-push-pr`, no `hooks.pr.*`, no babysit, no merge; `hooks.push.after_push` and `hooks.goal.*`
 still run. `pr-base` is
-irrelevant here. Never infer this from a skill default.
+irrelevant here. Never infer this from a skill default. A `worktree:on` token
+cannot apply here either: nothing cuts a branch under this config, so the run
+stays in this checkout and says so in one line.
 
 ### `stop-and-ask`
 

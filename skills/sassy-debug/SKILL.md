@@ -5,7 +5,7 @@ description: >-
   through sassy-work (quality cycle, code approval, commit), and finally ship
   it through sassy-ship. Never auto-commits. Use when asked to
   debug or fix a failure.
-argument-hint: "[issue reference, error message, test path, or description] [branch:infer|current|new]"
+argument-hint: "[issue reference, error message, test path, or description] [branch:infer|current|new] [worktree:on|off]"
 ---
 
 # Sassy Debug
@@ -60,7 +60,7 @@ This gate is mandatory even when the original request said "fix the bug". Do not
 
 ### Option 1 — Fix it now
 
-Load the `sassy-work` skill on its brief path, forwarding this run's `branch:` token if it was given, with:
+Load the `sassy-work` skill on its brief path, forwarding this run's `branch:` and `worktree:` tokens if they were given, with:
 
 - work brief = "Fix the root cause: <causal chain>. Apply the smallest change; add or strengthen the regression test first."
 - intent reference = the diagnosis from Phase 1

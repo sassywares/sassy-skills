@@ -211,7 +211,7 @@ and left alone.
 `enabled: true` makes a checkout **available**, never default: a run asks before it
 takes one and otherwise works in the main checkout, because two runs only collide
 when they are actually parallel. `sassy-worktree create` takes one whenever you
-ask for it.
+ask for it, and a run carrying `worktree:on` has already been told yes.
 
 `create` derives the identity from the branch and prints it — `WT_PATH`,
 `WT_SLUG`, `WT_NAMESPACE` — so a project's hook derives `.env`, a database name,
@@ -397,11 +397,14 @@ takes one only if you say yes: the branch and its checkout appear together, the
 rest of the run works in `WT_PATH`, and the main checkout stays read-only. Say no
 and the branch is cut in place, as usual. A run that finds itself on a non-base
 branch reuses it, which is what keeps a resumed run inside the worktree the first
-one took.
+one took. Say yes up front instead with `worktree:on` — no offer, and a managed
+checkout that already exists for the branch is reused — or stop the offer with
+`worktree:off`. `worktree:on` fails closed when `worktrees.enabled` is off, in a
+workspace or a folder with no git, or under `commit.branch: current`.
 
 A base is **any `base_map` value**, not just the remote default: in a repo whose `"*"` targets `staging`, standing on `staging` counts as standing on a base. That distinction is the whole point of the key — see [`skills/sassy-setup/references/branching.md`](skills/sassy-setup/references/branching.md).
 
-The three skills take `branch:infer|current|new` to override the config's branching for one run (the no-PR close-out follows the config `commit.branch: current` regardless of the token): `infer` (default) means the config decides, `new` forces a branch, `current` commits where you stand; it does not skip the PR. Only `commit.branch: current` in the config makes the close-out push to the upstream with no PR, hooks, or babysit. `sassy-ship` never creates a branch; finding the head on a base branch with unpublished commits is a stop-and-ask, except under `commit.branch: current`, where they are pushed along.
+The three skills take `branch:infer|current|new` to override the config's branching for one run (the no-PR close-out follows the config `commit.branch: current` regardless of the token): `infer` (default) means the config decides, `new` forces a branch, `current` commits where you stand; it does not skip the PR. They also take `worktree:on|off` to answer the checkout question before it is asked: `on` takes a checkout without asking, `off` cuts the branch in place even with `worktrees.enabled`, and both are no-ops on a reused branch, so a second run never cuts a second checkout. Only `commit.branch: current` in the config makes the close-out push to the upstream with no PR, hooks, or babysit. `sassy-ship` never creates a branch; finding the head on a base branch with unpublished commits is a stop-and-ask, except under `commit.branch: current`, where they are pushed along.
 
 ## Installation
 

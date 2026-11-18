@@ -4,7 +4,7 @@ description: >-
   Execute a whole sassy plan phase by phase, or one settled in-context brief,
   then close out via sassy-ship after code approval. The orchestrator only
   coordinates. Best for small plans that one context can hold.
-argument-hint: "<plan path | brief> [branch:infer|current|new]"
+argument-hint: "<plan path | brief> [branch:infer|current|new] [worktree:on|off]"
 ---
 
 # Sassy LFG
@@ -13,7 +13,7 @@ argument-hint: "<plan path | brief> [branch:infer|current|new]"
 
 **The orchestrator does not do work.** Read the plan, dispatch `sassy-cycle` per phase, then `sassy-ship`. Never edit application code. Keep the main context small — all heavy work happens in subagents.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. Plans live under `artifacts.plans`; `git.repo` decides how the close-out persists; `commit.branch` decides whether the run needs its own branch.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. Plans live under `artifacts.plans`; `git.repo` decides how the close-out persists; `commit.branch` decides whether the run needs its own branch, and a `worktree:on|off` token answers the checkout question `branching.md` asks at step 6. The token outranks config but never widens what `worktrees.enabled` allows.
 
 **Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
 
@@ -42,7 +42,9 @@ A brief has no QA table, so its gate is code approval alone. Never invent, enabl
 ## Steps
 
 1. **Load the plan.** Read the plan and its Phase tracking table. If phases are already `In progress` from an interrupted run, ask once whether to resume at the gate or rerun those cycles, then continue from the answer.
-2. **Resolve the branch, before touching code.** Follow the `sassy-setup` skill's `references/branching.md` with this run's `branch:` token, if any. LFG runs every phase in one session, so the branch is cut once here and every phase commits onto it. Report the branch and its start point in the gate. A `stop-and-ask` here stops the run before any phase starts.
+2. **Resolve the branch, before touching code.** Follow the `sassy-setup` skill's `references/branching.md` with this run's `branch:` and `worktree:` tokens, if any. LFG runs every phase in one session, so the branch is cut once here and every phase commits onto it. Report the branch and its start point in the gate. A `stop-and-ask` here stops the run before any phase starts.
+
+   When the decision took a checkout, every phase brief and every `sassy-dogfood` run uses the checkout's own address — `WT_PATH`, and `WT_NAMESPACE`/`WT_PORT` where the project declared a port range — since proof run against the main checkout's port proves the wrong app.
 3. **Run every phase, in order.** For each phase not `Done`:
    - Set the phase `In progress`, then load the `sassy-cycle` skill and follow it, with work brief = the phase's goal/work/"Done when", and intent reference = the plan path and phase.
    - On `Status: done`, leave the phase `In progress` — its QA rows are still owed, and only the gate closes them.
@@ -66,7 +68,7 @@ Every worker brief this run dispatches must include:
 
 When the argument is not a plan path, the brief is the one phase:
 
-1. Resolve the branch exactly as the plan path does — the `sassy-setup` skill's `references/branching.md`, this run's `branch:` token — before the cycle runs.
+1. Resolve the branch exactly as the plan path does — the `sassy-setup` skill's `references/branching.md`, this run's `branch:` and `worktree:` tokens — before the cycle runs.
 2. Run one `sassy-cycle` with the brief as the work brief and its decisions / done-when as the intent reference. Do not split it into multiple phases.
 3. Present the code approval gate with no QA checklist, and wait. Changes requested → a rework cycle with the changes as findings and the brief's decisions / done-when as the intent reference, then this gate again; `blocked` stops.
 4. On code approval, run `sassy-ship`. Do not run `sassy-plan` or write a plan file.

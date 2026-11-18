@@ -126,7 +126,7 @@ dogfood:
 | `dogfood.recipe` | `.sassywares/dogfood/recipe.md` | The stored procedure `sassy-dogfood` executes. Its `Prove it:` step is the verdict |
 | `dogfood.reports` | `.sassywares/dogfood/reports` | Where a run writes its summary, step logs, and artifacts. Must be gitignored |
 | `dogfood.timeout` | `900` | Wall-clock for one run. A timeout is a failure, never a hang |
-| `worktrees.enabled` | `false` | `true` lets a run *offer* its own checkout; it asks, and the run stays in this one unless you say yes. Needs `commit.branch: new` |
+| `worktrees.enabled` | `false` | `true` lets a run *offer* its own checkout; it asks, or takes one on a `worktree:on` token, and works in this checkout on `worktree:off`. Needs `commit.branch: new` |
 | `worktrees.dir` | `~/.sassywares/worktrees` | Parent of the per-repo worktree folder. The one path here that may be absolute or `~/` |
 | `worktrees.ports` | `3000-3099` | The range a checkout claims its private port from. **Optional**: without it a checkout holds no port and is addressed by the recipe's preview line — which is how a mobile, desktop, or CLI project previews |
 
@@ -223,8 +223,10 @@ Only this config value triggers it. A typed `branch:current` token, or the one
 skills forward to `sassy-commit`, does not suppress the PR.
 
 The `branch:infer|current|new` token on those skills overrides this key for one
-run, for branching only; the no-PR close-out follows the config
-`commit.branch: current` regardless of the token; `infer` means this key decides. In a workspace the key is resolved from the
+run, for branching only; a `worktree:on|off` token answers the checkout question
+`branching.md` asks at step 6 and leaves that branch policy alone. The no-PR
+close-out follows the config `commit.branch: current` regardless of the token;
+`infer` means this key decides. In a workspace the key is resolved from the
 workspace config for the whole run, one branch name in every repo; a nested
 repo whose own `commit.branch` disagrees is drift, because one run cannot follow
 two policies.
@@ -464,10 +466,11 @@ Three keys, no commands. The scripts in `.sassywares/worktree/` own the
 mechanics and `sassy-worktree` orchestrates them.
 
 **`enabled: true` is permission, not a default.** It makes a checkout available;
-`branching.md` still asks before a run takes one, and the run works in the main
-checkout until the answer is yes. Two runs only collide when they are actually
-parallel, and an unasked checkout relocates the work, leaves the uncommitted tree
-behind, and pays the setup hooks for a checkout nobody needed.
+`branching.md` still asks before a run takes one, unless the caller forwarded
+`worktree:`, and the run works in the main checkout until the answer is yes.
+Two runs only collide when they are actually parallel, and an unasked checkout
+relocates the work, leaves the uncommitted tree behind, and pays the setup hooks
+for a checkout nobody needed.
 
 **A port is a resource, not the model.** Delete `ports` for an app whose preview
 is not a URL: no port is derived, `WT_PORT` and `WT_BASE_URL` are absent, and

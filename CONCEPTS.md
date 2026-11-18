@@ -57,7 +57,10 @@ owns the lifecycle; the scripts in `.sassywares/worktree/` own the git.
 - **Permission, not a default** — `worktrees.enabled: true` means a checkout may
   be offered. A run asks before taking one and otherwise works in the main
   checkout: two runs only collide when they are actually parallel, and an unasked
-  checkout relocates the work and leaves the uncommitted tree behind.
+  checkout relocates the work and leaves the uncommitted tree behind. A
+  `worktree:on` token is the other way to say yes — the ask answered up front —
+  and a managed checkout that already exists for the branch is reused rather than
+  a second one cut.
 - **Slug** — the branch with `/` flattened (`feat/catalog` → `feat-catalog`). It
   names the directory, the port, and the registry entry.
 - **Namespace** — the slug prefixed with the repo (`shop-feat-catalog`), and the

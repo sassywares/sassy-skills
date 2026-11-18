@@ -5,7 +5,7 @@ description: >-
   commit it (or close out via sassy-ship if it was the last). The next phase is
   a run of its own when the user starts one. Also runs one settled in-context
   brief and stops before ship. The orchestrator only coordinates.
-argument-hint: "<plan path | brief> [phase:<n>] [branch:infer|current|new]"
+argument-hint: "<plan path | brief> [phase:<n>] [branch:infer|current|new] [worktree:on|off]"
 ---
 
 # Sassy Work
@@ -16,7 +16,7 @@ argument-hint: "<plan path | brief> [phase:<n>] [branch:infer|current|new]"
 
 **The orchestrator does not do work.** Read the plan, dispatch `sassy-cycle`, apply its result, update the plan's tracking table, dispatch `sassy-commit` or the snapshot, and report. Never edit application code.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `git.repo` decides what the phase commit does, `artifacts.plans` decides where the plan lives, and `commit.branch` decides whether this run needs its own branch.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. `git.repo` decides what the phase commit does, `artifacts.plans` decides where the plan lives, `commit.branch` decides whether this run needs its own branch, and a `worktree:on|off` token answers the checkout question `branching.md` asks at step 6. The token outranks config but never widens what `worktrees.enabled` allows.
 
 **Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
 
@@ -50,13 +50,13 @@ Always gate before committing. The cycle has already fixed and verified its find
 1. **Load the phase.** Read the plan and only the selected phase's section. If it is already `Done`, stop and report.
 
    If the phase is `In progress`, an earlier run was interrupted before both gates passed. Ask one question — resume at the gate, or re-run the cycle from scratch — and take the answer. Resuming skips the cycle and goes straight to step 5, but **still resolve the branch at step 2 first**: on `reuse` it is a no-op, and on `create` it is the difference between committing on the base and not.
-2. **Resolve the branch, before touching code.** Follow the `sassy-setup` skill's `references/branching.md` with this run's `branch:` token, if any. On `create`, cut the branch now — not at commit time — so no change ever exists on a base branch. On `reuse`, stay where you are, which is how a later phase or a resumed run lands on the branch the first phase cut. On `stop-and-ask`, present the choice and wait. Carry the branch and its start point into every gate summary you present.
+2. **Resolve the branch, before touching code.** Follow the `sassy-setup` skill's `references/branching.md` with this run's `branch:` and `worktree:` tokens, if any. On `create`, cut the branch now — not at commit time — so no change ever exists on a base branch. On `reuse`, stay where you are, which is how a later phase or a resumed run lands on the branch the first phase cut. On `stop-and-ask`, present the choice and wait. When the decision took a checkout, every brief dispatched from here on names its absolute `WT_PATH`, as `branching.md` requires. Carry the branch, its start point, and the checkout into every gate summary you present.
 3. **Run the cycle.** Set the phase `In progress` in the Phase tracking table, then load the `sassy-cycle` skill and follow it, with:
    - work brief = the phase's goal, work items, and "Done when" criteria
    - intent reference = the plan path and phase
 4. **Evaluate the phase.** On `Status: done`, the code is ready for the gate, but leave the phase `In progress` — both gates must pass before it closes. On `Status: blocked`, set it `Blocked` in the Phase tracking table and stop; a blocked phase is a real outcome and needs no approval.
 
-   **Then prove the `Auto` rows.** If the phase has any, run the `sassy-dogfood` skill in `mode:run` with each row's section named, before the gate and never after it. Record what each report said. A `failed` verdict is a finding, so the phase goes back through step 3's cycle with the failing step and the report's log tail as its findings, and this step runs again; a `class: env` verdict is not a finding — report that the toolchain is broken, leave the phase `In progress`, and stop. An `Auto` row with no report is `Pending`, never `Done`.
+   **Then prove the `Auto` rows.** If the phase has any, run the `sassy-dogfood` skill in `mode:run` with each row's section named, before the gate and never after it. When the decision took a checkout, the report runs against the checkout's own address — `WT_PATH`, and `WT_NAMESPACE`/`WT_PORT` where the project declared a port range — since proof run against the main checkout's app proves the wrong app. Record what each report said. A `failed` verdict is a finding, so the phase goes back through step 3's cycle with the failing step and the report's log tail as its findings, and this step runs again; a `class: env` verdict is not a finding — report that the toolchain is broken, leave the phase `In progress`, and stop. An `Auto` row with no report is `Pending`, never `Done`.
 5. **Present the phase gate.** Report the phase, what changed, findings raised and resolved (with the fix passes it took), the simplifications applied, the validator grade, the reviewer summary, and the reviewer's suggestions as options the user may pick. Then give the QA checklist verbatim: each row's ID, check, `Mode`, and — for `Manual` — how to run it and what passing looks like, and for `Auto` — the dogfood verdict and run id, with unreported rows `Pending`. Ask for both decisions — code approval (or the changes wanted, including any suggestions picked) and the result per `Manual` row. Wait.
 6. **Resolve the gate.** Three outcomes, nothing in between:
    - **Code approved and every QA row passes** → go to step 7.
@@ -77,7 +77,7 @@ Always gate before committing. The cycle has already fixed and verified its find
 
 When the argument is not a plan path, it is one settled brief:
 
-1. Resolve the branch exactly as the plan path does — `references/branching.md`, this run's `branch:` token — before the cycle runs.
+1. Resolve the branch exactly as the plan path does — `references/branching.md`, this run's `branch:` and `worktree:` tokens — before the cycle runs. Every brief dispatched from there names the absolute `WT_PATH` when the decision took a checkout.
 2. Run one `sassy-cycle` with the brief as the work brief and its decisions / done-when as the intent reference. Do not split it into multiple cycles.
 3. Present the code approval gate with no QA checklist, and wait. Changes requested → a rework cycle with the changes as findings and the brief's decisions / done-when as the intent reference, then this gate again; `blocked` stops.
 4. On code approval, persist the brief's changes the same way the plan path does: a `sassy-commit` delegation with `branch:current` in a remote repo, or the workspace snapshot in a workspace.
@@ -89,6 +89,7 @@ When the argument is not a plan path, it is one settled brief:
 |------|-------------|
 | Orchestrator only | Delegate all implementation and quality work to `sassy-cycle`. |
 | Branch before code | Resolve the branch per the `sassy-setup` skill's `references/branching.md` before the cycle runs, so no change ever lands on a base branch. |
+| Checkout from the branch decision | When the decision took a checkout, every brief names the absolute `WT_PATH` and the main checkout stays read-only; never restate that contract, it is `branching.md`'s. |
 | One phase per run | Do exactly one phase. Never continue into the next phase in this session. |
 | Gate before commit and close-out | Do not commit or close out until the user approves the code and the phase QA rows pass. |
 | Commit per phase | Commit the phase, its QA results, and the plan update via `sassy-commit` before close-out. |

@@ -14,11 +14,13 @@ Read this when the project has `worktrees.enabled: true`, when a run is about to
 cut a branch, or when the user asks to run two agents in one project.
 
 **`enabled: true` is permission, not a default.** A run asks before it takes a
-checkout and stays in the main one otherwise: two runs only collide when they are
-actually parallel, and one taken unasked moves the work to another directory,
-leaves the uncommitted tree behind, and spends the `after_create` setup on a
-checkout nobody needed. `branching.md` owns that ask. `sassy-worktree` runs after
-the answer is yes, or when a human asks for a checkout outright.
+checkout — or takes one on a `worktree:on` token — and stays in the main one
+otherwise: two runs only collide when they are actually parallel, and one taken
+unasked moves the work to another directory, leaves the uncommitted tree behind,
+and spends the `after_create` setup on a checkout nobody needed. `branching.md`
+owns that ask. `sassy-worktree` runs after the answer is yes, or when a human
+asks for a checkout outright; an existing managed checkout for the branch is
+reused rather than a second one cut.
 
 ## Install
 
@@ -201,6 +203,9 @@ implied.
   not nest another worktree.
 - **Enabled is permission, not a default.** A run offers a checkout and takes one
   only on the user's yes; the main checkout is where work happens until then.
+- **A `worktree:on` token is that yes.** A human asking outright is not asked
+  again, and a managed checkout that already exists for the branch is reused
+  instead of cutting a branch in place.
 - **Never operate on another worktree.** A delegation brief carries the absolute
   path of the checkout it may touch; `MAIN` is for reading config and listing.
 - **Never `git stash`.** It is repository-global: a stash taken in one worktree
