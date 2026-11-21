@@ -92,7 +92,7 @@ Debugging:
 | **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, commits after code approval, then stops — the next phase is a run you start. A brief stops before ship. |
 | **`sassy-lfg`** | Executes every phase of a plan, or one in-context brief, then closes out via `sassy-ship` after code approval. |
 | **`sassy-worktree`** | One checkout per branch, each with its own derived namespace and port, so two agents can work in one repo — taken when you ask, never because the config allows it. `create`, `list`, `preview`, `remove`, `prune` — and `preview` brings a checkout up so you can look at it without setting it up by hand. |
-| **`sassy-cycle`** | Runs one unit of work through a tiered loop: implement → simplify + review + validate for `logic`, review for `surface`, nothing for mechanical → one fix pass. No verify. Also reworks finished work from requested changes or failed QA rows. |
+| **`sassy-cycle`** | Runs one unit of work through a tiered loop: implement → simplify + review + validate for `logic`, review for `surface`, nothing for mechanical → one fix pass. No verify. Also reworks finished work from failed QA rows and picked findings. |
 | **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-work` (cycle, code approval, commit), then ships. Debug takes no mode and always leaves ship's review gate in place unless you invoke ship yourself with `mode:auto`. |
 | **`sassy-handoff`** | `mode:write` (default) writes a self-contained handoff file to `/tmp/sassywares/handoffs/` and gives you a `sassy-handoff mode:read <path>` command for a fresh session; `mode:read` explains what the handoff did, why, and where things stand now, then asks what to do next. Works in any harness. |
 
@@ -326,7 +326,7 @@ Option 1 produces a durable plan with phased slices, QA tables, and a change tie
 
 `sassy-work` handles one phase and stops after its commit. `sassy-lfg` drains the whole plan in one session. Both delegate to `sassy-cycle` and stop at one gate carrying code approval plus the QA checklist; nothing is `Done`, committed, or shipped until both pass. `Manual` rows are yours to run. `Auto` rows are proved before the gate by `sassy-dogfood`, and a failed one goes back through the cycle as a finding. With an in-context brief there are no QA rows, so the gate is code approval alone.
 
-Inside the cycle, the **change tier** decides the depth: a `logic` change runs the simplifier, reviewer, and validator in parallel; a `surface` change — docs, copy, tests, fixtures — runs the reviewer; a mechanical change skips review. Every finding is then fixed in one work pass — criticals, warnings, validator gaps, and simplifications together — and the cycle does not re-review the fix. Findings the worker leaves open are reported at the gate, simplifications never block, and the reviewer's suggestions are listed for you to pick. Changes you request at the gate and QA rows that fail go through the same one-pass rework, then the gate comes back.
+Inside the cycle, the **change tier** decides the depth: a `logic` change runs the simplifier, reviewer, and validator in parallel; a `surface` change — docs, copy, tests, fixtures — runs the reviewer; a mechanical change skips review. Every finding is then fixed in one work pass — criticals, warnings, validator gaps, and simplifications together — and the cycle does not re-review the fix. Findings the worker leaves open are reported at the gate, simplifications never block, and the reviewer's suggestions are listed for you to pick. A change you request at the gate is new work: a fresh cycle at its detected tier, so it gets the review its change deserves, then the gate comes back. QA rows that fail on their own are the one-pass rework.
 
 The branch is cut once, before the first change, by `sassy-work` or `sassy-lfg` — never at commit time — and `sassy-ship` never creates it. `commit.branch` (default `new`) decides whether the run cuts one at all; see [Branching](#branching).
 
@@ -389,6 +389,7 @@ The fix gate offers four options:
 |---|---|
 | Code approval | Always on for `sassy-work` and `sassy-lfg`. |
 | Review tier | Per plan phase (`**Review:**`) or a `review:` token, else detected by the cycle. `logic` runs simplify + review + validate; `surface` runs review; `none` skips review. The cycle fixes once and never re-reviews. |
+| Gate changes | A change you request while the gate is open is new work: a fresh cycle at its detected tier, then the gate again. Failing QA rows alone are a one-pass rework. |
 | QA | Part of the same gate, and only when the plan document has QA tables. `Manual` rows are yours; `Auto` rows are settled by a `sassy-dogfood` report. A phase is `Done` only when both pass. |
 | Dogfood | `Auto` rows only exist when `dogfood.enabled` is on and the row's recipe section has a `Prove it:` step. `sassy-ship` persists nothing behind an unproven row. |
 | Ship review | On in `mode:manual` (default), skipped by `mode:auto`. |

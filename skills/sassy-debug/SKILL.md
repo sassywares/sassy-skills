@@ -66,7 +66,7 @@ Load the `sassy-work` skill on its brief path, forwarding this run's `branch:`, 
 - intent reference = the diagnosis from Phase 1
 - scope hint = the files the fix touches
 
-Work owns the fix from here: one `sassy-cycle` (fix, review, validate for logic; reviewer only for surface; one fix pass, no verify), its code approval gate — where the result shows the causal chain next to the fix — the rework loop for any changes the user asks for, and the commit. It stops before ship. Do not dispatch `sassy-cycle` or present a second code approval gate yourself.
+Work owns the fix from here: one `sassy-cycle` (fix, review, validate for logic; reviewer only for surface; one fix pass, no verify), its code approval gate — where the result shows the causal chain next to the fix — the gate loop for any changes the user asks for (a new cycle at its detected tier, not a one-pass rework), and the commit. It stops before ship. Do not dispatch `sassy-cycle` or present a second code approval gate yourself.
 
 The branch decision belongs to work, not to this phase: diagnosis writes nothing, so cutting a branch before the fix gate would leave an empty branch every time the gate ends in *Write a plan*, *Hand off*, or *Stop here*. Work resolves it per `sassy-setup`'s `references/branching.md` before it touches code, so the fix is on its own branch from the first edit and still never lands on a base branch.
 

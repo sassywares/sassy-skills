@@ -4,8 +4,8 @@ description: >-
   Run one unit of work through a tiered quality loop using subagents: implement,
   then simplify + review + validate for logic changes, review for surface
   changes, or nothing for mechanical ones, fix once, and return. No verify pass.
-  Also reworks existing work from a list of findings (requested changes, failed
-  QA rows, a standalone review's picks). Used by sassy-work, sassy-lfg,
+  Also reworks existing work from a list of findings (failed QA rows, a
+  standalone review's picks, PR threads, goal gaps). Used by sassy-work, sassy-lfg,
   sassy-review, sassy-simplify, sassy-validate, sassy-babysit, and sassy-goal.
   Never commits. Built for
   context and token efficiency — the orchestrator only writes briefs and reads
@@ -35,7 +35,9 @@ argument-hint: "<work brief | findings> [review:logic|surface|none] [intent refe
 - **Intent reference** — how conformance is judged: a plan path + phase, or root-cause findings. Optional; without one the validator is skipped.
 - **Scope hint** — files or areas, optional.
 - **Review tier** — `logic` (default), `surface`, or `none`. Callers pass the plan phase's `**Review:**` line or a `review:` token. When neither exists, step 3 detects it from the work's own report.
-- **Findings** — rework only: a list of changes to make to work that already exists — the user's requested changes, failing QA rows, a standalone skill's picked findings. Each is a **fix** unless the caller marks it a **simplification**. Given findings, skip steps 1–5 and start at step 6 with the findings as its lists.
+- **Findings** — rework only: fixes to work that already exists — failing QA rows, a standalone skill's picked findings, PR threads, goal gaps. Each is a **fix** unless the caller marks it a **simplification**. Given findings, skip steps 1–5 and start at step 6 with the findings as its lists.
+
+A change the user asks for at a gate is **not** a finding. It is new work: the caller runs a new cycle with that change as the work brief, so tier detection, review, and one fix pass apply to it like any other unit.
 
 ## Worker brief constraints
 
@@ -100,6 +102,7 @@ Notes: <anything the caller needs>
 | Parallel where independent | Independent work chunks → parallel workers. The tier's quality agents run in one parallel call. |
 | Only fixes block | Simplifications are applied or reported but never make a run `blocked`; reviewer suggestions go to the caller's gate for the user to pick and are never applied automatically. |
 | Simplifier runs once | Only at the `logic` tier. It never runs on rework. |
+| Gate changes are new work | A change the user asks for at a gate runs as a new cycle with that change as the work brief; it is never a findings rework. |
 | Never commit | This skill leaves everything uncommitted. Shipping is `sassy-ship`. |
 | QA stays the caller's | Never mark a QA row `Done`, `Manual` or `Auto`. A `Manual` row is confirmed by the user at the caller's gate and an `Auto` row by a passing dogfood report; failing rows come back as findings. |
 

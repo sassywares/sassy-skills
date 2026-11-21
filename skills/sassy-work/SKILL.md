@@ -47,7 +47,7 @@ A brief has no QA table, so its gate is code approval alone. Never invent, enabl
 
 ## Phase gate
 
-Always gate before committing. The cycle has already fixed its findings in one work pass; present the combined gate — code approval plus the QA checklist — and wait for the user. Anything the user sends back goes through a rework cycle (one work pass, no verify) and the gate again.
+Always gate before committing. The cycle has already fixed its findings in one work pass; present the combined gate — code approval plus the QA checklist — and wait for the user. A change the user sends back is new work: a new cycle with the change as its brief, reviewed at its detected tier, then the gate again. Failing QA rows alone are a one-pass rework. Neither is a direct edit.
 
 ## Steps
 
@@ -63,10 +63,11 @@ Always gate before committing. The cycle has already fixed its findings in one w
 
    **Then prove the `Auto` rows.** If the phase has any, run the `sassy-dogfood` skill in `mode:run` with each row's section named, before the gate and never after it. When the decision took a checkout, the report runs against the checkout's own address — `WT_PATH`, and `WT_NAMESPACE`/`WT_PORT` where the project declared a port range — since proof run against the main checkout's app proves the wrong app. Record what each report said. A `failed` verdict is a finding, so the phase goes back through step 3's cycle with the failing step and the report's log tail as its findings, and this step runs again; a `class: env` verdict is not a finding — report that the toolchain is broken, leave the phase `In progress`, and stop. An `Auto` row with no report is `Pending`, never `Done`.
 5. **Present the phase gate.** Report the phase, what changed, findings raised and what the single fix pass did with each (self-reported; the cycle does not re-review), the simplifications applied or skipped, the validator grade (or that it did not run), the reviewer summary, and the reviewer's suggestions as options the user may pick. Then give the QA checklist verbatim: each row's ID, check, `Mode`, and — for `Manual` — how to run it and what passing looks like, and for `Auto` — the dogfood verdict and run id, with unreported rows `Pending`. Ask for both decisions — code approval (or the changes wanted, including any suggestions picked) and the result per `Manual` row. Wait.
-6. **Resolve the gate.** Three outcomes, nothing in between:
+6. **Resolve the gate.** Four outcomes, nothing in between:
    - **Code approved and every QA row passes** → go to step 7.
    - **Code approved, `Manual` rows still pending** → record that code is approved but leave the phase `In progress`, tick nothing, commit nothing, and report that the phase is waiting on manual QA plus the command that resumes it.
-   - **Changes requested, or any row fails** → a rework cycle: load `sassy-cycle` with the requested changes and the failing rows as its findings, and the plan path and phase as the intent reference. On `done`, re-prove the `Auto` rows (step 4) and present the gate again from step 5; on `blocked`, mark the phase `Blocked` and stop. A QA row that fails again after its rework is `Blocked` with the reason and stops the phase. Change requests have no cap — each one is the user's call.
+   - **Changes requested** → a new cycle: load `sassy-cycle` with the requested changes as the work brief and as the intent reference; the plan path and phase stay as context. The cycle detects the change's tier and runs that tier's agents. On `done`, re-prove the `Auto` rows (step 4) and present the gate again from step 5; on `blocked`, mark the phase `Blocked` and stop. If a QA row also failed, name it in the work brief as an additional requirement. Change requests have no cap — each one is the user's call.
+   - **A QA row fails, with no change requested** → a rework cycle: load `sassy-cycle` with the failing rows as findings and the plan path and phase as the intent reference. On `done`, re-prove the `Auto` rows (step 4) and present the gate again from step 5; on `blocked`, mark the phase `Blocked` and stop. A row that fails again after its rework is `Blocked` with the reason and stops the phase.
 7. **Commit the phase.** On both gates passing, first mark the phase's QA rows `Done` — `Manual` rows with the user's notes, `Auto` rows with the verdict and run id from the report — and the phase `Done` in the Phase tracking table, then persist according to `git.repo`:
 
    - **A remote** — dispatch a `worker` whose task is: *load the `sassy-commit` skill and follow it with `branch:current`*, naming that the commit must include the phase's code changes, the QA table results, and the now-updated Phase tracking table. It returns the hash and subject. The branch already exists: step 2 cut it, so committing on it is the point of `branch:current` here.
@@ -84,7 +85,7 @@ When the argument is not a plan path, it is one settled brief:
 
 1. Resolve the branch exactly as the plan path does — `references/branching.md`, this run's `branch:` and `worktree:` tokens — before the cycle runs. Every brief dispatched from there names the absolute `WT_PATH` when the decision took a checkout.
 2. Run one `sassy-cycle` with the brief as the work brief, its decisions / done-when as the intent reference, and this run's `review:` token as the tier. Do not split it into multiple cycles.
-3. Present the code approval gate with no QA checklist, and wait. Changes requested → a rework cycle with the changes as findings and the brief's decisions / done-when as the intent reference, then this gate again; `blocked` stops.
+3. Present the code approval gate with no QA checklist, and wait. Changes requested → a new cycle with the changes as the work brief and as the intent reference, the brief's decisions / done-when staying as context, then this gate again; `blocked` stops.
 4. On code approval, persist the brief's changes the same way the plan path does: a `sassy-commit` delegation with `branch:current` in a remote repo, or the workspace snapshot in a workspace.
 5. Stop and report. Shipping is a separate step (`sassy-ship`), or `sassy-lfg` would have built and shipped it. Never create or update a plan file.
 
@@ -101,7 +102,7 @@ When the argument is not a plan path, it is one settled brief:
 | Handing off is the user's | Never write a handoff or suggest one. The run ends at its report; `sassy-handoff` is invoked by the user, in their own session and on their own initiative. |
 | Done needs both gates | Mark a phase `Done` only when the user approves the code and every QA row for that phase is `Done`, never before. |
 | QA rows follow their mode | Tick a `Manual` row `Done` only from the user's explicit confirmation, and an `Auto` row only from a passing dogfood report; keep unreported rows `Pending`; a failed row is a finding for a rework cycle. |
-| Send-backs are rework | Requested changes and failed QA rows go through `sassy-cycle` as findings — one work pass, no verify — never a direct edit. |
+| Send-backs split | A user's change request at the gate runs a new `sassy-cycle` at its detected tier; failing QA rows alone go through a one-pass rework. Neither is a direct edit. |
 | No shipping on the brief path | The brief path commits and stops. Shipping is `sassy-ship` or `sassy-lfg`. |
 
 ## Failure handling

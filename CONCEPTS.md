@@ -18,7 +18,7 @@ A skill that mostly coordinates. It reads compact results, writes briefs, and av
 
 ## Cycle
 
-`sassy-cycle` runs one unit of work through a tiered loop: implement → quality by change tier → one fix pass → return. A `logic` unit runs the simplifier, reviewer, and validator in parallel; a `surface` unit runs the reviewer; a `none` unit runs neither. The fix pass applies every finding once, and the cycle never re-reviews it — findings the worker leaves open are reported, and simplifications never block. Reviewer suggestions go to the gate. Given findings instead of a brief — requested changes, failed QA rows — it applies them in one work pass. It never commits. Work and LFG run it; debug fixes through work.
+`sassy-cycle` runs one unit of work through a tiered loop: implement → quality by change tier → one fix pass → return. A `logic` unit runs the simplifier, reviewer, and validator in parallel; a `surface` unit runs the reviewer; a `none` unit runs neither. The fix pass applies every finding once, and the cycle never re-reviews it — findings the worker leaves open are reported, and simplifications never block. Reviewer suggestions go to the gate. Given findings instead of a brief — failed QA rows, picked review findings — it applies them in one work pass. A change the user asks for at a gate is not a finding: it runs as a new cycle with that change as the work brief, so tier detection and review apply. It never commits. Work and LFG run it; debug fixes through work.
 
 ## Change tier
 
@@ -40,6 +40,7 @@ A gate is a deliberate stop or pass/fail condition.
 
 - **Fix gate** — `sassy-debug` presents the causal chain, fix, and risks before changing code.
 - **Code approval gate** — the user approves the code before committing or shipping. Always on for `sassy-work` and `sassy-lfg`.
+- **Gate change** — a change the user asks for while the code approval or QA gate is open is new work: a new `sassy-cycle` with that change as its work brief, at its detected tier, then the gate again. Failing QA rows alone are a one-pass rework.
 - **Ship review gate** — `sassy-ship` summarizes the close-out and waits in `mode:manual` (default); skipped only when the caller passed `mode:auto`.
 - **QA gate** — QA tables, part of phase completion rather than a separate track: a phase turns `Done` only when the code is approved and every QA row passed. A `Manual` row belongs to the user, and no agent ticks its own. An `Auto` row is settled by a passing dogfood report, never by an opinion, and ship will not persist behind one that is unproven. It exists only when the plan document has QA tables; an in-context brief has none.
 
