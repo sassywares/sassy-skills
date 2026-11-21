@@ -22,7 +22,7 @@ Every phase names the depth of quality work it needs with a `**Review:**` line. 
 - **`surface`** — everything that is not core code: docs, Markdown, comments, copy/i18n strings, tests, fixtures, formatting. Reviewer only, then one fix pass.
 - **`none`** — machine-generated or mechanical: lockfiles, generated or vendored files, formatter churn, mass renames. No review; the worker's own checks are the record.
 
-Default to `logic` when unsure. The tier is a declaration, not a trap: a `surface` phase that turns out to touch core code is promoted to `logic` by the executor, so declaring it optimistically costs nothing. Omit the line only when the phase is plainly `logic`.
+Default to `logic` when unsure. The tier is a declaration, not a trap: a `surface` phase that turns out to touch core code is promoted to `logic` by the executor, so declaring it optimistically costs nothing. The template shows `logic`; a missing line is read as `logic`.
 
 ## QA — part of the gate
 

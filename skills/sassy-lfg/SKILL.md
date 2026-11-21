@@ -13,7 +13,7 @@ argument-hint: "<plan path | brief> [branch:infer|current|new] [worktree:on|off]
 
 **The orchestrator does not do work.** Read the plan, dispatch `sassy-cycle` per phase, then `sassy-ship`. Never edit application code. Keep the main context small — all heavy work happens in subagents.
 
-**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. Plans live under `artifacts.plans`; `git.repo` decides how the close-out persists; `commit.branch` decides whether the run needs its own branch, and a `worktree:on|off` token answers the checkout question `branching.md` asks at step 6. The token outranks config but never widens what `worktrees.enabled` allows.
+**Config.** Resolve `.sassywares/config.yaml` (nearest, walking up) per the `sassy-setup` skill's `references/config.md`. Precedence: explicit token > session instruction > config > skill default. Plans live under `artifacts.plans`; `git.repo` decides how the close-out persists; `commit.branch` decides whether the run needs its own branch, and a `worktree:on|off` token answers the checkout question the `sassy-setup` skill's `references/branching.md` asks at step 6. The token outranks config but never widens what `worktrees.enabled` allows.
 
 **Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
 
@@ -57,7 +57,7 @@ A brief has no QA table, so its gate is code approval alone. Never invent, enabl
 5. **Resolve the gate.** Four outcomes:
    - **Code approved and every QA row passes** → mark the rows `Done` (`Manual` with the user's notes, `Auto` with the verdict and run id), mark the phases `Done`, then run the close-out below.
    - **Code approved, `Manual` rows still pending** → tick nothing, mark nothing `Done`, commit nothing, ship nothing. Report which rows are outstanding and how to resume (invoke `sassy-lfg <plan>` in the harness's syntax), and stop.
-   - **Changes requested** → a new cycle per affected phase: load `sassy-cycle` with that phase's requested changes as the work brief and as the intent reference; the plan path and phase stay as context. The cycle detects the change's tier and runs that tier's agents. When every new cycle is `done`, re-prove the `Auto` rows and present the gate again; a `blocked` cycle marks its phase `Blocked` and stops the run. If a QA row also failed, name it in the work brief as an additional requirement. Change requests have no cap — each one is the user's call.
+   - **Changes requested** → a new cycle per affected phase: load `sassy-cycle` with that phase's requested changes as the work brief and the plan path and phase, as amended by those changes, as the intent reference. The cycle detects the change's tier and runs that tier's agents. When every new cycle is `done`, re-prove the `Auto` rows and present the gate again; a `blocked` cycle marks its phase `Blocked` and stops the run. If a QA row also failed, name it in the work brief as an additional requirement. Change requests have no cap — each one is the user's call.
    - **A QA row fails, with no change requested** → a rework cycle per affected phase: load `sassy-cycle` with that phase's failing rows as findings and the plan path and phase as the intent reference. When every rework is `done`, present the gate again; a `blocked` rework marks its phase `Blocked` and stops the run. A row that fails again after its rework is `Blocked` with the reason and stops the run.
 6. **Close-out.** On both gates passing, load the `sassy-ship` skill and follow it. Do only the close-out steps the user approves. Babysit options (`merge:on|off`, `delete-branch:on|off`) are forwarded through `sassy-ship` to `sassy-babysit`. The branch from step 2 already carries the work, so ship commits and opens the PR on it; ship never creates the branch. Under `commit.branch: current` ship commits and pushes the checked-out branch to its upstream and skips the PR, `hooks.pr.*`, babysit, and merge.
 
@@ -67,7 +67,7 @@ When the argument is not a plan path, the brief is the one phase:
 
 1. Resolve the branch exactly as the plan path does — the `sassy-setup` skill's `references/branching.md`, this run's `branch:` and `worktree:` tokens — before the cycle runs.
 2. Run one `sassy-cycle` with the brief as the work brief, its decisions / done-when as the intent reference, and this run's `review:` token as the tier. Do not split it into multiple phases.
-3. Present the code approval gate with no QA checklist, and wait. Changes requested → a new cycle with the changes as the work brief and as the intent reference, the brief's decisions / done-when staying as context, then this gate again; `blocked` stops.
+3. Present the code approval gate with no QA checklist, and wait. Changes requested → a new cycle with the changes as the work brief and the brief's decisions / done-when, as amended by those changes, as the intent reference, then this gate again; `blocked` stops.
 4. On code approval, run `sassy-ship`. Do not run `sassy-plan` or write a plan file.
 
 ## Hard rules

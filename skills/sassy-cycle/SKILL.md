@@ -34,7 +34,7 @@ argument-hint: "<work brief | findings> [review:logic|surface|none] [intent refe
 - **Work brief** — what to build or fix, concretely.
 - **Intent reference** — how conformance is judged: a plan path + phase, or root-cause findings. Optional; without one the validator is skipped.
 - **Scope hint** — files or areas, optional.
-- **Review tier** — `logic` (default), `surface`, or `none`. Callers pass the plan phase's `**Review:**` line or a `review:` token. When neither exists, step 3 detects it from the work's own report.
+- **Review tier** — `logic`, `surface`, or `none`. Callers pass the plan phase's `**Review:**` line or a `review:` token. When neither exists, step 3 detects it from the work's own report; when the report cannot decide, the tier is `logic`.
 - **Findings** — rework only: fixes to work that already exists — failing QA rows, a standalone skill's picked findings, PR threads, goal gaps. Each is a **fix** unless the caller marks it a **simplification**. Given findings, skip steps 1–5 and start at step 6 with the findings as its lists.
 
 A change the user asks for at a gate is **not** a finding. It is new work: the caller runs a new cycle with that change as the work brief, so tier detection, review, and one fix pass apply to it like any other unit.

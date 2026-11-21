@@ -66,7 +66,7 @@ Always gate before committing. The cycle has already fixed its findings in one w
 6. **Resolve the gate.** Four outcomes, nothing in between:
    - **Code approved and every QA row passes** → go to step 7.
    - **Code approved, `Manual` rows still pending** → record that code is approved but leave the phase `In progress`, tick nothing, commit nothing, and report that the phase is waiting on manual QA plus the command that resumes it.
-   - **Changes requested** → a new cycle: load `sassy-cycle` with the requested changes as the work brief and as the intent reference; the plan path and phase stay as context. The cycle detects the change's tier and runs that tier's agents. On `done`, re-prove the `Auto` rows (step 4) and present the gate again from step 5; on `blocked`, mark the phase `Blocked` and stop. If a QA row also failed, name it in the work brief as an additional requirement. Change requests have no cap — each one is the user's call.
+   - **Changes requested** → a new cycle: load `sassy-cycle` with the requested changes as the work brief and the plan path and phase, as amended by those changes, as the intent reference. The cycle detects the change's tier and runs that tier's agents. On `done`, re-prove the `Auto` rows (step 4) and present the gate again from step 5; on `blocked`, mark the phase `Blocked` and stop. If a QA row also failed, name it in the work brief as an additional requirement. Change requests have no cap — each one is the user's call.
    - **A QA row fails, with no change requested** → a rework cycle: load `sassy-cycle` with the failing rows as findings and the plan path and phase as the intent reference. On `done`, re-prove the `Auto` rows (step 4) and present the gate again from step 5; on `blocked`, mark the phase `Blocked` and stop. A row that fails again after its rework is `Blocked` with the reason and stops the phase.
 7. **Commit the phase.** On both gates passing, first mark the phase's QA rows `Done` — `Manual` rows with the user's notes, `Auto` rows with the verdict and run id from the report — and the phase `Done` in the Phase tracking table, then persist according to `git.repo`:
 
@@ -83,9 +83,9 @@ Always gate before committing. The cycle has already fixed its findings in one w
 
 When the argument is not a plan path, it is one settled brief:
 
-1. Resolve the branch exactly as the plan path does — `references/branching.md`, this run's `branch:` and `worktree:` tokens — before the cycle runs. Every brief dispatched from there names the absolute `WT_PATH` when the decision took a checkout.
+1. Resolve the branch exactly as the plan path does — the `sassy-setup` skill's `references/branching.md`, this run's `branch:` and `worktree:` tokens — before the cycle runs. Every brief dispatched from there names the absolute `WT_PATH` when the decision took a checkout.
 2. Run one `sassy-cycle` with the brief as the work brief, its decisions / done-when as the intent reference, and this run's `review:` token as the tier. Do not split it into multiple cycles.
-3. Present the code approval gate with no QA checklist, and wait. Changes requested → a new cycle with the changes as the work brief and as the intent reference, the brief's decisions / done-when staying as context, then this gate again; `blocked` stops.
+3. Present the code approval gate with no QA checklist, and wait. Changes requested → a new cycle with the changes as the work brief and the brief's decisions / done-when, as amended by those changes, as the intent reference, then this gate again; `blocked` stops.
 4. On code approval, persist the brief's changes the same way the plan path does: a `sassy-commit` delegation with `branch:current` in a remote repo, or the workspace snapshot in a workspace.
 5. Stop and report. Shipping is a separate step (`sassy-ship`), or `sassy-lfg` would have built and shipped it. Never create or update a plan file.
 
