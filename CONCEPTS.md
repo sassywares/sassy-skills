@@ -18,7 +18,11 @@ A skill that mostly coordinates. It reads compact results, writes briefs, and av
 
 ## Cycle
 
-`sassy-cycle` runs one unit of work through implement → review + simplify + validate (in parallel) → fix → verify. Simplifications are applied and verified but never block. Verify is a reviewer scoped to the fix, confirming each finding resolved and checking the fix for new ones; at most two fix passes, then anything open is `blocked`. Reviewer suggestions never block; they go to the gate. Given findings instead of a brief — requested changes, failed QA rows — it reworks existing work through the same fix → verify loop. It never commits. Work and LFG run it; debug fixes through work.
+`sassy-cycle` runs one unit of work through a tiered loop: implement → quality by change tier → one fix pass → return. A `logic` unit runs the simplifier, reviewer, and validator in parallel; a `surface` unit runs the reviewer; a `none` unit runs neither. The fix pass applies every finding once, and the cycle never re-reviews it — findings the worker leaves open are reported, and simplifications never block. Reviewer suggestions go to the gate. Given findings instead of a brief — requested changes, failed QA rows — it applies them in one work pass. It never commits. Work and LFG run it; debug fixes through work.
+
+## Change tier
+
+The depth of quality work a unit needs: declared per plan phase with `**Review:**`, passed as a `review:` token, or detected by `sassy-cycle` from the work. `logic` is core code and anything that can change runtime behavior; `surface` is everything that is not core code — docs, Markdown, comments, copy/i18n, tests, fixtures, formatting; `none` is machine-generated or mechanical churn. A declared `surface` or `none` is promoted to `logic` when the work touches core code; never the reverse.
 
 ## Dogfood
 

@@ -5,7 +5,7 @@ description: >-
   through sassy-work (quality cycle, code approval, commit), and finally ship
   it through sassy-ship. Never auto-commits. Use when asked to
   debug or fix a failure.
-argument-hint: "[issue reference, error message, test path, or description] [branch:infer|current|new] [worktree:on|off]"
+argument-hint: "[issue reference, error message, test path, or description] [branch:infer|current|new] [worktree:on|off] [review:logic|surface|none]"
 ---
 
 # Sassy Debug
@@ -60,13 +60,13 @@ This gate is mandatory even when the original request said "fix the bug". Do not
 
 ### Option 1 — Fix it now
 
-Load the `sassy-work` skill on its brief path, forwarding this run's `branch:` and `worktree:` tokens if they were given, with:
+Load the `sassy-work` skill on its brief path, forwarding this run's `branch:`, `worktree:`, and `review:` tokens if they were given, with:
 
 - work brief = "Fix the root cause: <causal chain>. Apply the smallest change; add or strengthen the regression test first."
 - intent reference = the diagnosis from Phase 1
 - scope hint = the files the fix touches
 
-Work owns the fix from here: one `sassy-cycle` (fix, review, validate, verified fix passes), its code approval gate — where the result shows the causal chain next to the fix — the rework loop for any changes the user asks for, and the commit. It stops before ship. Do not dispatch `sassy-cycle` or present a second code approval gate yourself.
+Work owns the fix from here: one `sassy-cycle` (fix, review, validate for logic; reviewer only for surface; one fix pass, no verify), its code approval gate — where the result shows the causal chain next to the fix — the rework loop for any changes the user asks for, and the commit. It stops before ship. Do not dispatch `sassy-cycle` or present a second code approval gate yourself.
 
 The branch decision belongs to work, not to this phase: diagnosis writes nothing, so cutting a branch before the fix gate would leave an empty branch every time the gate ends in *Write a plan*, *Hand off*, or *Stop here*. Work resolves it per `sassy-setup`'s `references/branching.md` before it touches code, so the fix is on its own branch from the first edit and still never lands on a base branch.
 

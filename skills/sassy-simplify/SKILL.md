@@ -11,7 +11,7 @@ argument-hint: "[files, branch, or blank for current changes] [mode:manual|auto|
 
 # Sassy Simplify
 
-**Outcome:** the scope's simplification findings, and — unless `mode:return` — the chosen ones applied with behavior unchanged and verified; everything left uncommitted.
+**Outcome:** the scope's simplification findings, and — unless `mode:return` — the chosen ones applied with behavior unchanged in one work pass; everything left uncommitted.
 
 **Simplify only.** Not a bug hunt — that is `sassy-review`. Not a plan check — that is `sassy-validate`.
 
@@ -48,7 +48,7 @@ Fewer lines is not the goal. A finding that would make code longer or harder to 
 3. **Nothing to apply?** On `Nothing to simplify` or no findings, report that and stop.
 4. **Return.** In `mode:return`, return the simplifier's findings as-is — files reviewed, findings by dimension, summary — and stop.
 5. **Choose.** In `mode:manual`, present the findings grouped by dimension and ask which to apply: all / specific / none. In `mode:auto`, take all.
-6. **Apply.** Load the `sassy-cycle` skill on rework with the chosen findings, each marked a **simplification**, and the scope's files as the scope hint. The cycle's worker keeps behavior identical and its verify step confirms each one.
+6. **Apply.** Load the `sassy-cycle` skill on rework with the chosen findings, each marked a **simplification**, and the scope's files as the scope hint. The cycle's worker keeps behavior identical and reports each one applied or skipped; there is no verify pass.
 7. **Report.** What was applied per dimension, what was skipped and why, and the checks the worker ran. Leave it uncommitted.
 
 ## Hard rules

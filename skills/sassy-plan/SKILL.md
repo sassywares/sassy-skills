@@ -85,6 +85,10 @@ A row is `Auto` only when the project's `dogfood.enabled` is `true` **and** the 
 
 The in-context brief has no QA table, so its gate is code approval alone. Omit QA tables only when the user explicitly asks to skip QA in plain language.
 
+## Review tier
+
+Every phase also carries a `**Review:**` line — `logic`, `surface`, or `none` — set from what the phase changes, per `references/plan-format.md`. It decides the depth of the quality loop: `logic` runs simplify + review + validate, `surface` runs review, `none` runs neither. Core code is `logic`; docs, copy, tests, and fixtures are `surface`; generated or formatter-only churn is `none`. Default to `logic` when unsure, and let the executor promote a `surface` phase that turns out to touch core code. A brief has no plan file: the executor takes a `review:` token or detects the tier itself.
+
 ## Resume
 
 If the user points at an existing sassy plan, update phases and tables in place. If they point at a raw plan from elsewhere, reshape it into this format without discarding its settled decisions — but grill whatever it leaves open or merely asserts. An existing plan is already the document.

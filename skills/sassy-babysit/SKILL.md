@@ -45,7 +45,7 @@ Snapshot the PR state first, then act in this order:
 5. **CI** — `gh pr checks`. One pass for all failures. Flaky/infra → `gh run rerun <run-id> --failed`. Real failure → fix it (see **Fixing**). Mark each check handled; unfixed checks stay red.
 6. **Branch currency** — if the branch is `BEHIND` or `DIRTY`, update it (`gh pr update-branch <ref>`, or ask for a local rebase). Do not update just because the base moved; only when the status actually requires it.
 
-**Fixing.** Load the `sassy-cycle` skill on rework with the threads and failing checks as findings and the PR's changed files as the scope hint; it fixes and verifies, at most two passes. Then load `sassy-commit` with `branch:current` and `git push`. A finding the cycle leaves open, or a failure you cannot diagnose from the log and the diff, is `needs-human`. Never load `sassy-debug` or `sassy-ship` from here — they commit, open PRs, and babysit on their own, which nests a second watch over this PR.
+**Fixing.** Load the `sassy-cycle` skill on rework with the threads and failing checks as findings and the PR's changed files as the scope hint; it applies them in one work pass and reports each fixed or open; there is no verify pass. Then load `sassy-commit` with `branch:current` and `git push`. A finding the cycle leaves open, or a failure you cannot diagnose from the log and the diff, is `needs-human`. Never load `sassy-debug` or `sassy-ship` from here — they commit, open PRs, and babysit on their own, which nests a second watch over this PR.
 
 After a tick with no true stop, wait and run the next tick. Checkpoint mode: run one tick and report paused with the resume command.
 

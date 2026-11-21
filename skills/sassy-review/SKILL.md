@@ -11,7 +11,7 @@ argument-hint: "[PR ref, branch, files, or blank for current changes] [mode:manu
 
 # Sassy Review
 
-**Outcome:** the scope reviewed with concrete findings, and — unless `mode:return` — the chosen ones fixed and verified; everything left uncommitted.
+**Outcome:** the scope reviewed with concrete findings, and — unless `mode:return` — the chosen ones fixed in one work pass; everything left uncommitted.
 
 **Review only.** Simplification is `sassy-simplify`; plan conformance is `sassy-validate`.
 
@@ -49,7 +49,7 @@ Findings must be grounded: every rule finding quotes the rule file and section; 
 3. **Return.** In `mode:return`, return the reviewer's output as-is and stop.
 4. **Nothing actionable?** If there are no Critical or Warning findings, report the summary plus the rules/design-system check list and stop.
 5. **Choose.** In `mode:manual`, present findings grouped Critical / Warnings / Suggestions, including the rules and design-system check list, and ask which to fix: critical only / all actionable / specific / none. In `mode:auto`, take every Critical and Warning.
-6. **Fix.** Load the `sassy-cycle` skill on rework with the chosen findings and the reviewed files as the scope hint. Its verify step confirms each one resolved, with at most two fix passes.
+6. **Fix.** Load the `sassy-cycle` skill on rework with the chosen findings and the reviewed files as the scope hint. It applies them in one work pass and reports each fixed or open; there is no verify pass.
 7. **Report.** What was fixed, what is still open and why; leave it uncommitted.
 
 ## Hard rules
@@ -64,4 +64,4 @@ Findings must be grounded: every rule finding quotes the rule file and section; 
 
 ## Failure handling
 
-The cycle returns a finding open after two passes → report it with its reason and continue with the rest. Stop on an unsafe or ambiguous failure.
+The cycle returns a finding open after its one work pass → report it with its reason and continue with the rest. Stop on an unsafe or ambiguous failure.

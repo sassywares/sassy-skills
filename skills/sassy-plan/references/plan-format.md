@@ -14,6 +14,16 @@ The plan has no open-questions section. Every branch the interview found is a de
 4. **Readable.** 3–8 phases for a typical feature. Merge only when a split leaves a phase with no meaningful thing to verify.
 5. **No dump sections.** Anything executable lives under a phase. No giant task list outside the phases.
 
+## Review — the phase's change tier
+
+Every phase names the depth of quality work it needs with a `**Review:**` line. The executor passes it to `sassy-cycle`, which runs that tier's agents.
+
+- **`logic`** — core code and anything that can change runtime behavior: product source, UI and styles, schemas and migrations, public contracts, behavior-changing config. Simplifier + reviewer + validator, then one fix pass.
+- **`surface`** — everything that is not core code: docs, Markdown, comments, copy/i18n strings, tests, fixtures, formatting. Reviewer only, then one fix pass.
+- **`none`** — machine-generated or mechanical: lockfiles, generated or vendored files, formatter churn, mass renames. No review; the worker's own checks are the record.
+
+Default to `logic` when unsure. The tier is a declaration, not a trap: a `surface` phase that turns out to touch core code is promoted to `logic` by the executor, so declaring it optimistically costs nothing. Omit the line only when the phase is plainly `logic`.
+
 ## QA — part of the gate
 
 Every phase gets a QA table. Each row's `Mode` is `Auto` or `Manual`, and the choice is not a preference:
@@ -91,13 +101,15 @@ Status values: `Pending` | `In progress` | `Blocked` | `Done`
 
 **Why this slice:** One sentence on the tracer bullet (end-to-end for this goal).
 
+**Review:** logic
+
 **Work (vertical):**
 - Database: …
 - Backend: …
 - Frontend: …
 - Tests/config: …
 
-Omit empty layers. Do not put the next goal's work here.
+Omit empty layers. Do not put the next goal's work here. The `**Review:**` line follows the work: a phase with any core-code layer is `logic`; a docs, copy, test, or fixture phase is `surface`; generated or formatter-only churn is `none`.
 
 **Done when:** Plain-language acceptance for this phase only.
 

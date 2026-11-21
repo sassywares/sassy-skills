@@ -11,7 +11,7 @@ argument-hint: "[plan path [+ phase], or the intent to validate against] [range:
 
 # Sassy Validate
 
-**Outcome:** a grounded conformance judgment against an intent, and — unless `mode:return` — the chosen gaps closed and verified; everything left uncommitted.
+**Outcome:** a grounded conformance judgment against an intent, and — unless `mode:return` — the chosen gaps closed in one work pass; everything left uncommitted.
 
 **Validate only.** Code quality and bugs are `sassy-review`; simplification is `sassy-simplify`.
 
@@ -38,7 +38,7 @@ Use the mode the caller passed; never pick one yourself.
 3. **Return.** In `mode:return`, return the validator's grade, evidence, and gaps as-is and stop.
 4. **Conforms?** If the grade is `Conforms`, report it and stop. If `Blocked — insufficient grounding`, report what it needs and stop — do not guess.
 5. **Choose.** On `Partial` or `Diverges`, in `mode:manual` present the `Gaps` and ask which to close: all / specific / none. In `mode:auto`, take all.
-6. **Close.** Load the `sassy-cycle` skill on rework with the chosen gaps as findings and the same intent reference. Its verify step re-runs the validator against that intent, with at most two fix passes.
+6. **Close.** Load the `sassy-cycle` skill on rework with the chosen gaps as findings and the same intent reference. It closes them in one work pass and reports each closed or open; there is no re-grade.
 7. **Report.** What was closed, what remains and why; leave it uncommitted.
 
 ## Hard rules
@@ -53,4 +53,4 @@ Use the mode the caller passed; never pick one yourself.
 
 ## Failure handling
 
-The grade is `Blocked — insufficient grounding` → treat it as a real blocker; report exactly what it asked to inspect and stop. The cycle returns a gap open after two passes → report it with its reason.
+The grade is `Blocked — insufficient grounding` → treat it as a real blocker; report exactly what it asked to inspect and stop. The cycle returns a gap open after its one work pass → report it with its reason.

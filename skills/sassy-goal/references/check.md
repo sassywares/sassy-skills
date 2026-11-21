@@ -10,7 +10,7 @@ Runs on the slice branch after `sassy-ship`, before the PR merges, so whatever i
 2. **Find the range.** The probe worker also returns `git merge-base <remote>/<baseRefName> HEAD`. Under `commit.branch: current` there is no PR: ask the user for the commit the slice started from. Under `git.repo: workspace`, get one PR, base, and merge-base per affected repo.
 3. **Validate.** Load the `sassy-validate` skill with `mode:return`, the slice plan path with no phase (the whole plan), and `range:<merge-base>..HEAD`. In a workspace, make one call per affected repo, each with its own range. A `Blocked — insufficient grounding` grade stops the check: report what it needs.
 4. **Resolve every gap.** On `Conforms`, there are none. Otherwise present each gap with its evidence, and for each the user picks one:
-   - **Fix now** — collected and closed together: load the `sassy-cycle` skill on rework with the chosen gaps as findings and the slice plan as the intent reference. A gap still open after its two fix passes goes back to the user to defer or accept.
+   - **Fix now** — collected and closed together: load the `sassy-cycle` skill on rework with the chosen gaps as findings and the slice plan as the intent reference. A gap still open after its one work pass goes back to the user to defer or accept.
    - **Defer to a later slice** — the user names one that is still `Pending`. Add the gap to that slice's Scope or Done when in `goal.md`; it also goes in this slice's carry-forward entry. On the last slice there is nothing to defer to: only fix or accept.
    - **Accept** — with the user's reason, recorded in the carry-forward entry.
 
