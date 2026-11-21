@@ -15,7 +15,7 @@ argument-hint: "[plan path [+ phase], or the intent to validate against] [range:
 
 **Validate only.** Code quality and bugs are `sassy-review`; simplification is `sassy-simplify`.
 
-**Orchestrator only.** Never edit code yourself. The `validator` finds gaps; `sassy-cycle` closes and verifies them.
+**Orchestrator only.** Never edit code yourself. The `validator` finds gaps; `sassy-cycle` closes them in one work pass.
 
 **This skill needs an intent.** Validation without something to validate against is meaningless. If the user gave no plan path or intent, ask for one before doing anything.
 

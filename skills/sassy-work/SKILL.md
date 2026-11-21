@@ -58,7 +58,7 @@ Always gate before committing. The cycle has already fixed its findings in one w
 3. **Run the cycle.** Set the phase `In progress` in the Phase tracking table, then load the `sassy-cycle` skill and follow it, with:
    - work brief = the phase's goal, work items, and "Done when" criteria
    - intent reference = the plan path and phase
-   - review tier = the phase's `**Review:**` line, or this run's `review:` token when it has one
+   - review tier = this run's `review:` token when present, else the phase's `**Review:**` line
 4. **Evaluate the phase.** On `Status: done`, the code is ready for the gate, but leave the phase `In progress` — both gates must pass before it closes. On `Status: blocked`, set it `Blocked` in the Phase tracking table and stop; a blocked phase is a real outcome and needs no approval.
 
    **Then prove the `Auto` rows.** If the phase has any, run the `sassy-dogfood` skill in `mode:run` with each row's section named, before the gate and never after it. When the decision took a checkout, the report runs against the checkout's own address — `WT_PATH`, and `WT_NAMESPACE`/`WT_PORT` where the project declared a port range — since proof run against the main checkout's app proves the wrong app. Record what each report said. A `failed` verdict is a finding, so the phase goes back through step 3's cycle with the failing step and the report's log tail as its findings, and this step runs again; a `class: env` verdict is not a finding — report that the toolchain is broken, leave the phase `In progress`, and stop. An `Auto` row with no report is `Pending`, never `Done`.

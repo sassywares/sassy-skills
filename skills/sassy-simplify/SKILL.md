@@ -15,7 +15,7 @@ argument-hint: "[files, branch, or blank for current changes] [mode:manual|auto|
 
 **Simplify only.** Not a bug hunt — that is `sassy-review`. Not a plan check — that is `sassy-validate`.
 
-**Orchestrator only.** Never edit code or read source yourself. The `simplifier` finds; `sassy-cycle` applies and verifies.
+**Orchestrator only.** Never edit code or read source yourself. The `simplifier` finds; `sassy-cycle` applies in one work pass.
 
 **Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
 

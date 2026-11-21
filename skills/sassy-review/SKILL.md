@@ -15,7 +15,7 @@ argument-hint: "[PR ref, branch, files, or blank for current changes] [mode:manu
 
 **Review only.** Simplification is `sassy-simplify`; plan conformance is `sassy-validate`.
 
-**Orchestrator only.** Never edit code yourself. The `reviewer` finds; `sassy-cycle` fixes and verifies.
+**Orchestrator only.** Never edit code yourself. The `reviewer` finds; `sassy-cycle` fixes in one work pass.
 
 **Harness.** Loading another skill, dispatching an agent, and any command you hand the user follow the `sassy-setup` skill's `references/harness.md`. Read it once per run, before the first of those.
 

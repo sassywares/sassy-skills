@@ -6,7 +6,8 @@ description: >-
   changes, or nothing for mechanical ones, fix once, and return. No verify pass.
   Also reworks existing work from a list of findings (requested changes, failed
   QA rows, a standalone review's picks). Used by sassy-work, sassy-lfg,
-  sassy-review, sassy-simplify, and sassy-validate. Never commits. Built for
+  sassy-review, sassy-simplify, sassy-validate, sassy-babysit, and sassy-goal.
+  Never commits. Built for
   context and token efficiency — the orchestrator only writes briefs and reads
   compact results.
 argument-hint: "<work brief | findings> [review:logic|surface|none] [intent reference]"
