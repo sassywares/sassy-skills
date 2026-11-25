@@ -68,5 +68,55 @@ case "$out3" in
   *) fail "a branch tracking the base is called out" "$out3" ;;
 esac
 
+# 4. A configured `down:` runs on remove and the checkout is gone afterwards. The
+#    marker proves it ran; the missing directory proves down did not replace the
+#    deletion. The down script is committed so a checkout cut from origin/main has it.
+mkdir -p "$MAIN/bin"
+printf '#!/usr/bin/env bash\nprintf "down\\n" > "%s/down.marker"\n' "$TMP" > "$MAIN/bin/down"
+chmod +x "$MAIN/bin/down"
+printf 'worktrees:\n  enabled: true\n  dir: %s/worktrees\ndown: ./bin/down\n' "$TMP" > "$MAIN/.sassywares/config.yaml"
+git_q add -A
+git_q commit -qm "add a down life cycle"
+git_q push -q origin main
+
+DOWN="$MAIN/.sassywares/worktree/remove"
+LIST="$MAIN/.sassywares/worktree/list"
+rm -f "$TMP/down.marker"
+out4="$("$WT" feat/down --from origin/main 2>&1)" || { fail "create for the down test exits 0" "$out4"; }
+dpath="$("$LIST" --path feat-down 2>&1)" || { fail "list --path finds the down checkout" "$dpath"; }
+out4r="$("$DOWN" feat/down 2>&1)" || { fail "remove with a down: exits 0" "$out4r"; }
+if [ -f "$TMP/down.marker" ]; then
+  pass "a configured down: runs on remove"
+else
+  fail "a configured down: runs on remove" "$out4r"
+fi
+if [ ! -d "$dpath" ]; then
+  pass "the checkout is gone after down: ran"
+else
+  fail "the checkout is gone after down: ran" "$out4r"
+fi
+
+# 5. The guards run before `down`: a dirty checkout is refused, so nothing is ever
+#    stopped on the way to a refusal that leaves the checkout in place.
+rm -f "$TMP/down.marker"
+out5="$("$WT" feat/dirty --from origin/main 2>&1)" || { fail "create for the dirty test exits 0" "$out5"; }
+dpath5="$("$LIST" --path feat-dirty 2>&1)" || { fail "list --path finds the dirty checkout" "$dpath5"; }
+printf 'local work\n' > "$dpath5/scratch.txt"
+if "$DOWN" feat/dirty >/dev/null 2>&1; then
+  fail "a dirty checkout refuses removal"
+else
+  pass "a dirty checkout refuses removal"
+fi
+if [ ! -f "$TMP/down.marker" ]; then
+  pass "down: does not run when a guard refuses"
+else
+  fail "down: does not run when a guard refuses" "a marker was written"
+fi
+if [ -d "$dpath5" ]; then
+  pass "the refused checkout is still there"
+else
+  fail "the refused checkout is still there"
+fi
+
 printf '\n%s\n' "$([ "$fails" -eq 0 ] && echo "all passed" || echo "$fails failed")"
 [ "$fails" -eq 0 ]

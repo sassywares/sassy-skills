@@ -1,27 +1,35 @@
 #!/usr/bin/env bash
-# Shared helpers for the worktree scripts: create, list, stop, remove, prune.
+# Shared helpers for the worktree scripts: create, list, remove, prune.
 #
-# Installed next to those scripts by sassy-setup, and owned by this project from
-# then on — extend it here rather than forking a copy. Three rules worth keeping:
+# Installed next to those scripts by sassy-setup. Suite-owned and read-only, so
+# every project runs the same mechanics. Three rules worth keeping:
 #
-#   1. The worktree home, the port range, and the on/off switch come from
-#      `worktrees:` in .sassywares/config.yaml. Never grow a second source.
-#   2. A port is claimed, never assumed. The claim directory is the lock.
+#   1. Two config sources, each with exactly one owner. The worktree home and the
+#      on/off switch live under `worktrees:` in .sassywares/config.yaml; the stack
+#      life cycle is the top-level `down:`/`up:`. Never duplicate either one into
+#      the other block, and never grow a third source.
+#   2. Identity is derived here once — never built by hand downstream.
 #   3. Everything resolves against the MAIN checkout, so running any of these
 #      from inside a worktree behaves identically.
 #
-# worktree-version: 8
+# worktree-version: 12
 
 set -euo pipefail
 
-WT_VERSION="8"
+WT_VERSION="12"
 WT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log()  { printf '%s\n' "$*"; }
 ok()   { printf '  %-9s %s\n' "$1" "$2"; }
-warn() { printf '  %-9s %s\n' "!" "$2" >&2; }
+warn() { printf '  %-9s %s\n' "!" "$*" >&2; }
 die()  { printf '  ✗ %s\n' "$*" >&2; exit 1; }
 hint() { printf '  %-9s %s\n' "→" "$*"; }
+# The exit-3 handshake: something the script cannot dispatch is still owed, and
+# the caller has to run it before re-invoking with --hook-ok.
+require_dispatch() {
+  hint "$1" >&2
+  exit 3
+}
 
 # The nearest config, walking up from the cwd — used only to explain a refusal
 # when there is no repo to work in at all.
@@ -88,14 +96,44 @@ wt_flat() {
     }' "${1:-${CONFIG:-/dev/null}}" 2>/dev/null
 }
 
+# wt_get PATH — the value of one flattened config path, or empty. The one lookup
+# every reader uses, so a nested map has exactly one interpretation.
+wt_get() {
+  wt_flat | awk -F'\t' -v p="$1" '$1 == p { print $2; exit }'
+}
+
 # wt_cfg KEY DEFAULT — a dotted path under the `worktrees:` block.
 wt_cfg() {
   local v
-  v="$(wt_flat | awk -F'\t' -v p="worktrees${WLIB_US}$1" '$1 == p { print $2; exit }')"
+  v="$(wt_get "worktrees${WLIB_US}$1")"
   printf '%s' "${v:-$2}"
 }
 
 wt_enabled() { [ "$(wt_cfg enabled false)" = "true" ]; }
+
+# wt_down — the top-level `down:` entry, exactly as written, or empty when the
+# project declares no lifecycle. Top-level by design (never under `worktrees:`).
+wt_down() { wt_get down; }
+
+# wt_resolve VALUE CHECKOUT — how to run one top-level life-cycle value, as
+# `<run|skill|missing|none><TAB><command><TAB><args…>`. `run` means the command
+# exists — a path in the checkout, an absolute path, or a word on PATH — so a
+# shell script can execute it; `skill` means nothing on disk claims the word, so
+# only an agent can dispatch it; `missing` means the value is path-shaped but no
+# such executable exists; `none` means the value is empty. Args are command
+# words, not patterns: callers disable globbing before expanding them.
+wt_resolve() {
+  local value="${1:-}" checkout="${2:-}" cmd="" args="" how=skill
+  [ -n "$value" ] || { printf 'none\t\t'; return 0; }
+  cmd="${value%% *}"
+  case "$value" in *" "*) args="${value#* }" ;; esac
+  case "$cmd" in
+    /*)  if [ -f "$cmd" ] && [ -x "$cmd" ]; then how=run; else how=missing; fi ;;
+    */*) if [ -f "$checkout/$cmd" ] && [ -x "$checkout/$cmd" ]; then how=run; else how=missing; fi ;;
+    *)   command -v "$cmd" >/dev/null 2>&1 && how=run ;;
+  esac
+  printf '%s\t%s\t%s' "$how" "$cmd" "$args"
+}
 
 # A list value (`[a b]`) split one per line.
 wt_list_items() {
@@ -107,9 +145,9 @@ wt_list_items() {
 # The first match wins, so `hooks.worktree."*"` applies when no branch matches.
 wt_hook() { # $1 point (after_create|before_remove), $2 branch — one entry per line
   local point="$1" branch="$2" v=""
-  v="$(wt_flat | awk -F'\t' -v b="$branch" -v p="hooks${WLIB_US}worktree${WLIB_US}${branch}${WLIB_US}${point}" '$1 == p { print $2; exit }')"
+  v="$(wt_get "hooks${WLIB_US}worktree${WLIB_US}${branch}${WLIB_US}${point}")"
   if [ -z "$v" ]; then
-    v="$(wt_flat | awk -F'\t' -v p="hooks${WLIB_US}worktree${WLIB_US}*${WLIB_US}${point}" '$1 == p { print $2; exit }')"
+    v="$(wt_get "hooks${WLIB_US}worktree${WLIB_US}*${WLIB_US}${point}")"
   fi
   wt_list_items "$v"
 }
@@ -137,7 +175,7 @@ wt_home() {
     *)     dir="$MAIN/$dir" ;;
   esac
   # Resolve through the parent, so /tmp and /private/tmp never disagree and the
-  # paths match what `git worktree list` reports.
+  # paths match what `git worktree list` prints.
   parent="$(dirname "$dir")"
   [ -d "$parent" ] && dir="$(cd "$parent" && pwd -P)/$(basename "$dir")"
   base="$(basename "$MAIN")"
@@ -155,106 +193,12 @@ wt_home() {
 
 wt_path() { printf '%s/%s' "$(wt_home)" "$1"; }
 
-# --- resources ------------------------------------------------------------
-# A port is one resource a checkout may need, not the definition of a preview. A
-# mobile app claims a simulator, a desktop app nothing, and both are legitimate:
-# when `worktrees.ports` is absent nothing is derived and nothing is claimed.
-wt_has_ports() { [ -n "$(wt_cfg ports '')" ]; }
-
-wt_range() {
-  local r lo hi
-  r="$(wt_cfg ports '')"
-  [ -n "$r" ] || return 0
-  case "$r" in
-    *-*) lo="${r%%-*}"; hi="${r##*-}" ;;
-    *)   lo="$r"; hi="$r" ;;
-  esac
-  case "$lo$hi" in *[!0-9]*) die "worktrees.ports '$r' is not <from>-<to>" ;; esac
-  [ "$lo" -le "$hi" ] || die "worktrees.ports '$r' has an empty range"
-  printf '%s %s' "$lo" "$hi"
-}
-
-# tcp_up PORT — 0 when something accepts a connection on loopback.
-# Liveness is observed, never read from a state file: a killed preview leaves no
-# trace to go stale. The probe runs in a subshell so a successful connect cannot
-# leave a descriptor (or a fatal `exec`) behind in the caller.
-tcp_up() {
-  local port="$1"
-  # IPv4, then IPv6: a dev server that binds `[::1]` only is up, and an IPv4-only
-  # probe reads it as down — which would make `LIVE` lie and `remove`'s
-  # live-preview refusal unreachable.
-  if (exec 3<>"/dev/tcp/127.0.0.1/$port") >/dev/null 2>&1; then return 0; fi
-  if (exec 3<>"/dev/tcp/::1/$port") >/dev/null 2>&1; then return 0; fi
-  # Last resort for a listener /dev/tcp cannot reach.
-  if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
-    return 0
-  fi
-  return 1
-}
-
+# --- display --------------------------------------------------------------
 # short_path PATH WIDTH — keep the tail of a long path, because the tail holds the
 # slug and the start is always the same worktree home.
 short_path() {
   local s="$1" w="$2"
   if [ "${#s}" -gt "$w" ]; then printf '…%s' "${s: -$(( w - 1 ))}"; else printf '%s' "$s"; fi
-}
-
-wt_claim_dir() { printf '%s/ports/%s' "$(wt_home)" "$1"; }
-
-# wt_owner PORT — the slug that claimed a port, or empty.
-wt_owner() {
-  local f
-  f="$(wt_claim_dir "$1")/owner"
-  [ -f "$f" ] && cat "$f" 2>/dev/null || true
-}
-
-# wt_claim SLUG — print the port this slug owns, claiming one when needed.
-# Deterministic first (a restarted preview comes back on the same port), then a
-# linear probe so two slugs that hash alike do not fight.
-# wt_port_for SLUG — the port this slug uses: an existing claim, else the derived
-# one probed forward past claims held by others. Read-only, so `list` may call it.
-wt_port_for() {
-  local slug="$1" lo hi span i port owner hex d
-  wt_has_ports || return 0
-  read -r lo hi <<<"$(wt_range)"
-  for d in "$(wt_home)/ports"/*; do
-    [ -d "$d" ] || continue
-    if [ "$(cat "$d/owner" 2>/dev/null)" = "$slug" ]; then
-      basename "$d"
-      return 0
-    fi
-  done
-  span=$(( hi - lo + 1 ))
-  hex="$(printf '%s' "$slug" | shasum -a 256 | cut -c1-8)"
-  i=$(( 16#$hex % span ))
-  port=$(( lo + i ))
-  while :; do
-    owner="$(wt_owner "$port")"
-    if [ -z "$owner" ] || [ "$owner" = "$slug" ]; then
-      printf '%s' "$port"
-      return 0
-    fi
-    port=$(( port + 1 ))
-    [ "$port" -gt "$hi" ] && port=$lo
-    i=$(( i + 1 ))
-    [ "$i" -gt "$span" ] && die "no free port in $(wt_range | sed 's/ /-/')"
-  done
-}
-
-# wt_claim SLUG — claim and print the port, writing the lock directory.
-wt_claim() {
-  local slug="$1" port
-  port="$(wt_port_for "$slug")"
-  mkdir -p "$(wt_claim_dir "$port")"
-  printf '%s' "$slug" > "$(wt_claim_dir "$port")/owner"
-  printf '%s' "$port"
-}
-
-wt_release() { # $1 port, $2 slug
-  local d
-  d="$(wt_claim_dir "$1")"
-  [ "$(wt_owner "$1")" = "$2" ] && rm -rf "$d"
-  return 0
 }
 
 # --- checkouts ------------------------------------------------------------
@@ -339,109 +283,4 @@ wt_upstream_state() { # merged | gone | unmerged
   else
     printf 'unmerged'
   fi
-}
-
-# wt_subst LINE NAME VALUE — expand `$NAME`, `${NAME}` and `${NAME:-default}` for
-# one variable. No name here is a prefix of another, so a plain replace is exact.
-wt_subst() {
-  local line="$1" name="$2" val="$3"
-  if [ -n "$val" ]; then
-    printf '%s' "$line" \
-      | sed -e "s|\${$name:-[^}]*}|$val|g" -e "s|\${$name}|$val|g" -e "s|\$$name|$val|g"
-  else
-    printf '%s' "$line" \
-      | sed -e "s|\${$name:-\([^}]*\)}|\1|g" -e "s|\${$name}||g" -e "s|\$$name||g"
-  fi
-}
-
-# _wt_preview_block RECIPE [SECTION] — the `**Preview:**` block, joined to one line.
-# With no section it reads only what sits *before* the first `## ` heading, so a
-# nested recipe's first app cannot masquerade as the file-level address.
-_wt_preview_block() {
-  awk -v want="${2:-}" '
-    /^## / {
-      if (want == "") exit
-      s = $0; sub(/^## +/, "", s); split(s, pr, /[ \t]+/); cur = pr[1]; inb = 0; next
-    }
-    want != "" && cur != want { next }
-    /^\*\*Preview:\*\*/ { sub(/^\*\*Preview:\*\*[[:space:]]*/, ""); buf = $0; inb = 1; next }
-    inb && /^[[:space:]]*$/ { inb = 0; next }
-    inb && /^\*\*/ { inb = 0; next }
-    inb { buf = buf " " $0 }
-    END { printf "%s", buf }
-  ' "$1" | sed -E 's/[[:space:]]+/ /g; s/[[:space:]]+$//'
-}
-
-# wt_preview SLUG [SECTION] — how to see this checkout, substituted.
-# A section's own line wins when one is asked for; otherwise the file-level line is
-# the checkout's address. With no file-level line and exactly one section, that
-# section is the answer; with several, nothing is returned rather than guessing which
-# app a checkout is serving.
-wt_preview() {
-  local slug="$1" sect="${2:-}" recipe line="" cand count sl port base
-  recipe="$(wt_flat | awk -F'\t' -v p="dogfood${WLIB_US}recipe" '$1 == p { print $2; exit }')"
-  recipe="${recipe:-.sassywares/dogfood/recipe.md}"
-  case "$recipe" in /*) ;; *) recipe="$MAIN/$recipe" ;; esac
-  [ -f "$recipe" ] || return 0
-  if [ -n "$sect" ]; then line="$(_wt_preview_block "$recipe" "$sect")"; fi
-  if [ -z "$line" ]; then line="$(_wt_preview_block "$recipe" "")"; fi
-  if [ -z "$line" ]; then
-    # Fall back to the single section that *declares* an address. Counting sections
-    # would fail on a recipe with one app and one uncovered surface, which is a
-    # perfectly ordinary shape: only the app has somewhere to look.
-    count=0; cand=""
-    while IFS= read -r sl; do
-      [ -n "$sl" ] || continue
-      cand="$(_wt_preview_block "$recipe" "$sl")"
-      [ -n "$cand" ] || continue
-      count=$((count + 1))
-      line="$cand"
-    done < <(sed -n 's/^## \([^ 	]*\).*/\1/p' "$recipe")
-    [ "$count" -eq 1 ] || line=""
-  fi
-  [ -n "$line" ] || return 0
-  port=""
-  if wt_has_ports; then
-    port="$(wt_port_for "$slug")"
-    base="http://localhost:$port"
-  fi
-  line="$(wt_subst "$line" WT_SLUG "$slug")"
-  line="$(wt_subst "$line" WT_NAMESPACE "$(wt_namespace "$slug")")"
-  line="$(wt_subst "$line" WT_PATH "$(wt_path "$slug")")"
-  line="$(wt_subst "$line" WT_PORT "$port")"
-  line="$(wt_subst "$line" WT_BASE_URL "$base")"
-  printf '%s' "$line"
-}
-
-# wt_preview_port SLUG — the port the preview line advertises, if it names one.
-# A project with no `worktrees.ports` still has an address; this is how the tools
-# find it without assuming a browser or a claim.
-wt_preview_port() {
-  local line
-  line="$(wt_preview "$1")"
-  [ -n "$line" ] || return 0
-  printf '%s' "$line" \
-    | grep -oE '(localhost|127\.0\.0\.1):[0-9]+' | head -n 1 | grep -oE '[0-9]+$'
-}
-
-# wt_live_port SLUG — where to probe this checkout: its claim if it has one, else
-# the port its preview advertises. Empty means "nothing to probe here".
-wt_live_port() {
-  local slug="$1" p
-  if wt_has_ports; then
-    p="$(wt_port_for "$slug")"
-    [ -n "$p" ] && { printf '%s' "$p"; return 0; }
-  fi
-  wt_preview_port "$slug"
-}
-
-# Newest dogfood verdict for a checkout, as `status  class` — or empty.
-wt_verdict() {
-  local dir="$1/.sassywares/dogfood/reports" newest s c
-  [ -d "$dir" ] || return 0
-  newest="$(ls -1t "$dir" 2>/dev/null | head -n 1)"
-  [ -n "$newest" ] || return 0
-  s="$(sed -n 's/^\*\*status:\*\* //p' "$dir/$newest/summary.md" 2>/dev/null | head -n 1)"
-  c="$(sed -n 's/^\*\*class:\*\* //p' "$dir/$newest/summary.md" 2>/dev/null | head -n 1)"
-  printf '%s%s' "${s:-unknown}" "$( [ -n "$c" ] && printf '  %s' "$c" )"
 }

@@ -48,7 +48,7 @@ A brief has no QA table, so its gate is code approval alone. Never invent, enabl
 1. **Load the plan.** Read the plan and its Phase tracking table. If phases are already `In progress` from an interrupted run, ask once whether to resume at the gate or rerun those cycles, then continue from the answer. A change the user brings instead of a resume follows the gate-change path: a new cycle with the change as its work brief.
 2. **Resolve the branch, before touching code.** Follow the `sassy-setup` skill's `references/branching.md` with this run's `branch:` and `worktree:` tokens, if any. LFG runs every phase in one session, so the branch is cut once here and every phase commits onto it. Report the branch and its start point in the gate. A `stop-and-ask` here stops the run before any phase starts.
 
-   When the decision took a checkout, every phase brief and every `sassy-dogfood` run uses the checkout's own address — `WT_PATH`, and `WT_NAMESPACE`/`WT_PORT` where the project declared a port range — since proof run against the main checkout's port proves the wrong app.
+   When the decision took a checkout, every phase brief and every `sassy-dogfood` run uses the checkout's own address — `WT_PATH`, and `WT_NAMESPACE` — since proof run against the main checkout's instance proves the wrong app.
 3. **Run every phase, in order.** For each phase not `Done`:
    - Set the phase `In progress`, then load the `sassy-cycle` skill and follow it, with work brief = the phase's goal/work/"Done when", intent reference = the plan path and phase, and review tier = this run's `review:` token when present, else the phase's `**Review:**` line.
    - On `Status: done`, leave the phase `In progress` — its QA rows are still owed, and only the gate closes them.

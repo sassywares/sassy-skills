@@ -59,10 +59,11 @@ across the sibling repos, next to the `snapshot` that versions the glue:
 .sassywares/workspace/snapshot          # commit + push the glue
 ```
 
-Each one also has an alias in the project manifest (`workspace:branches`,
-`workspace:pull`, `workspace:checkout-bases`, `workspace:snapshot`), so
-`npm run workspace:pull` — or the equivalent for the runner this project uses —
-works from the root.
+Run them by path from the root — that is all they need, and it works in every
+shell. If this project already had a file carrying named commands, the same
+scripts are also wired into it as `workspace:<script>` (`workspace:pull`,
+`workspace:snapshot`, …), so your runner reaches them too. The aliases are a
+convenience; the paths are the contract.
 
 They read the repo inventory and the PR bases from `repos:` in `config.yaml`, so
 there is no second base map to keep in step. They are this project's files:

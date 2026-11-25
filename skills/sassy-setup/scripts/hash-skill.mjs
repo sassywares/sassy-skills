@@ -18,7 +18,8 @@
 // skill. Re-read the CLI's source when bumping, and keep the golden vectors in
 // tests/sassy-setup-roster.sh honest.
 //
-// No side effects: lockcheck.mjs and tests/hash-lock.mjs import it.
+// No side effects: lockcheck.mjs, worktree-check.mjs and tests/hash-lock.mjs
+// import it.
 
 import { createHash } from "node:crypto";
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
@@ -80,31 +81,43 @@ function normalizeLineEndings(body) {
   return Buffer.from(body.toString("latin1").replaceAll("\r\n", "\n"), "latin1");
 }
 
-// Hash one skill folder the way the CLI does for a lock of the given era.
-export async function hashSkillFolder(dir, legacy = false) {
-  const hash = createHash("sha256");
+// Every file in DIR, in the order and with the normalization the hash consumes.
+// The single walk shared by the hash and by a caller that has to name a file, so
+// a per-file report can never disagree with the folder verdict.
+export async function skillFiles(dir, legacy = false) {
+  const files = [];
   if (legacy) {
-    const files = [];
     await walkLegacy(dir, dir, files);
     files.sort((a, b) => a.path.localeCompare(b.path));
-    for (const file of files) hash.update(file.path).update(file.body);
-    return hash.digest("hex");
+    return files;
   }
-  const files = [];
   await walk(dir, dir, await realpath(dir), new Set(), files);
-  const entries = files
-    .map((file) => ({
-      path: Buffer.from(file.path, "utf8"),
-      body: normalizeLineEndings(file.body),
-    }))
-    .sort((a, b) => Buffer.compare(a.path, b.path));
-  for (const entry of entries) {
+  return files
+    .map((file) => ({ path: file.path, body: normalizeLineEndings(file.body) }))
+    .sort((a, b) => Buffer.compare(Buffer.from(a.path, "utf8"), Buffer.from(b.path, "utf8")));
+}
+
+// Hash an already-walked file list the way the CLI does for a lock of the given
+// era. Split out of hashSkillFolder so a caller that has to name a differing
+// file (worktree-check.mjs) walks once and hashes the same array it reports on.
+export function hashFiles(files, legacy = false) {
+  const hash = createHash("sha256");
+  for (const file of files) {
+    if (legacy) {
+      hash.update(file.path).update(file.body);
+      continue;
+    }
     hash
-      .update(entry.path)
+      .update(Buffer.from(file.path, "utf8"))
       .update("\0")
-      .update(String(entry.body.length))
+      .update(String(file.body.length))
       .update("\0")
-      .update(entry.body);
+      .update(file.body);
   }
   return hash.digest("hex");
+}
+
+// Hash one skill folder the way the CLI does for a lock of the given era.
+export async function hashSkillFolder(dir, legacy = false) {
+  return hashFiles(await skillFiles(dir, legacy), legacy);
 }

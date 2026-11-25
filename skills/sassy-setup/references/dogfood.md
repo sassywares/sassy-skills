@@ -75,7 +75,7 @@ because a project that "helpfully" removes it commits screenshots by accident.
 
 ## catalog — a search returns matching products
 
-**Preview:** open `http://localhost:${WT_PORT:-3000}`
+**Preview:** the catalog page, in a browser
 
 **Upstream:** `api.example.com` — a service this run does not control. Down is
 `env`, never a retry.
@@ -115,8 +115,9 @@ has no machine verdict" — the section still records what a person should check
 and every QA row for it stays `Manual`.
 
 **Steps after the `Prove it:` step are cleanup.** They always run, they never
-change the exit code, and that is where a port is freed or a process is stopped.
-Putting teardown before the verdict means a failed run leaves the port held. Steps before
+change the exit code, and that is where a process is stopped and its state
+released. Putting teardown before the verdict means a failed run leaves the stack
+running. Steps before
 it set up state and assert along the way; the prove step is the machine-readable
 answer. A section without one has no verdict.
 
@@ -133,11 +134,6 @@ the file-level value is the default every section inherits.
   them, which is how a recipe ends up talking about the web app while claiming to
   describe the project.
 
-For a **checkout's address**, `sassy-worktree` reads the file-level line; with no
-file-level line and exactly one section it uses that section's; with several sections
-and none at file level it shows nothing, because guessing which app a checkout serves
-is worse than saying nothing.
-
 `**Uncovered:**` and `**Out of scope:**` stay **file level** — they are the inventory of
 surfaces, not a description of one. Each name in that inventory still needs its own
 section (see `**Uncovered:**` below).
@@ -148,16 +144,14 @@ checked — and no step has to consume this line: a suite that starts its own se
 never visits the address a human would. The result — a URL, a simulator, a window — is the project's own answer
 to "what is the address", and it is why the suite never has to assume a browser.
 
-`$WT_SLUG`, `$WT_NAMESPACE`, `$WT_PATH`, `$WT_PORT`, and `$WT_BASE_URL` are
-substituted into the preview line and into every step. The last two exist only
-when `worktrees.ports` is configured, and a recipe must also run in the **main
-checkout**, where no worktree exists — so write the port with the project's own
-default: `${WT_PORT:-5180}`. One expansion that works in both places is what
-keeps a recipe runnable outside a worktree.
+`$WT_PATH`, `$WT_BRANCH`, `$WT_SLUG`, and `$WT_NAMESPACE` reach a recipe only as
+the environment the caller exports — nothing substitutes them into a step. A
+recipe must also run in the **main checkout**, where no worktree exists, so every
+value it needs has to resolve in both places.
 
 | Project | Preview line |
 |---|---|
-| Web | `http://localhost:${WT_PORT:-5180}` |
+| Web | `the page the app serves — open it in a browser` |
 | Mobile | `simulator "$WT_NAMESPACE"` — booted by the `after_create` hook |
 | Desktop | `the app window is already open` |
 | CLI | *(none — there is nothing to look at)* |
@@ -216,8 +210,8 @@ configured. Two things follow, and they are all this file says about it:
   never carries a value.
 - **The procedure says how it is obtained and used** — in *Set up once*, in
   `**Preview:**`, or in a plain section of its own. `mode:discover` writes it
-  once, after finding out what actually works, and `mode:run` or
-  `mode:preview` stops with an env-class report when the session is missing
+  once, after finding out what actually works, and `mode:run` stops with an
+  env-class report when the session is missing
   rather than retrying against a login page.
 
 A worktree gets a fresh, empty `session/`. When a project's provider registers a

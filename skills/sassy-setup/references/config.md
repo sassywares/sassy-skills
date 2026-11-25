@@ -92,12 +92,14 @@ hooks:
 worktrees:
   enabled: false              # true = a run may offer its own checkout
   dir: ~/.sassywares/worktrees     # parent of the per-repo folder; ~ is allowed here
-  ports: 3000-3099            # optional; delete for a non-port preview
 dogfood:
   enabled: false              # true = sassy-plan writes Mode: Auto QA rows
   recipe: .sassywares/dogfood/recipe.md      # the procedure
   reports: .sassywares/dogfood/reports       # run output, never committed
   timeout: 900                # whole procedure, seconds
+# top level, not under worktrees: how this project's stack starts and stops
+up: just dev                  # <script> <args…> | <skill> <args…>; absent = no lifecycle
+down: just down
 ```
 
 | Key | Default | Meaning |
@@ -128,9 +130,10 @@ dogfood:
 | `dogfood.timeout` | `900` | Wall-clock for one run. A timeout is a failure, never a hang |
 | `worktrees.enabled` | `false` | `true` lets a run *offer* its own checkout; it asks, or takes one on a `worktree:on` token, and works in this checkout on `worktree:off`. Needs `commit.branch: new` |
 | `worktrees.dir` | `~/.sassywares/worktrees` | Parent of the per-repo worktree folder. The one path here that may be absolute or `~/` |
-| `worktrees.ports` | `3000-3099` | The range a checkout claims its private port from. **Optional**: without it a checkout holds no port and is addressed by the recipe's preview line — which is how a mobile, desktop, or CLI project previews |
+| `up` | absent | How this project's stack starts: one `<script> <args…>` or `<skill> <args…>`, run in the foreground from inside a checkout. Absent means no lifecycle |
+| `down` | absent | How it stops: the same form. `remove` runs it before deleting a checkout. Absent means nothing to stop |
 
-Paths are relative to the config's own directory, never to the cwd.
+Paths are relative to the config's own directory, never to the cwd. Two exceptions: `worktrees.dir` may be absolute or start with `~/`, and a relative `up`/`down` path resolves against the checkout being started or stopped, not this file's directory.
 
 ## `git.repo` — the three topologies
 
@@ -336,7 +339,7 @@ targets. `hooks.pr.staging` means *PRs whose source is staging*. The exception i
 
 `hooks.worktree` has the same shape and resolution as the other two kinds, keyed
 by the head branch the checkout holds. It needs `worktrees.enabled`; a shell
-script cannot dispatch a skill, so `worktree:remove` fails closed (exit `3`,
+script cannot dispatch a skill, so `.sassywares/worktree/remove` fails closed (exit `3`,
 `require-hook <name>`) until the caller has run it.
 
 `hooks.push` has the same shape and resolution as `hooks.pr`, but its key is the
@@ -450,19 +453,94 @@ partial failures explicitly. Never collapse it into one status.
 fan-out means one `sassy-babysit` run per PR; merging a fan-out needs an explicit
 per-PR say-so, because one switch would merge N PRs nobody re-read.
 
+## Lifecycle — `up` and `down`
+
+How this project's stack starts and stops. Two **top-level** keys, each naming
+exactly one thing:
+
+```yaml
+up: just dev
+```
+
+That is the whole declaration: `up` is the command word `just` and the argument
+`dev`. A value is split on whitespace, one argument per word, with no quote
+processing — `down: ./bin/down "two words"` arrives as three arguments, quotes
+included. The first word is the script or the skill; the rest are that thing's
+own arguments. A script is a relative path, an absolute path, or a word on
+`PATH`.
+
+**Absent means no lifecycle.** Nothing is inferred and nothing is invented:
+with no `up`, no run starts anything; with no `down`, `remove` deletes the
+checkout and says nothing was stopped. There is no default command, and no
+falling back to a `Makefile` target or a `package.json` script — a project that
+has one and wants it used says so in the key.
+
+**`up` runs in the foreground.** It owns the terminal until it is stopped with
+SIGTERM, and it must reap its children before it exits. A detached or daemonizing
+`up` is wrong here: the app outlives the call, nobody can ask it to stop, and the
+process holds the checkout — which is exactly what `down` then cannot kill.
+`down` must terminate whatever `up` started and exit once it has.
+
+**`down` runs before the checkout goes.** `remove` resolves the key after its
+guards pass and before deleting anything, so a failing `down` aborts the removal
+and a dirty checkout is never stopped on the way to a refusal. The `--hook-ok`
+re-run does not run `down` again: it continues the same removal, and a successful
+first run already stopped the stack.
+
+**A generated stub exits `78`.** That status means unimplemented, not a failure:
+`remove` warns loudly, names the `down:` key, and removes the checkout anyway,
+because a stub cannot be holding anything. Any other non-zero status still aborts
+the removal. A bare word that is not path-shaped may name a skill; a path-shaped
+value with no executable behind it is a mistake, and `remove` refuses with the
+value and the checkout in the message.
+
+**A skill is a value too, and a shell script cannot dispatch it.** When `down:`
+names a skill rather than a script, `remove` prints `require-hook <name>` and
+exits `3`; the agent runs that skill and re-runs with `--hook-ok`. That is the
+same handshake `hooks.worktree` uses — one mechanism, not two. Args after a skill
+name are the skill's own vocabulary, exactly like a hook entry.
+
+**The `WT_*` block is the checkout's identity.** Whoever runs the pair exports
+`WT_PATH`, `WT_BRANCH`, `WT_SLUG`, and `WT_NAMESPACE`; `remove` does it for
+`down`, and a caller that starts a stack does it for `up`. `create --env` prints
+the four assignments, which need exporting to reach a child process:
+
+```bash
+set -a; eval "$(.sassywares/worktree/create <branch> --env)"; set +a
+bin/up
+```
+
+`WT_SLUG` is the branch made filesystem-safe and `WT_NAMESPACE` is the derived
+name for a database, a compose project, or a device — derive from them, never
+build a name by hand.
+
+**Ports are the project's business.** The suite carries no port range and never
+derives one, so two checkouts running the same app will collide on the same
+fixed port unless the project's own `up` keeps them apart. Derive it there from
+the slug — a hash, because nothing here tracks claims, so a collision is possible
+and the script is where it surfaces:
+
+```bash
+PORT=$(( 3000 + $(printf '%s' "$WT_SLUG" | cksum | cut -d' ' -f1) % 100 ))
+```
+
+Setup initializes the pair once and never touches it again: it points the keys at
+the command the project already declares, or writes the two stubs that exit `78`
+(see [`init.md`](init.md)). After that the keys and the scripts behind them are
+the project's.
+
 ## Worktrees
 
 Parallel work in one repo: a checkout per branch, each with its own derived
-namespace and port, so two runs never fight over a working tree.
+namespace, so two runs never fight over a working tree.
 
 ```yaml
 worktrees:
   enabled: true
   dir: ~/.sassywares/worktrees
-  ports: 3000-3099
 ```
 
-Three keys, no commands. The scripts in `.sassywares/worktree/` own the
+Two keys, no commands. The scripts in `.sassywares/worktree/` own the
 mechanics and `sassy-worktree` orchestrates them.
 
 **`enabled: true` is permission, not a default.** It makes a checkout available;
@@ -472,11 +550,11 @@ Two runs only collide when they are actually parallel, and an unasked checkout
 relocates the work, leaves the uncommitted tree behind, and pays the setup hooks
 for a checkout nobody needed.
 
-**A port is a resource, not the model.** Delete `ports` for an app whose preview
-is not a URL: no port is derived, `WT_PORT` and `WT_BASE_URL` are absent, and
-`list` shows the recipe's `**Preview:**` line instead. `dir` is the one path in this
-file that may be absolute or start with `~/` — it names machine-local state, not
-something a teammate clones.
+**Putting a stack in a checkout is the project's business.** The suite carries no
+address and no port range, so the `up:`/`down:` pair is where a project
+decides how its stack comes up and, if it needs one, which port. `dir` is the one
+path in this file that may be absolute or start with `~/` — it names machine-local
+state, not something a teammate clones.
 
 **Two conditions.**
 
@@ -486,7 +564,7 @@ something a teammate clones.
 - It needs the `repo` topology. A `workspace` root and a `none` folder have no
   git to cut a checkout from.
 
-The namespace, the port claim, the two hooks, and every refusal are in
+The namespace, the two hooks, and every refusal are in
 [`worktree.md`](worktree.md).
 
 ## Dogfood
@@ -539,10 +617,14 @@ report layout, the verdict classes, and the lint are in
   under `hooks.push`, `after_create`/`before_remove` under `hooks.worktree`, and
   `before_slice`/`after_close` under `hooks.goal`, each a list of skill names
   that resolve to `.agents/skills/<name>/SKILL.md`.
-- `worktrees.enabled` is `true` or `false`; when `worktrees.ports` is present it
-  is `<from>-<to>` inside 1–65535 with `<from>` no greater than `<to>`. A checkout must resolve
-  outside the working tree, must not hold a branch `base_map` names as a base,
-  and must not leave a port claimed by a worktree that no longer exists. An
+- `up` and `down` are top-level single-line strings, each `<script> <args…>` or
+  `<skill> <args…>`, naming exactly one thing. Never a block, a list, or a
+  command chain (`&&`, `;`): the shell word after `down:` is resolved as one
+  command, so a chain would be run as arguments to the first word. The value is
+  split on whitespace, one argument per word, with no quote processing; quotes
+  are passed through as ordinary characters.
+- `worktrees.enabled` is `true` or `false`. A checkout must resolve outside the
+  working tree and must not hold a branch `base_map` names as a base. An
   `enabled: true` with no tooling installed, or with the wrong tooling version,
   is drift.
 - `commit.branch` is `current` or `new`; `pr.*` are `true` or `false`. Write

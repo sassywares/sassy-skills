@@ -27,8 +27,8 @@ lives under one directory:
   `_lib.sh`'s `workspace-git-version` (or `branches --version`) the same way.
   **Ask before overwriting any of them when they already exist** — from the first
   install on they are the project's files, and extending them is expected.
-- **Aliases.** One `workspace:<script>` entry per installed script, in the
-  project's own manifest. See below.
+- **Aliases.** Optional, and only into a command file the project already has.
+  The scripts work by path without them. See below.
 - **Excludes.** Write `.sassywares/workspace/.gitignore` for excluded paths
   (vendored trees, generated dirs, `.run/`). One pattern per line, `.gitignore`
   style. Skip it when there is nothing to exclude; the sync works without it. The
@@ -38,34 +38,38 @@ lives under one directory:
 - Do **not** run the snapshot during setup. It clones and pushes; that is the
   user's call. Offer `--dry-run` and run it only if they ask.
 
-## Script aliases
+## Script aliases (optional)
 
-The scripts should be reachable from the project's own runner, so setup wires one
-alias per installed script:
+The scripts are executable and tracked, so the whole contract is the path itself:
 
-```json
-"scripts": {
-  "workspace:branches": ".sassywares/workspace/branches",
-  "workspace:pull": ".sassywares/workspace/pull",
-  "workspace:checkout-bases": ".sassywares/workspace/checkout-bases",
-  "workspace:snapshot": ".sassywares/workspace/snapshot"
-}
+```bash
+.sassywares/workspace/branches          # branch + dirty marker per repo
+.sassywares/workspace/pull              # fetch, then ff-only per repo
+.sassywares/workspace/checkout-bases    # put each repo on its base
+.sassywares/workspace/snapshot          # commit + push the glue
 ```
 
-Find the file that carries named commands — at the **workspace root only**, never
-inside a repo:
+That works in every shell, hook, and delegation brief, and it is what the setup
+README tells the user. Aliases are an offer, not a step: if the project **already**
+has a file at the **workspace root only** — never inside a repo — that carries
+named commands, setup may add one entry per installed script so they are also
+reachable from the project's own runner.
 
-| File at the root | Write the aliases to |
+| Already at the root | Add the aliases to |
 | --- | --- |
 | `package.json` | its `scripts` |
 | `deno.json` / `deno.jsonc` | its `tasks` |
 | `composer.json` | its `scripts` |
-| `go.mod`, `pyproject.toml`, `Cargo.toml`, `Gemfile`, `Makefile`, `justfile`, … | nothing: create `package.json` as below |
+| `Makefile` / `justfile` | a `workspace:<script>` target, if the user wants one at all |
+| `go.mod`, `pyproject.toml`, `Cargo.toml`, `Gemfile`, `pubspec.yaml`, `pom.xml`, … | **nowhere** — these name dependencies, not commands. Run the scripts by path |
 
-`go.mod` and friends name dependencies, not commands, and a make/just target
-cannot carry the `workspace:` form. Never invent a `Makefile` or `justfile` to
-avoid `package.json` — one naming convention across projects is worth more than
-one file fewer.
+**Never create a file to hold an alias.** Not a `package.json` in a Go, Python, or
+Dart project, not a `Makefile` to dodge one. A manifest that exists only so five
+aliases have a home is a file the project has to maintain and the next reader has
+to explain, and the scripts already work without it. Skipping the aliases is a
+complete install: say in the report that the scripts are run by path, and why.
+
+When there is a file to wire, and the user says yes:
 
 - **Name and value are fixed**: `workspace:<script>` → `.sassywares/workspace/<script>`.
   No `./`, no absolute paths, no `bin/`.
@@ -74,20 +78,9 @@ one file fewer.
   Never touch dependencies, `postinstall`, or `skills:*`.
 - **Idempotent**: a matching alias is left alone, a stale value is corrected, and
   an alias the project added itself is never removed.
-- **No manifest at all?** Look at what the repos are — Node, Go, Python, a mix —
-  and say so. Then create a minimal `package.json`:
-
-  ```json
-  {
-    "private": true,
-    "scripts": { … }
-  }
-  ```
-
-  `private: true` keeps it unpublishable; no `name`, no `version`, no
-  dependencies. It exists so the aliases have a home. **Say that in the report** —
-  created versus already there — and skip the aliases entirely when the project
-  has removed the scripts they point at.
+- **Prove the file still parses** with that file's own tool, and keep `git diff`
+  to added lines. An alias pointing at a script that is not installed is not
+  added at all.
 
 ## What the git helpers are for
 

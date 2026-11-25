@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Add a worktree for one branch and claim its port.
+# Add a worktree for one branch.
 #
-# Idempotent: a branch already in a worktree of ours is reported, not recreated,
+# Idempotent: a branch already in a worktree of ours is shown, not recreated,
 # and nobody else's checkout holding it is a stop rather than a clobber.
 #
 # Usage: .sassywares/worktree/create <branch> [--from <start-point>] [--env]
@@ -16,9 +16,8 @@ usage() {
   cat <<'EOF'
 Usage: .sassywares/worktree/create <branch> [--from <start-point>] [--env]
 
-Create (or report) the worktree for <branch>, claim its port, and print the
-namespace a run inherits: WT_PATH, WT_BRANCH, WT_SLUG, WT_NAMESPACE, WT_PORT,
-WT_BASE_URL.
+Create (or find) the worktree for <branch> and print the namespace a run
+inherits: WT_PATH, WT_BRANCH, WT_SLUG, WT_NAMESPACE.
 
   --from <ref>  where a new branch is cut from (default HEAD). A caller that has
                 already resolved the base passes it; this script never guesses.
@@ -49,46 +48,31 @@ wt_enabled || die "worktrees are off here — set worktrees.enabled: true in .sa
 slug="$(wt_slug "$branch")"
 path="$(wt_path "$slug")"
 
-report() { # $1 path, $2 branch
-  local port="" addr="" ns
+show() { # $1 path
+  local ns
   ns="$(wt_namespace "$slug")"
-  # A port is a resource this project asked for, not a property of a checkout.
-  if wt_has_ports; then
-    port="$(wt_claim "$slug")"
-    addr="http://localhost:$port"
-  fi
   if [ "$env_only" -eq 1 ]; then
-    printf 'WT_PATH=%s\nWT_BRANCH=%s\nWT_SLUG=%s\nWT_NAMESPACE=%s\n' "$1" "$2" "$slug" "$ns"
-    [ -n "$port" ] && printf 'WT_PORT=%s\nWT_BASE_URL=%s\n' "$port" "$addr"
+    printf 'WT_PATH=%s\nWT_BRANCH=%s\nWT_SLUG=%s\nWT_NAMESPACE=%s\n' "$1" "$branch" "$slug" "$ns"
     return 0
   fi
   ok worktree "$1"
-  ok branch "$2"
+  ok branch "$branch"
   # Say the tracking out loud. A branch cut from a remote-tracking ref used to
   # inherit it as its upstream, so a plain push aimed at the base; and a branch
   # that tracks something other than its own name is the state that made that
-  # invisible. `create` never sets a base — it reports what it found.
+  # invisible. `create` never sets a base — it shows what it found.
   local up
   up="$(wt_upstream "$1")"
   ok upstream "${up:-none}"
-  [ -z "$up" ] || [ "${up#*/}" = "$2" ] \
-    || warn upstream "this branch tracks '$up', not '$2' — a plain 'git push' lands there"
+  [ -z "$up" ] || [ "${up#*/}" = "$branch" ] \
+    || warn upstream "this branch tracks '$up', not '$branch' — a plain 'git push' lands there"
   ok namespace "$ns"
-  if [ -n "$port" ]; then
-    ok port "$port"
-    ok address "$addr"
-  else
-    ok port "none — worktrees.ports is unset, so this checkout holds no port"
-  fi
-  local preview
-  preview="$(wt_preview "$slug")"
-  [ -n "$preview" ] && ok preview "$preview"
   # A branch cut from a ref that predates setup has no config and no tooling, so
   # this checkout is not managed here: `list` skips it, `prune` leaves it alone.
   [ -f "$1/.sassywares/config.yaml" ] \
     || ok unmanaged "this branch has no .sassywares/config.yaml — cut from a ref that predates setup; list and prune will skip it"
   local hooks n
-  hooks="$(wt_hook after_create "$2")"
+  hooks="$(wt_hook after_create "$branch")"
   if [ -z "$hooks" ]; then
     ok hook "hooks.worktree.after_create — none declared"
   else
@@ -99,7 +83,7 @@ report() { # $1 path, $2 branch
   fi
 }
 
-# Already in a worktree of ours: report and stop. This is the second call in a
+# Already in a worktree of ours: show it and stop. This is the second call in a
 # resumed run, and it must not fail.
 existing="$(wt_find "$branch" || true)"
 if [ -n "$existing" ]; then
@@ -107,7 +91,7 @@ if [ -n "$existing" ]; then
   if wt_is_main "$epath"; then
     die "'$branch' is checked out in the main checkout — leave it, or switch the main checkout first"
   fi
-  report "$epath" "$branch"
+  show "$epath"
   exit 0
 fi
 
@@ -115,8 +99,9 @@ if [ -e "$path" ]; then
   die "'$path' exists but no worktree is registered for '$branch' — inspect it, then prune"
 fi
 
-(umask 077; mkdir -p "$(wt_home)/ports")
-printf '%s\n' "$MAIN" > "$(wt_home)/.repo"
+home="$(wt_home)"
+(umask 077; mkdir -p "$home")
+printf '%s\n' "$MAIN" > "$home/.repo"
 
 if git show-ref --verify --quiet "refs/heads/$branch"; then
   git worktree add --quiet "$path" "$branch"
@@ -127,4 +112,4 @@ else
   git worktree add --quiet --no-track -b "$branch" "$path" "$from"
 fi
 
-report "$path" "$branch"
+show "$path"

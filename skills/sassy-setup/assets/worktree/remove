@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Remove a worktree, after proving nothing would be lost.
 #
-# Refuses: the main checkout, a dirty tree, commits that are on no remote, and a
-# preview that is still running. A declared `hooks.worktree.before_remove` runs
-# first — the script cannot dispatch a skill, so it fails closed until the caller
+# Refuses: the main checkout, a dirty tree, and commits that are on no remote.
+# A configured top-level `down:` runs before the folder goes and before any hook is
+# dispatched; a declared `hooks.worktree.before_remove` needs the caller to dispatch
+# it first — the script cannot dispatch a skill, so it fails closed until the caller
 # says the hook has been dispatched.
 #
 # Usage: .sassywares/worktree/remove <slug|branch> [--hook-ok] [--force]
@@ -18,10 +19,11 @@ usage() {
   cat <<'EOF'
 Usage: .sassywares/worktree/remove <slug|branch> [--hook-ok] [--force]
 
-  --hook-ok  the project's hooks.worktree.before_remove has already been
-             dispatched — required when one is declared (exit 3 otherwise)
+  --hook-ok  the project's hooks.worktree.before_remove — or a `down:` that names
+             a skill — has already been dispatched; required when one is declared
+             (exit 3 otherwise)
   --force    skip the dirty-tree and unpushed-commit refusals. Never skips the
-             main checkout, the preview check, or the hook handshake.
+             main checkout or the hook handshake.
 EOF
 }
 
@@ -50,21 +52,8 @@ slug="$(wt_slug "$branch")"
 wt_is_main "$path" && die "that is the main checkout — it cannot be removed"
 wt_managed "$path" || die "'$target' is not managed here — it is outside the worktree home, or it was cut before the wiring"
 
-hooks="$(wt_hook before_remove "$branch")"
-if [ -n "$hooks" ] && [ "$hook_ok" -eq 0 ]; then
-  while IFS= read -r n; do
-    [ -n "$n" ] || continue
-    log "require-hook $n"
-  done <<<"$hooks"
-  printf '  %-9s %s\n' "→" "dispatch it, then re-run with --hook-ok" >&2
-  exit 3
-fi
-
-port="$(wt_live_port "$slug")"
-if [ -n "$port" ] && tcp_up "$port"; then
-  die "something is still listening on :$port — stop <$slug> first"
-fi
-
+# Refuse before tearing anything down: a checkout we would not delete should not
+# have had its stack stopped on the way to that refusal.
 if [ "$force" -eq 0 ]; then
   wt_dirty "$path" && die "not clean — $(git -C "$path" status --porcelain | wc -l | tr -d ' ') path(s) modified. Commit, discard, or --force."
   n="$(wt_unpushed "$path")"
@@ -75,14 +64,82 @@ if [ "$force" -eq 0 ]; then
   esac
 fi
 
-if ! { [ "$force" -eq 1 ] && git worktree remove --force "$path" || [ "$force" -eq 0 ] && git worktree remove "$path"; }; then
+# The project's own stop step, resolved first and run before anything is
+# dispatched: a `before_remove` drops the environment, so the app has to be
+# stopped while that environment still exists, and a failing `down` aborts before
+# the teardown starts. A value naming a script or a command runs here; anything
+# else is a skill, which a shell script cannot dispatch, so it joins the exit-3
+# handshake below. `wt_resolve` is the one reader for both halves of the pair.
+down="$(wt_down)"
+IFS=$'\t' read -r how dcmd dargs <<<"$(wt_resolve "$down" "$path")"
+
+case "$how" in
+  none) ;;
+  missing)
+    die "down: '$down' is path-shaped but not executable in $path — fix the down: key, or make that file executable" ;;
+  run)
+    # On the --hook-ok re-run this is the continuation of the same removal, and a
+    # successful first run already stopped the stack: do not run it twice.
+    if [ "$hook_ok" -eq 0 ]; then
+      ok down "$down"
+      # Its arguments are command words, not patterns: disable globbing so
+      # `down: ./bin/stop tmp/*.pid` stops the pid file the project meant instead of
+      # every match in the checkout.
+      set -f
+      if ( cd "$path" && WT_PATH="$path" WT_BRANCH="$branch" WT_SLUG="$slug" WT_NAMESPACE="$(wt_namespace "$slug")" $dcmd $dargs ); then
+        :
+      else
+        status=$?
+        if [ "$status" -eq 78 ]; then
+          warn unimplemented "down: $down is the generated stub (exit 78) — implement it, or delete the down: key if nothing needs stopping; removing anyway"
+        else
+          set +f
+          die "down failed: $down"
+        fi
+      fi
+      set +f
+    fi
+    down=""   # it ran (or is skipped as already run): no obligation remains
+    ;;
+  skill) ;;
+esac
+
+# One handshake lists everything still owed — a `down:` naming a skill, and/or
+# every declared `before_remove` hook — so the caller dispatches once and re-runs
+# once instead of discovering a second obligation after the first.
+hooks="$(wt_hook before_remove "$branch")"
+if [ "$hook_ok" -eq 0 ]; then
+  action=""
+  if [ -n "$down" ]; then
+    log "require-hook $down"
+    action="run down ($down)"
+  fi
+  if [ -n "$hooks" ]; then
+    while IFS= read -r n; do
+      [ -n "$n" ] || continue
+      log "require-hook $n"
+    done <<<"$hooks"
+    action="${action:+$action and }dispatch it"
+  fi
+  [ -z "$action" ] || require_dispatch "$action, then re-run with --hook-ok"
+fi
+
+if [ -n "$down" ]; then
+  ok down "$down (dispatched)"
+fi
+
+if [ "$force" -eq 1 ]; then
+  removed_ok=0
+  git worktree remove --force "$path" && removed_ok=1
+else
+  removed_ok=0
+  git worktree remove "$path" && removed_ok=1
+fi
+if [ "$removed_ok" -eq 0 ]; then
   printf '  → %s\n' "git removed the registration but not the folder, so nothing here can reach it now:" >&2
   printf '    %s\n' "stop whatever is still running there, then delete that folder yourself" >&2
   printf '    %s\n' "(\`git worktree prune\` only matters if \`git worktree list\` still names it)" >&2
   exit 1
 fi
-if [ -n "$port" ] && [ "$(wt_owner "$port")" = "$slug" ]; then
-  wt_release "$port" "$slug"
-  ok released ":$port"
-fi
 ok removed "$path"
+ok branch "$branch — the branch stays, so the work is still reachable"

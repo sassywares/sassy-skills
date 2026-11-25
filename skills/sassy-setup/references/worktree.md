@@ -1,8 +1,7 @@
 # Worktrees
 
-Parallel work in one repo: each run gets its own checkout, its own branch, and
-its own port, without a second clone and without fighting the checkout somebody
-else is using.
+Parallel work in one repo: each run gets its own checkout and its own branch,
+without a second clone and without fighting the checkout somebody else is using.
 
 **Repo topology only.** `git.repo: workspace` means the root is not a repo and each
 nested repo carries its own config, so there is nothing to cut a checkout from; a
@@ -25,25 +24,46 @@ reused rather than a second one cut.
 ## Install
 
 Setup copies `assets/worktree/*` flat into `.sassywares/worktree/`, makes the
-scripts executable, and wires one `worktree:<script>` alias per script into the
-project's manifest — the same exception `workspace:*` uses. They are tracked: a
-worktree is a checkout of the repo, so every worktree carries the tooling.
+four scripts executable, and stops. They are tracked: a worktree is a checkout of
+the repo, so every worktree carries the tooling.
 
-```text
-.sassywares/worktree/
-├── _lib.sh    shared helpers; reads `worktrees:`; carries worktree-version
-├── create     add a worktree, claim a port, print the namespace
-├── list       the table; --address / --path for scripting
-├── stop       kill whatever is on that worktree's port
-├── remove     refuse unsafe removals, then delete
-└── prune      merged-or-gone candidates; removes only what you approve
-```
+**No command runner is required and no manifest is created.** Every caller — the
+suite included — runs them by path, `.sassywares/worktree/create <branch>`. Setup
+never writes a `package.json`, a `Makefile`, or a `justfile` so that an alias has
+somewhere to live; a Go, Python, or Dart project keeps its own tooling file and
+nothing else.
+
+| Script | Does | Ends with |
+|---|---|---|
+| `create <branch> [--from <ref>] [--env]` | cuts the branch untracked | the `WT_*` block (`--env`), the upstream it found, and the `after_create` hooks to dispatch |
+| `list [--path <slug>]` | the table: branch, path, dirty, upstream | what it prints; a flag prints one value for scripting |
+| `remove <slug\|branch> [--hook-ok] [--force]` | the refusals below, then deletes the checkout | a surviving branch |
+| `prune [--yes]` | merged-or-gone, clean, fully pushed — and no `down:` or `before_remove` hook it cannot run | the removals, and why each skipped row was skipped |
+
+`_lib.sh` is shared helpers — it reads `worktrees:` and carries the version; it is
+sourced, never run. Every script takes `--version` (prints `worktree-version`) and
+`--help` (its own usage). Exit codes: `0` success, `1` a refusal with the reason,
+`2` bad usage, and `3` from `remove` when an obligation is left that a shell
+cannot dispatch — a declared `before_remove` hook, or a `down:` that names a
+skill — and `--hook-ok` is missing. `--hook-ok` is the caller saying the hook
+and the `down:` skill have been dispatched, so that exit is the handshake, not an
+error to route around.
 
 Nothing else lives there. No state, no registry, no pid file.
 
-`_lib.sh` carries `# worktree-version: N`. Bump `N` when an asset changes;
-`--check` compares the installed copy and reports a stale one. Ask before
-overwriting an existing copy — from the first install it is the project's file.
+**Aliases are a convenience, never a requirement.** When the project already has a
+file at the root that carries named commands — `package.json` `scripts`,
+`deno.json` `tasks`, `composer.json` `scripts`, a `Makefile` or `justfile` target —
+setup offers to add one `worktree:<script>` entry per script, append-only, by
+`workspace.md`'s merge rules, and declining is a complete install. It never creates
+such a file to hold them: a path works in every shell, hook, and delegation brief
+with no runner in between.
+
+The installed set is suite-owned and read-only: nothing under `.sassywares/`
+but `config.yaml` is the project's to edit. `--check` hashes the installed
+files the way `skills-lock.json` hashes a skill folder, so a differing byte is
+drift and the file is named. Setup overwrites the set without asking, because
+there is no legitimate project edit to preserve.
 
 ## Where things live
 
@@ -51,13 +71,16 @@ overwriting an existing copy — from the first install it is the project's file
 ~/.sassywares/worktrees/
 └── <repo>/          <- the worktree home; .repo records which checkout owns it
     ├── .repo        absolute path of the main checkout
-    ├── ports/       claim directories, one per claimed port
     └── <slug>/      a checkout
 ```
 
 `worktrees.dir` sets the parent (default `~/.sassywares/worktrees`). It is the
 one path in the config that may be absolute or start with `~/` — it names
 machine-local state, not something a teammate clones.
+
+**An install at `worktree-version` 8 or lower also has `<worktree home>/ports/`**
+— a folder of claim directories. Nothing reads it any more: it is inert and can be
+deleted.
 
 The folder is named after the repo. When another **live** clone of the same name
 already owns it, this one takes `<repo>-<hash>` instead; a home whose recorded
@@ -94,20 +117,16 @@ work; `remove` and `prune` are the only safe exits.
 |---|---|---|
 | `WT_PATH` | `~/.sassywares/worktrees/shop/feat-catalog` | where the checkout is |
 | `WT_BRANCH` | `feat/catalog` | the branch, as git names it |
-| `WT_SLUG` | `feat-catalog` | the directory name, port key, registry key |
+| `WT_SLUG` | `feat-catalog` | the directory name; the handle `list` and `remove` take |
 | `WT_NAMESPACE` | `shop-feat-catalog` | database schema, compose project, simulator name |
-| `WT_PORT` | `3041` | a private port — **only when `ports:` is configured** |
-| `WT_BASE_URL` | `http://localhost:3041` | the URL on that port — same condition |
 
-The same five names expand inside the recipe, including the dashed form
-`${WT_PORT:-5180}` that makes a recipe runnable in the main checkout too.
+The same names expand inside a hook's brief.
 
 **Finding a checkout.** `list` prints paths with `$HOME` shortened to `~`, which
 reads well and does **not** paste into anything:
 
 ```bash
-cd "$(worktree:list --path feat-catalog)"     # the real absolute path
-worktree:list --address feat-catalog          # the URL, when ports are configured
+cd "$(.sassywares/worktree/list --path feat-catalog)"   # the real absolute path
 ```
 
 `create --env` prints `WT_PATH=` and the rest for scripts, and a slug is just the
@@ -117,30 +136,15 @@ Derived, never invented downstream: a hook that needs a database name uses
 `$WT_NAMESPACE` rather than building its own, so two worktrees cannot collide by
 accident.
 
-**A port is a resource, not the model.** `worktrees.ports` is optional, and
-deleting it is how a project says "my preview is not a URL". Then no port is
-derived, nothing is claimed, `WT_PORT` and `WT_BASE_URL` are absent, and the
-checkout is addressed by the recipe's `**Preview:**` line instead. That covers a
-mobile app (a simulator named `$WT_NAMESPACE`), a desktop app (a window), and a
-CLI or library (nothing to look at).
+**Addressing a checkout is the project's own business**: how it is looked at, and
+what brings it up, are the project's `up:` and `down:` pair — see
+[`config.md`](config.md), Lifecycle. Two checkouts running the same app collide
+only if that `up:` lets them.
 
-**One port models a single service.** A stack that serves a web app, a docs site,
-and a backend at once has more than one address per checkout; the claim covers the
-one a human opens, and the recipe's steps carry the rest (distinct ports per
-service, derived from `$WT_PORT` or fixed by the project). Do not add a port list
-to the config for this — it is procedure, not identity.
-
-When a range *is* configured: the slug hashes into it, the claim is taken with an
-atomic `mkdir`, and a collision probes forward one port at a time. A claim
-belongs to a slug, so a restarted app returns to the same port and two slugs that
-hash alike do not fight.
-
-**Liveness and stopping follow the address, not the claim.** `list` probes the port
-the checkout advertises — its claim if it has one, otherwise the port its recipe's
-`**Preview:**` line names — and never trusts a recorded pid. `stop` kills by that
-same address, and `remove` refuses to delete a checkout while it answers. A preview
-that names no port at all (a simulator, a desktop window) has nothing to probe, so
-`LIVE` reads `—` and stopping it is the project's job.
+**Liveness and stopping are the project's.** `list` reports branches, paths, dirty
+state, and upstreams, and nothing else: the suite keeps no registry, no pid file,
+and nothing to go stale. `remove` refuses a dirty tree, unpushed commits, or the
+main checkout, and a configured `down:` is the project's own stop step.
 
 ## Hooks
 
@@ -165,31 +169,13 @@ declared and `--hook-ok` missing, it prints `require-hook <name>` and exits `3`.
 **Never write a hook skill yourself** — the same rule as every other hook. Setup
 records the name; the project writes the body.
 
-## Previewing a worktree
-
-`sassy-worktree mode:preview` brings the product up in a checkout and prints how
-to see it, using the dogfood recipe's bring-up steps — everything up to, but not
-including, that section's `Prove it:` step. It leaves the app running.
-
-How to see it is the recipe's `**Preview:**` line with the namespace substituted,
-so it is a URL, a simulator, or a window depending on the project and never a
-guess by this tooling. `list` prints that same line in its `HOW TO SEE` column,
-which is why the column is not called "address".
-
-What stops a preview follows from the same split: kill it by port when there is
-one, hand it to the project when there is not.
-
-There is no separate preview configuration. How the app comes up is the recipe's
-job, because it is the only place that knowledge is allowed to live.
-
 **Sessions and third-party origins.** A worktree gets a fresh, empty
 `.sassywares/session/`. Most providers register one callback URL, so a worktree
-usually cannot log in on its own; the recipe's *Working in a second checkout*
-section says how this project solves that, and the `after_create` hook does it —
-copying or linking the main checkout's session is the common answer. A cookie is
-host-scoped and crosses ports freely; a `localStorage` session is origin-scoped,
-port included, and has to be injected per origin. That difference is worth
-writing down once in the recipe rather than rediscovering it.
+usually cannot log in on its own, and the `after_create` hook is where a project
+solves it — copying or linking the main checkout's session is the common answer.
+A cookie is host-scoped; a `localStorage` session is origin-scoped and has to be
+injected per origin. That difference is worth writing down once rather than
+rediscovering it.
 
 ## Refusals
 
@@ -200,10 +186,15 @@ writing down once in the recipe rather than rediscovering it.
 | It is the main checkout | the repo itself |
 | Dirty tree | uncommitted work |
 | Commits on no remote | nothing to recover from |
-| Something listening on its advertised address | stop the app first |
 | A `before_remove` hook not yet run | the project has cleanup to do |
+| A `down:` or `before_remove` hook `prune` cannot run | it runs neither, so `--yes` sends the row to `remove` |
 
-`remove` deletes the checkout, the port claim, and nothing else. **The branch
+`prune --yes` removes nothing on a project with a `down:` configured — real or the
+generated stub — or a `before_remove` hook: it can run neither, so every
+otherwise-removable checkout is listed for `remove <slug>` to handle instead. That
+is by design, not a bug.
+
+`remove` deletes the checkout and nothing else. **The branch
 survives** — git keeps it, so the work is still reachable after the worktree is
 gone. Deleting it is the user's call, or `pr.delete_branch`'s after a merge.
 

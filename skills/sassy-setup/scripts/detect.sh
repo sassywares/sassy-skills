@@ -427,6 +427,31 @@ if (( CHECK )); then
   note() { printf '%s\n' "$*"; }
   bad()  { printf '  drift: %s\n' "$*"; drift=1; }
 
+  # A node checker prints `<drift|note>\t<message>` lines and exits 0; the caller
+  # owns the verdict, so its exit status is a finding too. Silencing a crash into
+  # zero output would read as "nothing to report", which is the one thing a
+  # verifier must never mean. On failure the first output line names the crash.
+  check_with_node() { # <script> <missing-node note> [args...]
+    local script="$1" missing="$2" out first kind msg
+    shift 2
+    if ! command -v node >/dev/null 2>&1; then
+      note "  $missing"
+      return 0
+    fi
+    if out="$(node "$script" "$@" 2>&1)"; then
+      while IFS=$'\t' read -r kind msg; do
+        case "$kind" in
+          drift) bad "$msg" ;;
+          note)  note "  $msg" ;;
+        esac
+      done <<< "$out"
+    else
+      first="$(printf '%s\n' "$out" | head -n 1)"
+      bad "$(basename "$script") failed — ${first:-it exited non-zero with no output}"
+    fi
+    return 0
+  }
+
   note "root: ${ROOT}"
   note "config: ${CONFIG:-none found (walking up from $START)}"
 
@@ -458,7 +483,7 @@ if (( CHECK )); then
   # and the run silently falls back to a default the project never chose. The
   # whitelist is the schema in references/config.md; every key there has a
   # validator of its own below, so anything landing here is unknown.
-  while IFS=$'\t' read -r kpath _; do
+  while IFS=$'\t' read -r kpath kvalue; do
     [[ -n "$kpath" ]] || continue
     key="${kpath//$US/.}"
     case "$key" in
@@ -471,7 +496,17 @@ if (( CHECK )); then
       commit.branch) ;;
       pr.babysit|pr.merge|pr.delete_branch) ;;
       dogfood.enabled|dogfood.recipe|dogfood.reports|dogfood.timeout) ;;
-      worktrees.enabled|worktrees.dir|worktrees.ports) ;;
+      worktrees.enabled|worktrees.dir) ;;
+      up|down)
+        # Top-level stack life cycle; see references/config.md. A list or a block
+        # parses, but the scripts read one command word and its args.
+        case "$kvalue" in
+          \[*|\{*)
+            bad "$key is a list or block — write one line: $key: <script> <args…> or $key: <skill> <args…>" ;;
+        esac ;;
+      worktrees.ports)
+        # Deleted from the schema. The one line that fixes it is the line itself.
+        bad "worktrees.ports is gone — delete the 'ports:' line under worktrees in .sassywares/config.yaml" ;;
       hooks.*) ;;                               # shape checked with the hooks
       *) bad "unknown key '$key' — it is ignored, so the run uses the default" ;;
     esac
@@ -576,23 +611,37 @@ if (( CHECK )); then
       note "  no workspace git helpers installed (optional)"
     fi
 
-    # Aliases live in the project's own manifest; setup only ever adds them.
+    # Aliases are optional: the scripts are run by path, and a project that wired
+    # only the ones its runner needs is not drifting. Reported, never failed.
+    # The manifest is never enumerated here — sassy-overview's identify.sh names
+    # the stack and the file that declares it (D20).
     manifest=""
-    for candidate in package.json deno.json deno.jsonc composer.json; do
-      if [[ -f "$ROOT/$candidate" ]]; then
-        manifest="$candidate"
-        break
-      fi
-    done
+    identify="$SKILL_DIR/../sassy-overview/scripts/identify.sh"
+    if [[ -f "$identify" ]]; then
+      stack_line="$(bash "$identify" --root "$ROOT" --key stack 2>/dev/null || true)"
+      while IFS=$'\t' read -r _key stack_val stack_src; do
+        # Only a named-scripts manifest has an alias slot; anything else is
+        # simply not wired, and that is complete.
+        case "$stack_val" in
+          node|php|deno) if [[ "$stack_src" != "-" ]]; then manifest="$stack_src"; fi ;;
+        esac
+      done <<< "$stack_line"
+    else
+      note "  sassy-overview is not installed — workspace aliases unchecked"
+    fi
     if [[ -n "$manifest" ]]; then
       missing_aliases=()
+      missing_list=""
       for script in branches pull checkout-bases snapshot; do
-        grep -q "\"workspace:${script}\"" "$ROOT/$manifest" || missing_aliases+=("$script")
+        if ! grep -q "\"workspace:${script}\"" "$ROOT/$manifest"; then
+          missing_aliases+=("$script")
+          missing_list+="${missing_list:+, }workspace:${script}"
+        fi
       done
       if [[ ${#missing_aliases[@]} -eq 0 ]]; then
         note "  workspace:* aliases in ${manifest}"
       elif [[ ${#missing_aliases[@]} -lt 4 ]]; then
-        bad "${manifest} is missing $(printf '`workspace:%s` ' "${missing_aliases[@]}")— half-wired aliases; re-run setup"
+        note "  aliases: ${missing_list} not wired in ${manifest} (optional — the scripts run by path)"
       else
         note "  no workspace:* aliases in ${manifest} (optional)"
       fi
@@ -766,69 +815,50 @@ if (( CHECK )); then
     esac
   fi
 
-  # Worktrees: a switch and three mechanical settings. Creating, claiming, and
+  # An absent pair is a deliberate answer, not a missing setup step: say it so
+  # `check` and `init` agree, and never propose a command here.
+  if [[ -z "$(yflat up 2>/dev/null || true)" && -z "$(yflat down 2>/dev/null || true)" ]]; then
+    note "  no lifecycle — no top-level up/down keys"
+  fi
+
+  # Worktrees: a switch and one mechanical setting. Creating, addressing, and
   # refusing all belong to the scripts, so this validates only what a run reads.
   wt_on="$(block_value worktrees enabled || true)"
-  wt_dir="$(block_value worktrees dir || true)"
-  wt_ports="$(block_value worktrees ports || true)"
   case "$wt_on" in
     "") ;;
     true|false) note "  worktrees.enabled: $wt_on" ;;
     *) bad "worktrees.enabled '$wt_on' must be true|false" ;;
   esac
-  if [[ -n "$wt_ports" ]]; then
-    case "$wt_ports" in
-      *-*) wt_lo="${wt_ports%%-*}"; wt_hi="${wt_ports##*-}" ;;
-      *)   wt_lo=""; wt_hi=""; bad "worktrees.ports '$wt_ports' is not <from>-<to>" ;;
-    esac
-    if [[ -n "$wt_lo" ]]; then
-      case "$wt_lo$wt_hi" in
-        *[!0-9]*) bad "worktrees.ports '$wt_ports' is not numeric" ;;
-        *) if (( wt_lo < 1 || wt_hi > 65535 || wt_lo > wt_hi )); then
-             bad "worktrees.ports '$wt_ports' is not a usable port range"
-           else
-             note "  worktrees.ports: $wt_ports"
-           fi ;;
-      esac
-    fi
-  fi
+
+  # The mechanics are suite-owned and read-only (D4/D5), so `--check` proves the
+  # installed set byte for byte against the folder this skill ships, using the
+  # skills-lock folder hash. A version header cannot: it is hand-maintained, so
+  # an edited byte and an unbumped asset both still read as current. Run whenever
+  # the set is installed — a project that flipped the switch off still carries
+  # files it may not edit — and keep the missing set a switch-on finding.
+  wt_lib="$ROOT/.sassywares/worktree/_lib.sh"
+  verify_worktree_set() {
+    check_with_node "$SKILL_DIR/scripts/worktree-check.mjs" \
+      "node not found — .sassywares/worktree is unverified (the skills CLI needs node)" \
+      --installed "$ROOT/.sassywares/worktree" \
+      --shipped "$ASSET_WORKTREE"
+    for helper in create list remove prune; do
+      [[ -x "$ROOT/.sassywares/worktree/$helper" ]] \
+        || bad "missing or not executable: .sassywares/worktree/$helper"
+    done
+  }
 
   if [[ "$wt_on" == "true" ]]; then
     if [[ "$TOPOLOGY" != "repo" ]]; then
       bad "worktrees.enabled needs a repo — this folder is '$TOPOLOGY', and a checkout needs git"
     else
-      if [[ -z "$wt_ports" ]]; then
-        note "  worktrees: no port resource — a checkout is addressed by the recipe's preview line"
-      fi
+      note "  worktrees: a checkout is addressed by the project's own stack, and two checkouts running the same app collide"
       if [[ "$(yflat "commit${US}branch" 2>/dev/null || true)" == "current" ]]; then
         note "  worktrees.enabled with commit.branch: current — a run never cuts a branch, so no run offers a checkout"
       fi
 
-      wt_lib="$ROOT/.sassywares/worktree/_lib.sh"
       if [[ -f "$wt_lib" ]]; then
-        installed_wt="$(sed -n 's/^# worktree-version: //p' "$wt_lib" | head -n 1)"
-        asset_wt="$(sed -n 's/^# worktree-version: //p' "$ASSET_WORKTREE/_lib.sh" | head -n 1)"
-        installed_wt_var="$(sed -n 's/^WT_VERSION="\(.*\)"/\1/p' "$wt_lib" | head -n 1)"
-        if [[ -n "$installed_wt_var" && -n "$installed_wt" && "$installed_wt_var" != "$installed_wt" ]]; then
-          bad ".sassywares/worktree/_lib.sh header says v${installed_wt} but the script reports v${installed_wt_var} — the file was half-bumped"
-        fi
-        if [[ -z "$installed_wt" ]]; then
-          bad "installed .sassywares/worktree/_lib.sh has no worktree-version line"
-        elif [[ -n "$asset_wt" && "$installed_wt" != "$asset_wt" ]]; then
-          bad "installed worktree tooling is v${installed_wt}, this skill ships v${asset_wt} — re-run setup"
-        else
-          note "  worktree tooling v${installed_wt}"
-        fi
-        # The version is hand-maintained, so a shipped change that forgot to bump
-        # it would look current. Say so when the bytes differ but the numbers do not.
-        if [[ -n "$installed_wt" && "$installed_wt" == "$asset_wt" ]] \
-           && ! cmp -s "$wt_lib" "$ASSET_WORKTREE/_lib.sh"; then
-          note "  .sassywares/worktree/_lib.sh matches v${installed_wt} but differs from the shipped copy — extended here, or the assets changed without a bump"
-        fi
-        for helper in create list stop remove prune; do
-          [[ -x "$ROOT/.sassywares/worktree/$helper" ]] \
-            || bad "missing or not executable: .sassywares/worktree/$helper"
-        done
+        verify_worktree_set
       else
         bad "worktrees.enabled but .sassywares/worktree/_lib.sh is missing — re-run setup"
       fi
@@ -871,37 +901,13 @@ if (( CHECK )); then
         bad "worktree '$ghost' is prunable — the folder is gone; run: git worktree prune"
       done < <(git -C "$ROOT" worktree list --porcelain 2>/dev/null \
                  | awk '/^worktree /{p=$2} /^prunable /{print p; p=""}')
-
-      # Orphan port claims: the worktree is gone but its port is still taken, so
-      # a later checkout is pushed off it for no reason.
-      wt_homef=""
-      d="${wt_dir:-$HOME/.sassywares/worktrees}"
-      case "$d" in
-        "~")   d="$HOME" ;;
-        "~/"*) d="$HOME/${d#\~/}" ;;
-        /*)    ;;
-        *)     d="$ROOT/$d" ;;
-      esac
-      cand="$d/$(basename "$ROOT")"
-      if [[ -f "$cand/.repo" && "$(cat "$cand/.repo" 2>/dev/null)" != "$root_real" ]]; then
-        cand="$d/$(basename "$ROOT")-$(printf '%s' "$root_real" | shasum -a 256 | cut -c1-6)"
-      fi
-      [[ -d "$cand" ]] && wt_homef="$cand"
-      if [[ -n "$wt_homef" && -d "$wt_homef/ports" ]]; then
-        for claim in "$wt_homef"/ports/*; do
-          [[ -d "$claim" ]] || continue
-          owner="$(cat "$claim/owner" 2>/dev/null || true)"
-          [[ -n "$owner" ]] || continue
-          found=0
-          if (( ${#wt_paths[@]} )); then
-            for p in "${wt_paths[@]}"; do
-              [[ "$p" == *"/$owner" ]] && found=1
-            done
-          fi
-          (( found )) || bad "port $(basename "$claim") is claimed by '$owner', which has no worktree"
-        done
-      fi
     fi
+  fi
+
+  # The switch is off, but the tooling is installed: still suite-owned, still
+  # read-only, so still compared. Nothing here needs a repo or an enabled switch.
+  if [[ "$wt_on" != "true" && -f "$wt_lib" ]]; then
+    verify_worktree_set
   fi
 
   # Dogfood is a pointer and a switch, never commands: the recipe holds the
@@ -1004,16 +1010,9 @@ if (( CHECK )); then
   # stale, edited, or half-installed, and every skill downstream then runs
   # something other than what the lock says. Offline, no network.
   [[ -n "$SUITE_ROSTER" ]] || note "  suite roster not found — falling back to the sassy-* name prefix"
-  if command -v node >/dev/null 2>&1; then
-    while IFS=$'\t' read -r kind msg; do
-      case "$kind" in
-        drift) bad "$msg" ;;
-        note)  note "  $msg" ;;
-      esac
-    done < <(node "$SKILL_DIR/scripts/lockcheck.mjs" --root "$ROOT" --roster "$SUITE_ROSTER" 2>/dev/null || true)
-  else
-    note "  node not found — the vendored pin is unverified (the skills CLI needs node)"
-  fi
+  check_with_node "$SKILL_DIR/scripts/lockcheck.mjs" \
+    "node not found — the vendored pin is unverified (the skills CLI needs node)" \
+    --root "$ROOT" --roster "$SUITE_ROSTER"
 
   if [[ "$TOPOLOGY" == "repo" ]]; then
     # Tracked, not merely present: a clone has to get the pin without a network
@@ -1403,6 +1402,19 @@ cat <<'EOF'
   #   "*":
   #     after_create: []    # derive .env, seed the database, copy the session in
   #     before_remove: []   # drop the database, shut the device
+
+# --- Lifecycle ------------------------------------------------------------
+# How this project's stack starts and stops. Top level, not under worktrees:
+# each key names exactly ONE thing, `<script> <args…>` or `<skill> <args…>`.
+# up: run in the foreground and stop it with SIGTERM, so it must reap its
+#   children — a detached or daemonizing up outlives the call and holds the
+#   checkout. down: terminate what up started, then exit.
+# A down: naming a skill makes `remove` print `require-hook <name>` and exit 3,
+# because a shell script cannot dispatch a skill. Absent means no lifecycle:
+# nothing is inferred and no command is invented. Ports are the project's — the
+# suite derives none, so two checkouts running the same app collide.
+# up:   bin/up       # or a declared command: just dev
+# down: bin/down     # or: just down
 EOF
 cat <<'EOF'
 
@@ -1415,16 +1427,13 @@ cat <<'EOF'
 # reads these values.
 #
 # Repo topology only: a workspace root has no repo to cut a checkout from, and a
-# `none` folder has no git at all.
-#
-# A port is a resource, not the definition of a preview: delete `ports` for a
-# mobile, desktop, or CLI project, and the checkout is addressed by the recipe's
-# preview line instead (`$WT_NAMESPACE` names a simulator, a window, a path).
+# `none` folder has no git at all. A checkout is addressed by the project's own
+# stack, not by the suite: a port is the project's business, and this block
+# carries no range.
 worktrees:
 EOF
 kv enabled false 34 '# true = a run may offer its own checkout'
 kv dir '~/.sassywares/worktrees' 34 '# parent of the per-repo folder; ~ is allowed'
-kv ports 3000-3099 34 '# a private port per checkout; delete for non-port previews'
 cat <<'EOF'
 
 # --- Dogfood --------------------------------------------------------------

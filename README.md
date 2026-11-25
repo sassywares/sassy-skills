@@ -89,9 +89,10 @@ Debugging:
 | **`sassy-plan`** | Grills you one question at a time through every branch of the work — pushing back, assuming nothing, sketching UI on request — until nothing is open, then offers three choices: write the plan, start working via `sassy-work`, or implement and ship via `sassy-lfg`. |
 | **`sassy-goal`** | Runs a project too big for one plan — a migration, an epic — as a goal split into slices that each ship something complete. `mode:write` (default) grills and writes the goal, `mode:next` plans the next slice via `sassy-plan`, `mode:check` validates a shipped slice and carries its lessons forward, `mode:close` verifies the whole goal. You run every step. |
 | **`sassy-scout`** | Grounds an area on demand and writes the shared grounding brief other agents read instead of re-exploring. |
+| **`sassy-overview`** | Answers what a project is and how it runs — stack, runner, install, up, down, test, compose, env, wired — by inspecting files, read-only and with the source file for every value. `unknown` when the project hasn't said, and exit `3` so a caller branches instead of guessing. |
 | **`sassy-work`** | Executes exactly one plan phase, or one in-context brief, commits after code approval, then stops — the next phase is a run you start. A brief stops before ship. |
 | **`sassy-lfg`** | Executes every phase of a plan, or one in-context brief, then closes out via `sassy-ship` after code approval. |
-| **`sassy-worktree`** | One checkout per branch, each with its own derived namespace and port, so two agents can work in one repo — taken when you ask, never because the config allows it. `create`, `list`, `preview`, `remove`, `prune` — and `preview` brings a checkout up so you can look at it without setting it up by hand. |
+| **`sassy-worktree`** | One checkout per branch, each with its own derived namespace, so two agents can work in one repo — taken when you ask, never because the config allows it. `create`, `list`, `remove`, `prune`: cut a checkout, see what exists, delete one, or clear the leftovers. |
 | **`sassy-cycle`** | Runs one unit of work through a tiered loop: implement → simplify + review + validate for `logic`, review for `surface`, nothing for mechanical → one fix pass. No verify. Also reworks finished work from failed QA rows and picked findings. |
 | **`sassy-debug`** | Diagnoses a bug, gates the fix, fixes via `sassy-work` (cycle, code approval, commit), then ships. Debug takes no mode and always leaves ship's review gate in place unless you invoke ship yourself with `mode:auto`. |
 | **`sassy-handoff`** | `mode:write` (default) writes a self-contained handoff file to `/tmp/sassywares/handoffs/` and gives you a `sassy-handoff mode:read <path>` command for a fresh session; `mode:read` explains what the handoff did, why, and where things stand now, then asks what to do next. Works in any harness. |
@@ -183,7 +184,9 @@ hooks:
 worktrees:                       # parallel checkouts of this repo
   enabled: false                 # true = a run may offer its own checkout
   dir: ~/.sassywares/worktrees   # parent of the per-repo folder
-  ports: 3000-3099               # optional; delete for a non-port preview
+# up:/down: are top level — not under worktrees: — each `<script> <args…>` or `<skill> <args…>`
+# up: ./bin/up
+# down: ./bin/down             # absent = no lifecycle
 dogfood:                         # agent QA: a stored procedure that proves a change runs
   enabled: false                 # true lets a plan write Mode: Auto QA rows
   recipe: .sassywares/dogfood/recipe.md      # the procedure; never commands here
@@ -194,12 +197,11 @@ dogfood:                         # agent QA: a stored procedure that proves a ch
 ### Working in parallel
 
 Two agents in one repo need two checkouts, and a checkout needs a name — a
-directory, a port, a database. `worktrees:` turns that on:
+directory, a namespace, a database. `worktrees:` turns that on:
 
 ```text
 ~/.sassywares/worktrees/shop/
 ├── .repo        which checkout owns this folder
-├── ports/       one claim directory per port
 └── feat-catalog-search/
 ```
 
@@ -213,9 +215,16 @@ takes one and otherwise works in the main checkout, because two runs only collid
 when they are actually parallel. `sassy-worktree create` takes one whenever you
 ask for it, and a run carrying `worktree:on` has already been told yes.
 
+Setup installs the tooling as four scripts in `.sassywares/worktree/` — `create`,
+`list`, `remove`, `prune` — run by path, `.sassywares/worktree/create
+feat/catalog`. No command runner is required: if the project already has one that
+carries named commands, setup offers to wire `worktree:<script>` aliases into it,
+and never creates a manifest to hold them, so a Go, Python, or Dart project keeps
+its own tooling file and nothing else.
+
 `create` derives the identity from the branch and prints it — `WT_PATH`,
-`WT_SLUG`, `WT_NAMESPACE` — so a project's hook derives `.env`, a database name,
-or a simulator from one source instead of inventing its own.
+`WT_BRANCH`, `WT_SLUG`, `WT_NAMESPACE` — so a project's hook derives `.env`, a
+database name, or a simulator from one source instead of inventing its own.
 
 A checkout's branch is cut **untracked**, and `create` prints the upstream it
 found — `none` on a fresh branch, and a plain-English warning when an existing
@@ -223,28 +232,28 @@ branch tracks something other than its own name. Cut from `origin/staging`, git'
 DWIM would have made `staging` that branch's upstream, so the branch's own `git
 push` would aim at the base: a run that looks healthy until it ships.
 
-A **port is a resource, not the model**. With `ports:` configured, a checkout
-also gets `WT_PORT` and `WT_BASE_URL`, hashed into the range and claimed
-atomically so a restarted app returns to the same port. Delete `ports:` and there
-is no port at all: the checkout is addressed by the recipe's `**Preview:**` line
-instead — a simulator named `$WT_NAMESPACE`, a desktop window, or nothing at all
-for a CLI. The `list` table's column is `HOW TO SEE`, not "address", for exactly
-that reason.
+**A checkout's address and its stack are the project's own business.** The suite
+derives no address and runs no app: how a checkout is looked at, and what command
+brings it up, are the top-level `up:` and `down:` keys — each one line, a script
+or a skill and its args. Two checkouts running the same app collide on the same
+fixed port unless the project's `up:` keeps them apart, so a project that needs a
+per-checkout value derives it there from `$WT_SLUG`. Nothing here claims or tracks
+one, and a collision surfaces in the project's own command.
 
 It needs `commit.branch: new`: under `current` a run commits where it stands and
 never cuts a branch, so nothing would create a checkout. `--check` says so rather
 than leaving a switch that cannot fire.
 
-**Previewing.** `sassy-worktree mode:preview` runs the dogfood recipe's bring-up
-steps — everything up to the section's `Prove it:` — leaves the app running, and
-prints the preview line — the result, not the command that booted it. A worktree gets a fresh, empty `.sassywares/session/`, and
-most providers register one callback URL, so the usual answer is to copy or link
-the main checkout's session in the `after_create` hook: a cookie is host-scoped
-and crosses ports freely, while a `localStorage` session is origin-scoped and has
-to be injected per origin.
+`up:` runs in the foreground and is stopped with SIGTERM, so it must reap its
+children; `down:` terminates what `up:` started and exits. `remove` runs `down:`
+when the project declares one, then deletes the checkout. A worktree gets a fresh,
+empty `.sassywares/session/`, and most providers register one callback URL, so the
+usual answer is to copy or link the main checkout's session in the `after_create`
+hook: a cookie is host-scoped, while a `localStorage` session is origin-scoped and
+has to be injected per origin.
 
-Nothing here keeps state: liveness is probed, `stop` reaps by port, and `remove`
-refuses a dirty tree, unpushed commits, a live app, or the main checkout.
+Nothing here keeps state: `list` reports branch, path, dirty, and upstream, and
+`remove` refuses a dirty tree, unpushed commits, or the main checkout.
 
 ### Extending the pipeline
 
@@ -257,10 +266,10 @@ A project adds its own steps by naming a skill that lives in its own `.agents/sk
 | `before_merge` | this run is about to merge | a final approval gate |
 | `after_merge` | this run observed the merge | sync a back-merge branch, tag, notify |
 | `hooks.push` `after_push` | `commit.branch: current` only: after ship's push | notify, trigger a follow-up step |
-| `hooks.worktree` `after_create` | just after a checkout exists | derive `.env` and the port, seed the database, copy the session in |
+| `hooks.worktree` `after_create` | just after a checkout exists | derive `.env`, seed the database, copy the session in |
 | `hooks.worktree` `before_remove` | before the checkout is deleted | drop the derived database, shut the simulator |
 | `hooks.goal` `before_slice` | `sassy-goal mode:next`: after the previous slice's merge is confirmed, before the slice is grilled | switch to the bases, pull, migrate, seed |
-| `hooks.goal` `after_close` | `sassy-goal mode:close`: after the goal's status is persisted | post the goal summary, notify, tear down per-slice previews |
+| `hooks.goal` `after_close` | `sassy-goal mode:close`: after the goal's status is persisted | post the goal summary, notify, tear down per-slice environments |
 
 Hooks run in declared order, one subagent each, and fail closed: a declared skill that is missing or returns `blocked` stops the run. Which points may write, and how, is stated once in `sassy-setup`'s `references/config.md` (the hook contract). `before_merge` and `after_merge` never fire unless this run merges. Goal hooks may do anything except touch the goal itself, as long as every base ends level with its remote; `before_slice` fires before `mode:next` checks the base, and neither is suppressed by `commit.branch: current`.
 

@@ -3,8 +3,8 @@
 # you approve. This is the mode that keeps the worktree home from becoming tens
 # of gigabytes.
 #
-# Only merged-or-gone branches that are clean, fully pushed, and not running are
-# ever candidates. Nothing is removed without --yes.
+# Only merged-or-gone branches that are clean and fully pushed are ever
+# candidates. Nothing is removed without --yes.
 #
 # Usage: .sassywares/worktree/prune [--yes] [--version]
 set -euo pipefail
@@ -18,7 +18,8 @@ usage() {
 Usage: .sassywares/worktree/prune [--yes]
 
 Show every worktree that is merged into its upstream (or whose upstream is gone)
-and safe to remove, then — with --yes — remove those and release their ports.
+and safe to remove, then — with --yes — remove those whose tree is clean and
+fully pushed.
 EOF
 }
 
@@ -36,6 +37,11 @@ done
 
 need_git
 
+# A declared life cycle means the stack is the project's to stop. There is no
+# liveness probe here: `remove` is what runs `down:`, so prune sends the user there
+# rather than pulling a directory out from under a running process.
+down="$(wt_down)"
+
 printf '  %-32s %-9s %-6s %-9s %s\n' "BRANCH" "UPSTREAM" "DIRTY" "UNPUSHED" "ACTION"
 n_candidates=0
 n_removed=0
@@ -48,9 +54,6 @@ while IFS=$'\t' read -r p b; do
   state="$(wt_upstream_state "$p")"
   if wt_dirty "$p"; then dirty="yes"; else dirty="no"; fi
   unpushed="$(wt_unpushed "$p")"
-  port="$(wt_live_port "$slug")"
-  live="no"
-  [ -n "$port" ] && tcp_up "$port" && live="yes"
 
   action=""
   if [ "$state" = "unmerged" ]; then
@@ -59,8 +62,6 @@ while IFS=$'\t' read -r p b; do
     action="skipped — dirty"
   elif [ "$unpushed" != "0" ]; then
     action="skipped — $unpushed unpushed"
-  elif [ "$live" = "yes" ]; then
-    action="skipped — running${port:+ on :$port}"
   else
     action="removable"
     n_candidates=$(( n_candidates + 1 ))
@@ -74,8 +75,11 @@ while IFS=$'\t' read -r p b; do
       warn skipped "$b has a before_remove hook — run remove <$slug> so it runs"
       continue
     fi
+    if [ -n "$down" ]; then
+      warn skipped "$b has a down: life cycle — real, or the generated stub (exit 78); run remove <$slug> so it is handled"
+      continue
+    fi
     git worktree remove "$p" || continue
-    [ -n "$port" ] && wt_release "$port" "$slug"
     n_removed=$(( n_removed + 1 ))
   fi
 done < <(wt_all)

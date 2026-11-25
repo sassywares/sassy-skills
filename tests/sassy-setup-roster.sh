@@ -192,4 +192,101 @@ if printf '%s' "$out" | grep -q "'sassy-commit' is one of our skills"; then
   pass "(m) a suite skill as a goal hook is drift"
 else fail "(m) a suite skill as a goal hook is drift" "$out"; fi
 
+# (n) the installed worktree set is proven byte for byte against the shipped
+# folder: an edited script is drift naming that file, and restoring the shipped
+# copy is clean again. The expected hash is the shipped asset folder's — setup
+# installs by copying it, so there is no separate state file to fall out of sync.
+CFG_WT='git:
+  repo: origin
+  base_map:
+    "*": main
+commit:
+  branch: new
+worktrees:
+  enabled: true'
+mkworktree() { # mkworktree <dir> <config>
+  mkproject "$1" "$2"
+  mkdir -p "$1/.sassywares/worktree"
+  cp -R "$REPO/skills/sassy-setup/assets/worktree/." "$1/.sassywares/worktree/"
+  chmod +x "$1"/.sassywares/worktree/*
+}
+N="$TMP/n"; mkworktree "$N" "$CFG_WT"
+printf '\n# local edit\n' >> "$N/.sassywares/worktree/create"
+out="$(bash "$N/.agents/skills/sassy-setup/scripts/detect.sh" --root "$N" --check 2>&1)"
+if printf '%s' "$out" | grep -q 'drift: .sassywares/worktree/create differs from the shipped copy' \
+   && printf '%s' "$out" | grep -q 'drift: .sassywares/worktree hash '; then
+  pass "(n) an edited installed worktree file is drift, named"
+else fail "(n) an edited installed worktree file is drift, named" "$out"; fi
+cp "$REPO/skills/sassy-setup/assets/worktree/create" "$N/.sassywares/worktree/create"
+chmod +x "$N/.sassywares/worktree/create"
+out="$(bash "$N/.agents/skills/sassy-setup/scripts/detect.sh" --root "$N" --check 2>&1)"
+if printf '%s' "$out" | grep -q 'config matches the tree'; then
+  pass "(n2) restoring the shipped copy is clean again"
+else fail "(n2) restoring the shipped copy is clean again" "$out"; fi
+
+# (o) worktrees.ports is removed: one drift line carrying the line to delete,
+# and a leftover key never cascades into a second unknown-key finding.
+O="$TMP/o"; mkworktree "$O" "$(printf '%s\n  ports: 3000-3099' "$CFG_WT")"
+out="$(bash "$O/.agents/skills/sassy-setup/scripts/detect.sh" --root "$O" --check 2>&1)"
+if printf '%s' "$out" | grep -q "drift: worktrees.ports is gone — delete the 'ports:' line under worktrees in .sassywares/config.yaml" \
+   && ! printf '%s' "$out" | grep -q "unknown key 'worktrees.ports'"; then
+  pass "(o) worktrees.ports is reported removed with its fix line"
+else fail "(o) worktrees.ports is reported removed with its fix line" "$out"; fi
+
+# (p) the identify substitution: a named-scripts manifest with only some of the
+# four aliases gets one optional note, never drift, (q) a project without
+# the sassy-overview skill says the aliases went unchecked instead of guessing,
+# and (r) a Deno workspace repo names its own manifest rather than going silent.
+CFG_WS='git:
+  repo: workspace
+  remote: origin
+  mirror_branch: main
+repos:
+  fe: main'
+mkworkspace() { # mkworkspace <dir> <config>
+  mkproject "$1" "$2"
+  # A workspace root is not a repo; one nested repo makes the topology real.
+  rm -rf "$1/.git"
+  mkdir -p "$1/fe"
+  git -C "$1/fe" init -q 2>/dev/null
+  mkdir -p "$1/.sassywares/workspace"
+  cp -R "$REPO/skills/sassy-setup/assets/workspace/." "$1/.sassywares/workspace/"
+  cp "$REPO/skills/sassy-setup/assets/snapshot" "$1/.sassywares/workspace/snapshot"
+  chmod +x "$1"/.sassywares/workspace/*
+  printf '{\n  "name": "fixture",\n  "scripts": {\n    "workspace:branches": "bash .sassywares/workspace/branches",\n    "workspace:pull": "bash .sassywares/workspace/pull"\n  }\n}\n' > "$1/package.json"
+}
+P="$TMP/p"; mkworkspace "$P" "$CFG_WS"
+out="$(bash "$P/.agents/skills/sassy-setup/scripts/detect.sh" --root "$P" --check 2>&1)"
+if printf '%s' "$out" | grep -q 'aliases: workspace:checkout-bases, workspace:snapshot not wired in package.json (optional — the scripts run by path)' \
+   && ! printf '%s' "$out" | grep -q 'drift:'; then
+  pass "(p) partial workspace aliases are one optional note, not drift"
+else fail "(p) partial workspace aliases are one optional note, not drift" "$out"; fi
+
+Q="$TMP/q"; mkworkspace "$Q" "$CFG_WS"
+rm -rf "$Q/.agents/skills/sassy-overview"
+node -e '
+  const fs = require("fs"); const f = process.argv[1]; const l = JSON.parse(fs.readFileSync(f, "utf8"));
+  delete l.skills["sassy-overview"]; fs.writeFileSync(f, JSON.stringify(l, null, 2));
+' "$Q/skills-lock.json"
+out="$(bash "$Q/.agents/skills/sassy-setup/scripts/detect.sh" --root "$Q" --check 2>&1)"; rc=$?
+if [[ "$rc" -eq 0 ]] \
+   && printf '%s' "$out" | grep -q 'sassy-overview is not installed — workspace aliases unchecked' \
+   && ! printf '%s' "$out" | grep -q 'drift:'; then
+  pass "(q) no sassy-overview means the aliases go unchecked, exit 0"
+else fail "(q) no sassy-overview means the aliases go unchecked, exit 0" "exit $rc
+$out"; fi
+
+# (r) identify names deno.json as the manifest for a Deno stack, so a Deno
+# workspace repo gets the alias note instead of silence.
+R="$TMP/r"; mkworkspace "$R" "$CFG_WS"
+rm -f "$R/package.json"
+printf '{\n  "tasks": {\n    "workspace:branches": "bash .sassywares/workspace/branches"\n  }\n}\n' > "$R/deno.json"
+out="$(bash "$R/.agents/skills/sassy-setup/scripts/detect.sh" --root "$R" --check 2>&1)"; rc=$?
+if [[ "$rc" -eq 0 ]] \
+   && printf '%s' "$out" | grep -q 'aliases: workspace:pull, workspace:checkout-bases, workspace:snapshot not wired in deno.json (optional — the scripts run by path)' \
+   && ! printf '%s' "$out" | grep -q 'drift:'; then
+  pass "(r) a Deno workspace repo gets the alias note for deno.json"
+else fail "(r) a Deno workspace repo gets the alias note for deno.json" "exit $rc
+$out"; fi
+
 (( fails == 0 )) && echo "all passed" || { echo "$fails failed"; exit 1; }

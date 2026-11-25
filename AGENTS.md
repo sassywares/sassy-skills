@@ -85,9 +85,10 @@ done
 
 ## Testing
 
-Two scripts, both offline and self-contained; skills are otherwise validated structurally.
+Three scripts, all offline and self-contained; skills are otherwise validated structurally.
 
 - **Roster and pin.** `bash tests/sassy-setup-roster.sh` checks that `skills/sassy-setup/assets/roster` equals `ls skills/` and runs `detect.sh --check` in project scope, user scope (three real Sassywares repos), and with the roster missing. It also builds its locks from `skills/sassy-setup/scripts/hash-skill.mjs` (never a private copy of the hash) and holds golden vectors for both lock eras: a change in the CLI's folder hash must break that test, not silently report every skill as drift.
+- **Identify.** `bash tests/sassy-overview-identify.sh` builds one throwaway fixture per manifest row in `sassy-overview`'s identify table (plus the lockfile, `packageManager`, `requirements.txt`, plain-pubspec, make-vs-just, assignment-line, `wired` walk-up and `.env` precedence cases) and asserts the exact `key<TAB>value<TAB>source` output, the documented exit codes (`0`, `3`, `2`), and that identify writes no file. Each fixture owns exactly one manifest, so deleting a row from the script's table fails the test instead of silently returning `unknown`.
 - **Worktree checkout.** `bash tests/worktree-create.sh` builds a throwaway repo with a real `origin`, runs `create --from origin/main`, and asserts the new branch has **no** upstream, that a reused checkout is still untracked, and that a branch already tracking the base is called out. Git's DWIM gives a branch cut from a remote-tracking ref that ref as its upstream, so without `--no-track` the branch's own push aims at the base — invisible until someone ships. Deleting the flag must fail this test.
 
 - **Frontmatter.** Every `skills/*/SKILL.md` starts with `---` frontmatter holding `name` and `description` (`argument-hint` optional). `publish.yml` enforces `name` and `description` and fails the publish without them, so check locally first.

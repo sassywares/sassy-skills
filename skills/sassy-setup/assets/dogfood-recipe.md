@@ -8,7 +8,7 @@ never values>
 **Reset:** <the product back to a known state — a database, a cache, a temp dir.
 Never `reports/`: evidence must outlive the run that made it>`
 
-**Preview:** <what you look at once it is up — `http://localhost:$WT_PORT`, a simulator name, a window. Not the command; that is a step below.>
+**Preview:** <what you look at once it is up — a URL, a simulator name, a window. Not the command; that is a step below.>
 
 <!--
 Incomplete on purpose. sassy-setup writes this skeleton so the shape is visible;

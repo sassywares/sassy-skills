@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
-# Show every worktree of this repo: branch, path, address, whether anything is
-# listening there, and the last dogfood verdict.
+# Show every worktree of this repo: branch, path, whether its tree is dirty, and
+# the upstream it tracks.
 #
-# Liveness is probed, never read from a pid file — a killed preview leaves no
-# stale entry to believe.
-#
-# Usage: .sassywares/worktree/list [--address <slug>] [--path <slug>] [--version]
+# Usage: .sassywares/worktree/list [--path <slug>] [--version]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,21 +11,20 @@ source "$SCRIPT_DIR/_lib.sh"
 
 usage() {
   cat <<'EOF'
-Usage: .sassywares/worktree/list [--address <slug>] [--path <slug>]
+Usage: .sassywares/worktree/list [--path <slug>]
 
-Print every worktree with its address and last verdict.
+Print every worktree with its branch, path, dirty state, and upstream.
 
-  --address <slug>  print only the base URL of one worktree
-  --path <slug>     print only the path of one worktree (for cd "$(...)")
+  --path <slug>  print only the path of one worktree (for cd "$(...)")
 EOF
 }
 
-want="" kind=""
+want=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     --version) printf '%s\n' "$WT_VERSION"; exit 0 ;;
-    --address|--path|--preview) kind="${1#--}"; shift; want="${1:-}"; [ -n "$want" ] || die "$kind needs a slug" ;;
+    --path) shift; want="${1:-}"; [ -n "$want" ] || die "path needs a slug" ;;
     -*) die "unknown flag: $1 (try --help)" ;;
     *) die "unexpected argument: $1 (try --help)" ;;
   esac
@@ -37,62 +33,32 @@ done
 
 need_git
 
-one() { # $1 path, $2 branch
-  local p="$1" b="$2" slug port line
-  slug="$(wt_slug "$b")"
-  if wt_is_main "$p"; then
-    die "the main checkout is not a worktree — read the recipe's preview line for its address"
-  fi
-  case "$kind" in
-    path) printf '%s\n' "$p" ;;
-    address)
-      # A claimed port, or the one the recipe's preview line advertises.
-      port="$(wt_live_port "$slug")"
-      [ -n "$port" ] || die "no address here — worktrees.ports is unset and the preview line names no port; try --preview"
-      printf 'http://localhost:%s\n' "$port"
-      ;;
-    preview)
-      line="$(wt_preview "$slug")"
-      [ -n "$line" ] || die "no preview line for '$slug' — add one to dogfood.recipe"
-      printf '%s\n' "$line"
-      ;;
-  esac
-}
-
-if [ -n "$kind" ]; then
+if [ -n "$want" ]; then
   rec="$(wt_require_managed "$want")"
-  one "${rec%%$'\t'*}" "${rec##*$'\t'}"
+  path="${rec%%$'\t'*}"
+  wt_is_main "$path" && die "the main checkout is not a worktree"
+  printf '%s\n' "$path"
   exit 0
 fi
 
-printf '  %-34s %-50s %-40s %-5s %s\n' "BRANCH" "WORKTREE" "HOW TO SEE" "LIVE" "LAST RUN"
+printf '  %-34s %-50s %-6s %s\n' "BRANCH" "WORKTREE" "DIRTY" "UPSTREAM"
 count=0
 unmanaged=0
 while IFS=$'\t' read -r p b; do
   [ -n "$p" ] || continue
   count=$(( count + 1 ))
-  slug="$(wt_slug "$b")"
   shown="${p/#$HOME/~}"
+  label="$b"
   if wt_is_main "$p"; then
-    printf '  %-34s %-50s %-40.40s %-5s %s\n' "$(short_path "$b (main checkout)" 34)" "$(short_path "$shown" 50)" "—" "—" "—"
-    continue
-  fi
-  if ! wt_managed "$p"; then
+    label="$b (main checkout)"
+  elif ! wt_managed "$p"; then
+    # No git calls for a checkout that is not ours: it is counted, never listed.
     unmanaged=$(( unmanaged + 1 ))
     continue
   fi
-  # The address is whatever the project says it is: a URL, a simulator, a window.
-  line="$(wt_preview "$slug")"
-  port="$(wt_live_port "$slug")"
-  [ -n "$line" ] || line=""
-  if [ -z "$line" ] && [ -n "$port" ]; then line="http://localhost:$port"; fi
-  if [ -n "$port" ]; then
-    if tcp_up "$port"; then live="up"; else live="down"; fi
-  else
-    live="—"
-  fi
-  last="$(wt_verdict "$p")"
-  printf '  %-34s %-50s %-40.40s %-5s %s\n' "$(short_path "$b" 34)" "$(short_path "$shown" 50)" "${line:-—}" "$live" "${last:-—}"
+  if wt_dirty "$p"; then dirty="yes"; else dirty="no"; fi
+  up="$(wt_upstream "$p")"
+  printf '  %-34s %-50s %-6s %s\n' "$(short_path "$label" 34)" "$(short_path "$shown" 50)" "$dirty" "${up:-—}"
 done < <(wt_all)
 
 [ "$count" -gt 0 ] || log "  no checkouts found — is this a git repository?"

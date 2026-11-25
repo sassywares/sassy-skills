@@ -53,7 +53,7 @@ A gate is a deliberate stop or pass/fail condition.
 ## Worktree
 
 One checkout per branch, so two runs never share a working tree. `sassy-worktree`
-owns the lifecycle; the scripts in `.sassywares/worktree/` own the git.
+owns the workflow; the scripts in `.sassywares/worktree/` own the git.
 
 - **Worktree** — a second checkout of the same repository, at
   `~/.sassywares/worktrees/<repo>/<slug>`. It shares one object store and one
@@ -67,31 +67,45 @@ owns the lifecycle; the scripts in `.sassywares/worktree/` own the git.
   and a managed checkout that already exists for the branch is reused rather than
   a second one cut.
 - **Slug** — the branch with `/` flattened (`feat/catalog` → `feat-catalog`). It
-  names the directory, the port, and the registry entry.
+  names the directory the checkout lives in, and the handle `list --path` and
+  `remove` take — `remove` also accepts the branch.
 - **Namespace** — the slug prefixed with the repo (`shop-feat-catalog`), and the
   only name a hook should use for a database, a compose project, or a simulator.
   Derived once by `create`; never rebuilt by hand.
-- **Port claim** — the private port a checkout owns, *when the project configured
-  `worktrees.ports`*: hashed from the slug into the range, claimed with an atomic
-  `mkdir`, and probed forward on a collision. Liveness is *probed*, never read
-  from a pid file. Without a range there is no port and nothing to claim — a port
-  is one resource, not the definition of a preview.
-- **Preview** — bringing that checkout up so a human can look at it. It runs the
-  dogfood recipe's steps up to the section's `Prove it:` and never judges the
-  work; proving is dogfood's job. **How to see it** is the recipe's `**Preview:**`
-  line with `WT_*` substituted — a URL, a simulator, a window, never the command
-  that started it — so the suite never assumes a browser.
+- **Lifecycle** — the project's own pair of top-level config keys, `up:` and
+  `down:`, each a script or a skill and its args. The suite supplies the shape
+  and the `WT_*` environment, never the commands: `up` starts the stack in a
+  checkout and `down` stops it, and `remove` runs `down` before deleting. Absent
+  means no lifecycle, and nothing is invented. Addressing a checkout — a URL, a
+  simulator, a window — is the project's business too; two checkouts running the
+  same app collide unless the project's own `up:` keeps them apart.
 - **Managed checkout** — one under `worktrees.dir` that also carries
-  `.sassywares/config.yaml`. The tooling lists, prunes, stops, and removes only
-  those; anything else belongs to another tool or predates the wiring.
+  `.sassywares/config.yaml`. The tooling lists, prunes, and removes only those;
+  anything else belongs to another tool or predates the wiring.
 
-`create` and `remove` need an agent because their hooks are project skills, and a
-script cannot dispatch one. That is why the lifecycle is a skill and the git is a
-script.
+`create` and `remove` need an agent because their hooks — and a `down:` that names
+a skill — are project skills, and a script cannot dispatch one. So the
+orchestration is a skill and the git is a script.
+
+## Overview
+
+What a project is and how it runs, answered from its files. `sassy-overview`
+owns it; its `identify.sh` is the query.
+
+- **Identify** — the default `mode:identify`: one `key<TAB>value<TAB>source` line
+  per fact, read-only and never executing the project's tooling. The keys are
+  `stack`, `runner`, `install`, `up`, `down`, `test`, `compose`, `env`, `wired`.
+- **Source** — the file a value came from, or `-` when there is none. A value
+  without a source is not a fact, which is why `unknown` carries `-`.
+- **Unknown** — a first-class answer: the project has not declared this fact.
+  It is never a gap to fill with a default or a manifest written to hold one.
+- **Answered vs. asked** — the default run is an inventory and exits `0`; naming
+  keys makes it a question, and any requested `unknown` exits `3` so the caller
+  branches instead of guessing. Usage errors exit `2`.
 
 ## Modes
 
-Three shared mode tokens: `mode:manual` (default) asks at the skill's gate; `mode:auto` means pre-authorized, no review; `mode:return` reports and changes nothing. Some skills take their own modes instead: `sassy-goal`, `sassy-handoff` (`write`, `read`), `sassy-setup` (`init`, `check`), and `sassy-skill` (`create`, `retune`, `verify`).
+Three shared mode tokens: `mode:manual` (default) asks at the skill's gate; `mode:auto` means pre-authorized, no review; `mode:return` reports and changes nothing. Some skills take their own modes instead: `sassy-goal`, `sassy-handoff` (`write`, `read`), `sassy-setup` (`init`, `check`), `sassy-overview` (`identify`), and `sassy-skill` (`create`, `retune`, `verify`).
 
 - `sassy-ship` and `sassy-compound` accept `manual` and `auto`. Ship reviews the whole close-out in `mode:manual` and forwards `mode:auto` to compound once its own gate is answered.
 - `sassy-review`, `sassy-simplify`, and `sassy-validate` accept all three: `manual` asks which findings to fix, `auto` fixes them without asking, `return` hands the findings back to the caller.
