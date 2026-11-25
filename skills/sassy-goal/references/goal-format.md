@@ -7,13 +7,31 @@ Read this before writing or revising `goal.md`.
 A goal is a folder under `artifacts.plans`:
 
 ```text
-<artifacts.plans>/<goal-slug>/
+<artifacts.plans>/<type>-<slug>/
 ├── goal.md               # this format
 ├── 01-<slice-slug>.md    # S1's plan, written by sassy-plan when S1 starts
 └── 02-<slice-slug>.md    # S2's plan, written when S2 starts
 ```
 
-The goal slug is made the way `sassy-plan` makes a plan slug. The goal folder's name **is** the goal slug, and it is what keys `hooks.goal.<slug>` in the project config. `NN` is the slice's order and matches its ID: `S1` → `01-`, `S2` → `02-`. A slice plan is an ordinary sassy plan, so `sassy-work`, `sassy-lfg`, `sassy-ship`, and `sassy-validate` run on it unchanged.
+The folder name is `<type>-<slug>`, and that whole name is the key `hooks.goal` uses in the project config — prefix included: `hooks.goal.feat-powersync`. The `slug` alone is the part after the `<type>-`.
+
+- **`type`** is one of `feat fix chore refactor docs test perf ci build` — the Conventional Commit type the goal will ship as. `mode:next` passes it into each slice plan's frontmatter, and `branching.md` reads it there to name the slice branch, so the chain runs goal → slice plan → branch.
+- **`slug`** is lowercase ASCII kebab, 2–3 words (ceiling 5), naming the thing that changes, never the activity. It is the folder name minus its `<type>-` prefix.
+- **Unique.** Two goals on the same object take a qualifier (`-phase-two`), never a timestamp, because the folder name is the `hooks.goal` key.
+- **Undated.** A date in the folder name would land in every `hooks.goal` entry and break when the goal is renamed.
+
+Slice plans keep `NN-<slice-slug>.md` (written via `out:`). `NN` is the slice's order and matches its ID: `S1` → `01-`, `S2` → `02-`. A slice plan is an ordinary sassy plan, so `sassy-work`, `sassy-lfg`, `sassy-ship`, and `sassy-validate` run on it unchanged.
+
+## Frontmatter
+
+Required keys, in this order, and nothing else:
+
+- **`type`** — one of the list above, matching the folder prefix.
+- **`status`** — `active` | `done`.
+- **`created`** — `YYYY-MM-DD`, the day the goal was first written; never changes.
+- **`updated`** — `YYYY-MM-DD`; set to today on every material revision, in the same edit. `mode:write`, `mode:next`, `mode:check`, and `mode:close` all set it whenever they edit the file.
+
+The H1 title stays: frontmatter does not render on GitHub, so the heading is what a reader sees.
 
 ## Rules
 
@@ -39,9 +57,14 @@ Order: `Pending` > `Planned` > `Shipped` > `Done`. Only one slice is ever `Plann
 ## Template
 
 ```markdown
-# <Goal title>
+---
+type: feat
+status: active
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+---
 
-**Status:** Active
+# <Goal title>
 
 ## Intent
 One paragraph: the outcome when the whole goal lands, and why it is worth a multi-slice effort.

@@ -104,7 +104,7 @@ down: just down
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `artifacts.plans` | `docs/plans` | Where `sassy-plan` writes plans, and where `sassy-goal` keeps goal folders (`<slug>/goal.md` plus slice plans) |
+| `artifacts.plans` | `docs/plans` | Where `sassy-plan` writes plans, and where `sassy-goal` keeps goal folders (`<type>-<slug>/goal.md` plus slice plans) |
 | `artifacts.solutions` | `docs/solutions` | Where `sassy-compound` writes learnings |
 | `artifacts.handbooks` | `docs/handbooks` | Where `sassy-handbook` writes handbooks |
 | `artifacts.concepts` | `CONCEPTS.md` | The glossary file compound maintains |
@@ -394,10 +394,9 @@ in review, and commented when it is deliberate.
 
 ### Goal hooks
 
-`hooks.goal` keys on the **goal slug** — the goal's folder under
-`artifacts.plans` — and resolves exactly like `hooks.pr`: exact slug, the
-longest matching family, then `"*"`. Its two points are in the table above;
-`sassy-goal` owns both.
+`hooks.goal` keys on the **goal folder's name**, the `<type>-<slug>` folder under `artifacts.plans`, prefix included (`hooks.goal.feat-powersync`; the slug alone is the part after the `<type>-`), and resolves exactly like `hooks.pr`: exact slug, the longest matching family, then `"*"`. Its two points are in the table above; `sassy-goal` owns both.
+
+A goal folder renamed to the `<type>-<slug>/` shape takes its `hooks.goal` keys with it: existing folders keep working under their old key until renamed.
 
 - **Early stop**: neither fires when that mode stops early — an unmerged PR,
   nothing eligible, or a failed persist. A stale base does not stop
@@ -412,8 +411,8 @@ longest matching family, then `"*"`. Its two points are in the table above;
   unpushed on a base is a stop, not a slice's starting point. Entries must be
   idempotent: a resumed `mode:next` re-fires `before_slice`, and a close-out
   can be re-run.
-- **Both outcomes**: `after_close` fires for `**Status:** Done` and for a goal
-  left `Active` because a gap went to a new slice. The brief carries
+- **Both outcomes**: `after_close` fires for `status: done` and for a goal
+  left `active` because a gap went to a new slice. The brief carries
   `goal_status` so the hook can tell them apart.
 - **Not PR-keyed**: `commit.branch: current` does not suppress these, so the
   `pr.*`, babysit, and merge rules that ignore `hooks.pr` under `current` do not

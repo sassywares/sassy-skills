@@ -2,7 +2,7 @@
 
 **One slice in flight.** This mode starts exactly one slice by planning it. It never implements, never plans a second slice, and never runs work or lfg itself.
 
-1. **Load the goal.** Read `goal.md`. If its status is `Done`, say so and stop. The run may still stand on the previous slice's branch here; step 6 settles the base.
+1. **Load the goal.** Read `goal.md`. If its status is `done`, say so and stop. The run may still stand on the previous slice's branch here; step 6 settles the base.
 2. **Nothing in flight.** If any slice is `Planned` or `Shipped`, stop and name what is due: a `Planned` slice needs `sassy-work` or `sassy-lfg` on its plan, a `Shipped` slice needs `mode:check`.
 3. **Earlier slices merged.** Every `Done` slice's PR must be merged before the next slice starts, or the new slice is built on code that may still change. Dispatch a `worker` to check each PR with `gh pr view <url> --json state` and return the states. Under `commit.branch: current`, `git.repo: workspace`, or `git.repo: none` — or when a slice has no PR link — ask the user to confirm instead. Anything unmerged → stop and say which PR must merge first.
 4. **Pick the slice.** The first `Pending` slice whose Depends are all `Done`. A `slice:<ID>` token overrides the pick, but its Depends must still be `Done`; a slice that is not `Pending` is a stop. No eligible slice → if every slice is `Done`, point at `mode:close`; otherwise report what blocks each `Pending` slice and stop.
@@ -13,6 +13,7 @@
    - **settled** = the goal's Decisions and Constraints, and every Carry-forward entry — enter them in the ledger as settled with their provenance; never re-ask them
    - **context** = the goal path, the goal's Landscape and Coexistence rows for this slice's domains, and the Deferred items addressed to this slice
    - **`out:<goal folder>/NN-<slice-slug>.md`**, with `NN` from the slice ID
+   - **frontmatter** — `type:<the goal's type>`, `goal:<path to goal.md, relative to the slice plan>`, `slice:S<n>`; the slice plan's `type` is what names its branch prefix
 
    `sassy-plan` grills the slice in full — this is where its detail gets decided — writes the plan to that path, skips its picker, and returns the path.
 

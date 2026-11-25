@@ -42,7 +42,7 @@ argument-hint: "[feature description, requirements, or idea to scope] [out:<plan
 
 ## Caller-set output
 
-A caller that owns where the plan goes — `sassy-goal` planning a slice, for one — passes `out:<path>`. Grill exactly as usual, then read `references/plan-format.md`, write the plan to exactly that path, skip the picker entirely, and return the path to the caller. Do not offer `sassy-work` or `sassy-lfg`; the caller hands those over. Anything the caller passes as settled enters the ledger as settled, with its provenance, and is never re-asked.
+A caller that owns where the plan goes — `sassy-goal` planning a slice, for one — passes `out:<path>`. Grill exactly as usual, then read `references/plan-format.md`, write the plan to exactly that path, skip the picker entirely, and return the path to the caller. The caller owns the name and the frontmatter's `type`, `goal`, and `slice` keys; the path it passes wins over every naming rule in the format. Do not offer `sassy-work` or `sassy-lfg`; the caller hands those over. Anything the caller passes as settled enters the ledger as settled, with its provenance, and is never re-asked.
 
 ## The picker
 
@@ -50,7 +50,7 @@ Only when the read-back is confirmed with zero open items — and no `out:` was 
 
 ```text
 Settled. Pick one:
-1. Write the plan — <artifacts.plans>/<slug>.md
+1. Write the plan — <artifacts.plans>/<type>-<slug>.md
 2. Start working via sassy-work
 3. Implement and ship it via sassy-lfg
 ```
@@ -59,7 +59,7 @@ The user must pick explicitly. There is no default and no auto-selection. If no 
 
 ### Option 1 — Write the plan
 
-Read `references/plan-format.md` and write the plan, including the per-phase QA tables that format defines, with each row's `Mode` decided the way that format says. Then report the absolute path and offer the remaining two options, now run on the plan file:
+Read `references/plan-format.md` and write the plan — its frontmatter and the per-phase QA tables that format defines — with each row's `Mode` decided the way that format says. Then report the absolute path and offer the remaining two options, now run on the plan file:
 
 ```text
 Plan written to <absolute path>. Pick one, or stop here:
@@ -83,7 +83,7 @@ The plan document carries QA tables per `references/plan-format.md`. Those rows 
 
 A row is `Auto` only when the project's `dogfood.enabled` is `true` **and** the row names a recipe section with a `Prove it:` step; otherwise it is `Manual`. That reference owns the list of checks that stay human — subjective, physical, irreversible, unobservable, unprovable — and on doubt the row is `Manual`. Never invent a section, a command, or a check to make a row look automatable: a false `Auto` pass is unrecoverable.
 
-The in-context brief has no QA table, so its gate is code approval alone. Omit QA tables only when the user explicitly asks to skip QA in plain language.
+The in-context brief has no QA table, so its gate is code approval alone. Omit QA tables only when the user explicitly asks to skip QA in plain language, and set `qa: off` in the plan's frontmatter when you write one.
 
 ## Review tier
 
@@ -91,6 +91,6 @@ Every phase also carries a `**Review:**` line — `logic`, `surface`, or `none` 
 
 ## Resume
 
-If the user points at an existing sassy plan, update phases and tables in place. If they point at a raw plan from elsewhere, reshape it into this format without discarding its settled decisions — but grill whatever it leaves open or merely asserts. An existing plan is already the document.
+If the user points at an existing sassy plan, update phases, tables, and `updated` in place (`created` never changes). If they point at a raw plan from elsewhere, reshape it into this format without discarding its settled decisions — but grill whatever it leaves open or merely asserts. An existing plan is already the document.
 
 Decisions already settled earlier in the conversation, or passed in by a caller as settled, carry forward per `references/interview.md`; never re-ask them.

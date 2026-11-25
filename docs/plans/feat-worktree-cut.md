@@ -1,6 +1,10 @@
-# Worktree cut: read-only mechanics, up/down lifecycle, and sassy-overview
+---
+type: feat
+created: 2026-11-25
+updated: 2026-11-26
+---
 
-**QA:** manual
+# Worktree cut: read-only mechanics, up/down lifecycle, and sassy-overview
 
 ## Intent
 

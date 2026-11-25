@@ -69,9 +69,13 @@ ask at step 6, never a token of its own. There is no `worktree:ask`.
    exactly that. Name the count, the branch, and the choice.
 3. Name it `<type>/<slug>` from the plan path or the topic, deterministically,
    so a retried run converges on the same name instead of forking `-2`. The slug
-   is the plan's path relative to `artifacts.plans`, without `.md`: a standalone
-   plan stays `feat/<slug>`, and a goal slice nests as `<type>/<goal>/<NN-slice>`
-   (`feat/powersync/02-offline-reads`). A `feat/*`-style `base_map` or
+   is the plan's path relative to `artifacts.plans`, without `.md`, and without a
+   standalone plan's `<type>-` filename prefix: `feat-worktree-cut.md` names
+   `feat/worktree-cut`. A goal slice nests as `<type>/<goal>/<NN-slice>`, where
+   `<goal>` is the goal's folder minus its `<type>-` prefix (`feat-powersync/`
+   names `feat/powersync/02-offline-reads`), and `<type>` comes from the slice
+   plan's frontmatter because its `NN-<slice-slug>.md` filename carries none. A
+   `feat/*`-style `base_map` or
    `hooks.pr` family still matches the nested name by prefix.
 4. Re-run with `--name <name>` and take `pr-base` from that answer: a name like
    `release/1.2` or `hotfix/x` matches a `base_map` family and retargets the PR,

@@ -2,6 +2,30 @@
 
 Read this before writing the plan file.
 
+## The file name
+
+The filename is the plan's identity: `<artifacts.plans>/<type>-<slug>.md` for a standalone plan, whose `<type>-` prefix matches the frontmatter `type`; a goal slice is `<NN>-<slice-slug>.md`, and its slug carries no type.
+
+- **`type`** is one of `feat fix chore refactor docs test perf ci build` — the Conventional Commit type the work will ship as — and a standalone plan's filename prefix must equal the frontmatter `type`.
+- **`slug`** is lowercase ASCII kebab, 2–3 words (ceiling 5), naming the thing that changes, never the activity: `worktree-cut`, not `cutting-the-worktree-half`.
+- **No date, no `-plan` suffix, no phase numbers.** The date is frontmatter, because a filename must survive a revision, and a rename breaks every reference to it (`sassy-work <plan>`, hook briefs, `goal.md`'s Plan links).
+- **Never overwrite another plan.** Two concurrent plans on the same object take a qualifier (`-phase-two`), never a timestamp.
+- **A caller passing `out:<path>` owns the name.** Slice plans stay `NN-<slice-slug>.md`, and the caller's path wins over every rule here.
+
+## The frontmatter
+
+Keys, in this order: `type`, `created`, and `updated` are required; `qa` is optional.
+
+- **`type`** — matches the filename prefix and names the commit type the work will ship as. For a standalone plan the prefix must equal it; for a slice plan it equals the parent `goal.md`'s `type`, which the caller passes.
+- **`created`** — `YYYY-MM-DD`, the day the plan was first written; never changes.
+- **`updated`** — `YYYY-MM-DD`; a revision sets it to today in the same edit, and every executor that writes a phase status or a QA row result bumps it too.
+
+**`qa`** is a gate switch, not a record of mode. Write `qa: off` only when the user asked for a plan with no QA gates at all, which also means no QA tables anywhere in the file; omit the key otherwise, and the QA gate is on. Never write `on`, `auto`, or `manual`. A check's mode lives only in the row `Mode` column, where rows freely mix `Auto` and `Manual`.
+
+Slice plans add `goal` (relative path to the parent `goal.md`) and `slice` (the slice ID, e.g. `S1`).
+
+The H1 title stays: frontmatter does not render on GitHub, so the heading is what a reader sees.
+
 ## No open questions
 
 The plan has no open-questions section. Every branch the interview found is a decision, a deferred item, or an assumption — copy the ledger as it stood at the confirmed read-back. If you find an open branch while writing, stop and ask it before the file lands.
@@ -48,16 +72,18 @@ On doubt, `Manual`. A false `Auto` pass is unrecoverable; a `Manual` row is mere
 
 QA is a completion gate, not a separate track: a phase turns `Done` only when the code is approved and every QA row for that phase passes. `Manual` rows belong to the user, and the agent records what it hears. `Auto` rows are settled by a `sassy-dogfood` run and its report, never by an opinion.
 
-The user may ask in plain language to omit QA tables for this plan, in which case omit the tables and the `**QA:**` line entirely.
+The user may ask in plain language for a plan with no QA gates, in which case omit every `#### QA — P<NN>` subsection and set `qa: off` in the frontmatter. An executor runs a QA gate unless that key says `off`.
 
 ## Plan file format
 
 ```markdown
+---
+type: feat
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+---
+
 # <Plan title>
-
-**QA:** auto
-
-(`auto` when at least one row in the plan is `Auto`, `manual` when none is. It is the source of truth for executors, so it never disagrees with the tables.)
 
 ## Intent
 One short paragraph: what we are building and why.
@@ -124,4 +150,6 @@ Omit empty layers. Do not put the next goal's work here. The `**Review:**` line 
 …
 ```
 
-Every phase has at least one QA row. Status values there are `Pending` | `Done` | `Blocked`: a `Manual` row is `Done` once the user ran that check and confirmed it passed, an `Auto` row is `Done` once a dogfood run passed and its run id is in `Notes`, `Blocked` carries a note saying what failed, and anything unreported stays `Pending`. The `**QA:**` line near the title is the source of truth for executors.
+`qa: off` is added to the frontmatter only for a gate-free plan.
+
+Every phase has at least one QA row. Status values there are `Pending` | `Done` | `Blocked`: a `Manual` row is `Done` once the user ran that check and confirmed it passed, an `Auto` row is `Done` once a dogfood run passed and its run id is in `Notes`, `Blocked` carries a note saying what failed, and anything unreported stays `Pending`. The frontmatter's `qa: off` is the only thing that removes the gate for executors; its absence leaves the gate on.

@@ -50,21 +50,21 @@ That discussion settles the work, then offers a pick:
 
 ```text
 Settled. Pick one:
-1. Write the plan — docs/plans/<slug>.md
+1. Write the plan — docs/plans/<type>-<slug>.md
 2. Start working via /sassy-work
 3. Implement and ship it via /sassy-lfg
 ```
 
-Pick 1 to get a plan file. Plan then asks again with just the other two — start working on it, or implement and ship it — or you stop there and run it later, one phase at a time:
+Pick 1 to get a plan file — YAML frontmatter (`type`, `created`, `updated`, plus `qa: off` when you ask for a plan with no QA gates) plus intent, decisions, and per-phase QA tables. Plan then asks again with just the other two — start working on it, or implement and ship it — or you stop there and run it later, one phase at a time:
 
 ```text
-/sassy-work docs/plans/add-workspace-invitations.md
+/sassy-work docs/plans/feat-add-workspace-invitations.md
 ```
 
 Or the whole plan through one session:
 
 ```text
-/sassy-lfg docs/plans/add-workspace-invitations.md
+/sassy-lfg docs/plans/feat-add-workspace-invitations.md
 ```
 
 For small work that does not need a plan document, choose 2 or 3 at the picker, or invoke the executor directly with the brief:
@@ -314,7 +314,7 @@ flowchart LR
   A[Idea] --> B[sassy-plan]
   B --> C[Discussion]
   C --> D{3-option picker}
-  D -->|1. plan document| E[docs/plans/slug.md]
+  D -->|1. plan document| E["docs/plans/<type>-<slug>.md"]
   D -->|2. start working| F[sassy-work]
   D -->|3. implement and ship| G[sassy-lfg]
   E -->|then: start working| F
@@ -354,12 +354,12 @@ flowchart LR
   G --> H[sassy-goal check]
   H -->|more slices, after merge| D
   H -->|last slice| I[sassy-goal close]
-  I --> J[Goal Done, rides the last PR]
+  I --> J[Goal done, rides the last PR]
 ```
 
-A goal is a folder under `artifacts.plans` holding `goal.md` and one plan per started slice (`01-<slice>.md`, `02-…`). `mode:write` grounds every affected domain once, grills only goal-level branches — slice boundaries and order, coexistence, the goal's done-when, non-goals — and pushes back on any slice that would leave a half-built layer. Each slice's plan is grilled only when `mode:next` starts it, with the goal's decisions and every carry-forward entry already settled; before that grill, and once the previous slice's merge is confirmed, `mode:next` runs the project's `before_slice` steps. The slice then runs the usual work or lfg → ship path on its own branch (`feat/<goal>/<NN-slice>`); ship marks it `Shipped` and babysits the PR without merging, so the check can still land in it.
+A goal is a folder under `artifacts.plans` — `<type>-<slug>/` — holding `goal.md` and one plan per started slice (`01-<slice>.md`, `02-…`). `mode:write` grounds every affected domain once, grills only goal-level branches — slice boundaries and order, coexistence, the goal's done-when, non-goals — and pushes back on any slice that would leave a half-built layer. Each slice's plan is grilled only when `mode:next` starts it, with the goal's decisions and every carry-forward entry already settled; before that grill, and once the previous slice's merge is confirmed, `mode:next` runs the project's `before_slice` steps. The slice then runs the usual work or lfg → ship path on its own branch (`feat/<goal>/<NN-slice>`, with `<goal>` the goal folder minus its `<type>-` prefix — `feat-offline-reads/` → `feat/offline-reads/02-cached-list`); ship marks it `Shipped` and babysits the PR without merging, so the check can still land in it.
 
-`mode:check` runs on the slice branch before the PR merges: it validates the whole slice plan against the branch's commits, and every gap is fixed now, deferred to a named later slice, or accepted with a reason. It appends the slice's carry-forward entry, marks it `Done` with its PR link, and pushes `goal.md` into the same PR. After the last slice, `mode:close` checks the goal's done-when against the whole tree and marks the goal `Done` in the last PR, then runs the project's `after_close` steps once the status is persisted. One slice is in flight at a time, and nothing chains on its own.
+`mode:check` runs on the slice branch before the PR merges: it validates the whole slice plan against the branch's commits, and every gap is fixed now, deferred to a named later slice, or accepted with a reason. It appends the slice's carry-forward entry, marks it `Done` with its PR link, and pushes `goal.md` into the same PR. After the last slice, `mode:close` checks the goal's done-when against the whole tree and marks the goal `done` in the last PR, then runs the project's `after_close` steps once the status is persisted. One slice is in flight at a time, and nothing chains on its own.
 
 ### From bug to ship
 
@@ -403,7 +403,7 @@ The fix gate offers four options:
 | Dogfood | `Auto` rows only exist when `dogfood.enabled` is on and the row's recipe section has a `Prove it:` step. `sassy-ship` persists nothing behind an unproven row. |
 | Ship review | On in `mode:manual` (default), skipped by `mode:auto`. |
 
-The artifact decides QA: a plan document carries QA tables that gate phase completion, an in-context brief does not. Gates are deliberate stops; the only way past one is the user's approval. `mode:auto` is accepted only by `sassy-ship` and `sassy-compound`.
+The artifact decides QA: a plan document carries QA tables that gate phase completion unless its frontmatter sets `qa: off`; an in-context brief has no QA tables at all. Gates are deliberate stops; the only way past one is the user's approval. `mode:auto` is accepted only by `sassy-ship` and `sassy-compound`.
 
 ## Branching
 

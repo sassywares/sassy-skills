@@ -35,7 +35,7 @@ A phase's `**Review:**` line names its change tier — `logic`, `surface`, or `n
 
 ## QA gate
 
-Read the plan's `**QA:**` line and its per-phase QA table. QA is part of the phase gate, not a separate track: a phase turns `Done` only when the code is approved **and** every QA row for that phase has passed.
+Read the plan's frontmatter `qa` key and its per-phase QA table: `qa: off` means no QA gate for that plan, and no `qa` key means every phase's QA table is part of the gate. QA is part of the phase gate, not a separate track: a phase turns `Done` only when the code is approved **and** every QA row for that phase has passed. When you mark a phase or write a QA row result, a plan edited in place gets `updated` set to today.
 
 Rows split by `Mode`, and the split decides who can settle them:
 

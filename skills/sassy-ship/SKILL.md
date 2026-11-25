@@ -48,7 +48,7 @@ argument-hint: "<plan path or topic> [steps:compound,handbook,commit,pr,babysit]
 
    **One PR per run.** Babysitting a workspace fan-out means one `sassy-babysit` run per PR, and a fan-out is never auto-merged: `pr.merge` and `pr.merge:on` apply to a single-PR run only. A multi-repo merge needs an explicit per-PR say-so.
 
-**Goal slices.** A plan that sits next to a `goal.md` is a `sassy-goal` slice. The step 4 commit worker sets that slice `Shipped` in `goal.md`'s slice table and names `goal.md` in the commit, since `sassy-commit` stages named files only. Step 6 babysits the PR **without merging** — forward `merge:off` whatever `pr.merge` or the caller says — because `sassy-goal` `mode:check` must run on the open PR first. End the final report with the `sassy-goal <goal path> mode:check` command in the harness's syntax.
+**Goal slices.** A `sassy-goal` slice is a plan whose frontmatter `slice` key names the slice ID and whose `goal` key names the parent `goal.md`, with the directory convention (a plan sitting next to a `goal.md`) as the fallback when those keys are absent. The step 4 commit worker sets that slice `Shipped` in `goal.md`'s slice table and names `goal.md` in the commit, since `sassy-commit` stages named files only. Step 6 babysits the PR **without merging** — forward `merge:off` whatever `pr.merge` or the caller says — because `sassy-goal` `mode:check` must run on the open PR first. End the final report with the `sassy-goal <goal path> mode:check` command in the harness's syntax.
 
 ## Rules
 

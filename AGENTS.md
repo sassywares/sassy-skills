@@ -139,6 +139,7 @@ Any change to user-visible behavior, install steps, commands or keys, configurat
 - **Config is permission.** A switch such as `worktrees.enabled` says a run *may* do something; it never makes it automatic. The skill asks, and the safe default stands until the user says yes.
 - **Handing off is the user's.** No skill in the plan → work → ship pipeline writes or suggests a handoff; `sassy-work` and `sassy-lfg` end at their report, and `sassy-handoff` runs only when the user asks. `sassy-debug` may offer it at the fix gate, where picking it is the user's choice.
 - **Source of truth.** Do not store skill content outside this repo.
+- **Frontmatter ownership.** Every plan or goal key needs a named writer and a named reader (never restating in a key what a table column already owns), and because a filename is identity — `<type>-<slug>` for a plan or goal, `NN-<slug>` for a slice — dates live in `created`/`updated`, not in the name.
 - **No secrets.** Never put credentials, tokens, or private keys in a skill.
 - **Distribution.** The repo is the distribution: `npx skills add` reads it, so a push to `main` is installable immediately, per project or globally. The npm package is a secondary channel that mirrors it for package-installing harnesses and still needs a version bump.
 - **Reference skills by name, never by path.** A consumer's copy may live in a project `.agents/skills/`, the global `~/.agents/skills/`, `node_modules/`, or wherever a harness installs packages.

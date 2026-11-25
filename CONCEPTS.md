@@ -115,16 +115,16 @@ Three shared mode tokens: `mode:manual` (default) asks at the skill's gate; `mod
 
 Everything else is decided by the artifact, not a mode:
 
-- A plan document under `docs/plans/` drives phased execution and carries QA tables whose rows are `Auto` or `Manual`.
+- A plan document under `docs/plans/` — `<type>-<slug>.md`, with YAML frontmatter for `type`, `created`, `updated` (plus `qa: off` when the user asks for no QA gates) — drives phased execution and carries QA tables whose rows are `Auto` or `Manual`.
 - An in-context brief drives one cycle and has no plan file and no QA tables.
 
 ## Plan
 
-A durable document under `docs/plans/` with intent, decisions, constraints, phase tracking, and per-phase QA tables.
+A durable document under `docs/plans/<type>-<slug>.md` with frontmatter, intent, decisions, constraints, phase tracking, and per-phase QA tables.
 
 ## Goal
 
-Work too big for one plan — a migration, an epic — run by `sassy-goal` as a folder under `artifacts.plans`: `goal.md` (intent, cross-slice decisions, landscape, coexistence, a slice table, carry-forward) plus one plan per started slice. It turns `Done` when `mode:close` verifies its done-when against the whole tree.
+Work too big for one plan — a migration, an epic — run by `sassy-goal` as a folder under `artifacts.plans`, `<type>-<slug>/`: `goal.md` (intent, cross-slice decisions, landscape, coexistence, a slice table, carry-forward) plus one plan per started slice. It turns `done` when `mode:close` verifies its done-when against the whole tree.
 
 ## Slice
 
@@ -136,7 +136,7 @@ The append-only section of `goal.md` that `mode:check` adds to once per slice: w
 
 ## Goal hook
 
-A project skill run at a goal's boundaries, declared under `hooks.goal` and keyed by the goal slug — the goal's folder under `artifacts.plans`. `before_slice` runs in `mode:next` after the previous slice's merge is confirmed and before the next slice is grilled; `after_close` runs in `mode:close` after the status is persisted, on `Done` and on a goal left `Active`. Neither may touch the goal itself (`goal.md`, the slice plan, the status); anything else — switching to the bases, pulling, rebasing, committing, pushing, migrating — is the project's call, provided every base ends level with its remote. `before_slice` fires before `mode:next` checks the base, so it can be what freshens it. Entries are idempotent, and both fail closed. They are not PR-keyed, so `commit.branch: current` does not suppress them, and since `sassy-goal` has no approval gate the mode's report names what ran, that none are declared, or where it stopped.
+A project skill run at a goal's boundaries, declared under `hooks.goal` and keyed by the goal's folder name under `artifacts.plans`, `<type>-<slug>` (prefix included). `before_slice` runs in `mode:next` after the previous slice's merge is confirmed and before the next slice is grilled; `after_close` runs in `mode:close` after the status is persisted, on `done` and on a goal left `active`. Neither may touch the goal itself (`goal.md`, the slice plan, the status); anything else — switching to the bases, pulling, rebasing, committing, pushing, migrating — is the project's call, provided every base ends level with its remote. `before_slice` fires before `mode:next` checks the base, so it can be what freshens it. Entries are idempotent, and both fail closed. They are not PR-keyed, so `commit.branch: current` does not suppress them, and since `sassy-goal` has no approval gate the mode's report names what ran, that none are declared, or where it stopped.
 
 ## Brief
 

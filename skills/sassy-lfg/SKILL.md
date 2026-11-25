@@ -32,7 +32,7 @@ A phase's `**Review:**` line names its change tier — `logic`, `surface`, or `n
 
 ## QA gate
 
-Read the plan's `**QA:**` line and its per-phase QA tables. QA is part of the completion gate: LFG builds every phase first, then presents one gate carrying code approval plus every phase's QA checklist. No phase turns `Done`, and nothing is committed or shipped, until both pass.
+Read the plan's frontmatter `qa` key and its per-phase QA tables: `qa: off` means no QA gate for that plan, and no `qa` key means every phase's QA table is part of the gate. QA is part of the completion gate: LFG builds every phase first, then presents one gate carrying code approval plus every phase's QA checklist. No phase turns `Done`, and nothing is committed or shipped, until both pass. When you mark a phase or write a QA row result, a plan edited in place gets `updated` set to today.
 
 Rows split by `Mode`:
 
