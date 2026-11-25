@@ -1,35 +1,29 @@
 #!/usr/bin/env bash
-# Shared helpers for the worktree scripts: create, list, remove, prune.
+# Shared helpers for the worktree scripts: create, list, remove.
 #
 # Installed next to those scripts by sassy-setup. Suite-owned and read-only, so
 # every project runs the same mechanics. Three rules worth keeping:
 #
-#   1. Two config sources, each with exactly one owner. The worktree home and the
-#      on/off switch live under `worktrees:` in .sassywares/config.yaml; the stack
-#      life cycle is the top-level `down:`/`up:`. Never duplicate either one into
-#      the other block, and never grow a third source.
+#   1. One config source. The worktree home and the on/off switch live under
+#      `worktrees:` in .sassywares/config.yaml; a stack's own start and stop steps
+#      belong to the project's scripts, not to a key here. Never grow a second
+#      source.
 #   2. Identity is derived here once — never built by hand downstream.
 #   3. Everything resolves against the MAIN checkout, so running any of these
 #      from inside a worktree behaves identically.
 #
-# worktree-version: 12
+# worktree-version: 13
 
 set -euo pipefail
 
-WT_VERSION="12"
-WT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC2034  # read by every script that sources this file
+WT_VERSION="13"
 
 log()  { printf '%s\n' "$*"; }
 ok()   { printf '  %-9s %s\n' "$1" "$2"; }
 warn() { printf '  %-9s %s\n' "!" "$*" >&2; }
 die()  { printf '  ✗ %s\n' "$*" >&2; exit 1; }
 hint() { printf '  %-9s %s\n' "→" "$*"; }
-# The exit-3 handshake: something the script cannot dispatch is still owed, and
-# the caller has to run it before re-invoking with --hook-ok.
-require_dispatch() {
-  hint "$1" >&2
-  exit 3
-}
 
 # The nearest config, walking up from the cwd — used only to explain a refusal
 # when there is no repo to work in at all.
@@ -111,47 +105,7 @@ wt_cfg() {
 
 wt_enabled() { [ "$(wt_cfg enabled false)" = "true" ]; }
 
-# wt_down — the top-level `down:` entry, exactly as written, or empty when the
-# project declares no lifecycle. Top-level by design (never under `worktrees:`).
-wt_down() { wt_get down; }
-
-# wt_resolve VALUE CHECKOUT — how to run one top-level life-cycle value, as
-# `<run|skill|missing|none><TAB><command><TAB><args…>`. `run` means the command
-# exists — a path in the checkout, an absolute path, or a word on PATH — so a
-# shell script can execute it; `skill` means nothing on disk claims the word, so
-# only an agent can dispatch it; `missing` means the value is path-shaped but no
-# such executable exists; `none` means the value is empty. Args are command
-# words, not patterns: callers disable globbing before expanding them.
-wt_resolve() {
-  local value="${1:-}" checkout="${2:-}" cmd="" args="" how=skill
-  [ -n "$value" ] || { printf 'none\t\t'; return 0; }
-  cmd="${value%% *}"
-  case "$value" in *" "*) args="${value#* }" ;; esac
-  case "$cmd" in
-    /*)  if [ -f "$cmd" ] && [ -x "$cmd" ]; then how=run; else how=missing; fi ;;
-    */*) if [ -f "$checkout/$cmd" ] && [ -x "$checkout/$cmd" ]; then how=run; else how=missing; fi ;;
-    *)   command -v "$cmd" >/dev/null 2>&1 && how=run ;;
-  esac
-  printf '%s\t%s\t%s' "$how" "$cmd" "$args"
-}
-
-# A list value (`[a b]`) split one per line.
-wt_list_items() {
-  printf '%s' "$1" | sed -e 's/^\[//' -e 's/\]$//' | tr ',' '\n' \
-    | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s/^"//; s/"$//' | grep -v '^$' || true
-}
-
 # --- identity -------------------------------------------------------------
-# The first match wins, so `hooks.worktree."*"` applies when no branch matches.
-wt_hook() { # $1 point (after_create|before_remove), $2 branch — one entry per line
-  local point="$1" branch="$2" v=""
-  v="$(wt_get "hooks${WLIB_US}worktree${WLIB_US}${branch}${WLIB_US}${point}")"
-  if [ -z "$v" ]; then
-    v="$(wt_get "hooks${WLIB_US}worktree${WLIB_US}*${WLIB_US}${point}")"
-  fi
-  wt_list_items "$v"
-}
-
 wt_slug() { printf '%s' "$1" | sed -E 's#[/ ]+#-#g; s#[^A-Za-z0-9._-]#-#g'; }
 
 # A name safe for a database, a compose project, or a simulator: lowercase,
@@ -162,12 +116,25 @@ wt_namespace() {
     | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##'
 }
 
+# wt_print_env PATH BRANCH SLUG — the four `WT_*` lines a caller evaluates. One
+# formatter: `create` mints an identity and `list --env` hands one back, so the
+# two cannot drift apart. Nothing else goes on stdout when this runs.
+wt_print_env() {
+  # %q keeps a space in the path or a backtick in the branch from being read as
+  # shell syntax when a caller evaluates the block. Simple values are unchanged.
+  printf 'WT_PATH=%q\nWT_BRANCH=%q\nWT_SLUG=%q\nWT_NAMESPACE=%q\n' \
+    "$1" "$2" "$3" "$(wt_namespace "$3")"
+}
+
 # The directory holding every worktree of this repo: one folder per checkout,
 # under a home that survives a reboot. A second clone of the same project gets a
 # suffixed folder instead of sharing this one.
 wt_home() {
   local dir base cand parent owner
   dir="$(wt_cfg dir "$HOME/.sassywares/worktrees")"
+  # The patterns are literal (case does not expand a tilde), so the strip below
+  # removes the two characters the user wrote, not a home directory.
+  # shellcheck disable=SC2088
   case "$dir" in
     "~")   dir="$HOME" ;;
     "~/"*) dir="$HOME/${dir#\~/}" ;;
@@ -224,7 +191,7 @@ wt_find() { # $1 slug or branch -> path<TAB>branch, or nothing
 
 # A checkout is ours when it lives under this repo's worktree home AND carries
 # the wiring. Anything else — another tool's worktree, or one cut before setup
-# was committed — is not managed here: we do not list it, prune it, or delete it.
+# was committed — is not managed here: we do not list it or delete it.
 wt_managed() { # $1 path
   case "$1" in
     "$(wt_home)"/*) [ -f "$1/.sassywares/config.yaml" ] ;;

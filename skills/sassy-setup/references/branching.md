@@ -87,8 +87,8 @@ ask at step 6, never a token of its own. There is no `worktree:ask`.
    `worktrees.enabled: true` (per `worktree.md`) means this project *allows* a
    checkout. It is permission, not a default: two runs only collide when they are
    actually parallel, so guessing wrong moves the work to another directory,
-   leaves the uncommitted tree behind, and spends the `after_create` setup on a
-   checkout nobody needed. Ask once, here, with the branch named — *this
+   leaves the uncommitted tree behind, and spends the project's create-script setup
+   on a checkout nobody needed. Ask once, here, with the branch named — *this
    checkout, or a worktree of its own?* — and take the answer, **unless the
    caller forwarded a `worktree:` token**, which is the user answering before
    being asked. Silence is not a yes, and never ask when the answer cannot

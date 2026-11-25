@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# sassywares:scaffold v1 skill=sassy-setup version=<version> date=<YYYY-MM-DD>
+#
+# worktrees/create — this project's own "prepare a checkout" step.
+#
+# Contract: called as `<home>/worktrees/create <branch> [--from <ref>]`, with the
+# same arguments the toolbox takes. It must exit 0 and print the four WT_* lines
+# on stdout — WT_PATH, WT_BRANCH, WT_SLUG, WT_NAMESPACE — with all narration on
+# stderr. A run that exits 0 without them is reported as "checkout is real but
+# unprepared".
+#
+# This file now belongs to the project. Setup wrote it once and never rewrites it:
+# edit it freely. Nothing below the suite call runs until you add it.
+set -euo pipefail
+
+# The suite scripts resolve from the project root, whatever <home> is called.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# --help and --version belong to the toolbox, not to this wrapper: pass them
+# through before the identity capture below would treat their output as one.
+case "${1:-}" in
+  -h|--help|--version) exec "$ROOT/.sassywares/worktree/create" "$@" ;;
+esac
+
+# --- before the checkout exists (before git) --------------------------------
+# Anything that has to exist before the checkout does goes here. Add only what
+# this project really needs, then delete the examples you did not use. They are
+# comments on purpose — setup writes no code here, because it cannot verify one.
+#
+#   - claim a namespace or pre-create a resource the new checkout will attach to.
+#   - reserve a name or a slot from the project's own registry before git uses it.
+# ---------------------------------------------------------------------------
+
+# The toolbox cuts the checkout and prints the identity block. Capture it, echo it
+# unchanged for the caller, then evaluate it so this script — and everything you
+# add below — sees WT_PATH, WT_BRANCH, WT_SLUG, and WT_NAMESPACE.
+block="$("$ROOT/.sassywares/worktree/create" "$@")"
+printf '%s\n' "$block"
+eval "$block"
+
+# --- after the checkout exists (after git) ---------------------------------
+# Everything a checkout needs beyond git goes here: the checkout exists and the
+# WT_* names are set. Add only what this project really needs, then delete the
+# examples you did not use. They are comments on purpose — setup writes no code
+# here, because it cannot verify one.
+#
+#   - install dependencies into $WT_PATH (the project's package manager).
+#   - derive a per-worktree .env from $WT_NAMESPACE, e.g.
+#     tool env --namespace "$WT_NAMESPACE" > "$WT_PATH/.env".
+#   - seed a database named from $WT_NAMESPACE, e.g. createdb "$WT_NAMESPACE".
+#   - create a preview deployment named from $WT_NAMESPACE.
+# --------------------------------------------------------------------------

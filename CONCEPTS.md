@@ -8,6 +8,10 @@ The repo's `skills/` directory is the only copy of the skills. Consumers install
 
 A directory containing `SKILL.md`, discovered by a harness from a project skills directory, a user skills directory, or an installed package. Skills are explicit workflows, not always-on instructions. The model may invoke any of them, and the user can invoke one directly through their harness (the `sassy-setup` skill's `references/harness.md` lists each harness's command).
 
+## Write boundary
+
+The exact set of paths a skill's run may create or edit, and so the exact set its commit step may stage — stated as a hard rule in the skill's `SKILL.md` and repeated as its commit file list. It names every surface the skill owns by name, which is why deleting a config key has to reach it: a body still naming a removed file is a boundary that commits or reports something no longer real.
+
 ## Agent
 
 A specialized subagent from [sassy-agents](https://github.com/sassywares/sassy-agents), installed per harness (`~/.pi/agent/agents/`, `~/.claude/agents/`, or a project `.pi/agents/` / `.claude/agents/`) by `sassy-setup`. Skills delegate bounded work to agents such as `scout`, `worker`, `reviewer`, `simplifier`, and `validator`.
@@ -70,22 +74,31 @@ owns the workflow; the scripts in `.sassywares/worktree/` own the git.
   names the directory the checkout lives in, and the handle `list --path` and
   `remove` take — `remove` also accepts the branch.
 - **Namespace** — the slug prefixed with the repo (`shop-feat-catalog`), and the
-  only name a hook should use for a database, a compose project, or a simulator.
-  Derived once by `create`; never rebuilt by hand.
-- **Lifecycle** — the project's own pair of top-level config keys, `up:` and
-  `down:`, each a script or a skill and its args. The suite supplies the shape
-  and the `WT_*` environment, never the commands: `up` starts the stack in a
-  checkout and `down` stops it, and `remove` runs `down` before deleting. Absent
-  means no lifecycle, and nothing is invented. Addressing a checkout — a URL, a
-  simulator, a window — is the project's business too; two checkouts running the
-  same app collide unless the project's own `up:` keeps them apart.
+  only name a project script should use for a database, a compose project, or a
+  simulator. Derived once by `create`; never rebuilt by hand.
+- **Identity block** — the four `WT_*` lines `create` mints and `list --env` hands
+  back: `WT_PATH`, `WT_BRANCH`, `WT_SLUG`, `WT_NAMESPACE`. The stream rule and the
+  unprepared case are the `sassy-setup` skill's `references/worktree.md`'s.
+- **Project scripts** — the pair `<home>/worktrees/create` and
+  `<home>/worktrees/remove`, named by `worktrees.create` and `worktrees.remove`.
+  They are the lifecycle; the `sassy-setup` skill's `references/worktree.md` owns
+  their order, slots, and degrade rule, and `.sassywares/worktree/` ships only the
+  git mechanics. Addressing a checkout — a URL, a simulator, a window — is the
+  project's business too, and lives in those scripts.
+- **Scaffold header** — the first line of a project-owned file setup plants,
+  `# sassywares:scaffold v1 skill=<name> version=<version> date=<YYYY-MM-DD>`.
+  The `sassy-setup` skill's `references/scaffold-header.md` owns its bytes and the
+  offer-only upgrade rule.
 - **Managed checkout** — one under `worktrees.dir` that also carries
-  `.sassywares/config.yaml`. The tooling lists, prunes, and removes only those;
-  anything else belongs to another tool or predates the wiring.
+  `.sassywares/config.yaml`. The tooling lists and removes only those; anything
+  else belongs to another tool or predates the wiring.
+- **State** — each managed checkout's `merged`, `gone`, or `unmerged`
+  classification, from the branch's upstream. The `sassy-setup` skill's
+  `references/worktree.md` owns the definitions; `list` is where it prints.
 
-`create` and `remove` need an agent because their hooks — and a `down:` that names
-a skill — are project skills, and a script cannot dispatch one. So the
-orchestration is a skill and the git is a script.
+`create` and `remove` need an agent because the run has to ask permission before
+taking a checkout, report each refusal verbatim, and confirm a set before removing
+several. The orchestration is the skill's; the git is the toolbox's.
 
 ## Overview
 
@@ -105,7 +118,7 @@ owns it; its `identify.sh` is the query.
 
 ## Modes
 
-Three shared mode tokens: `mode:manual` (default) asks at the skill's gate; `mode:auto` means pre-authorized, no review; `mode:return` reports and changes nothing. Some skills take their own modes instead: `sassy-goal`, `sassy-handoff` (`write`, `read`), `sassy-setup` (`init`, `check`), `sassy-overview` (`identify`), and `sassy-skill` (`create`, `retune`, `verify`).
+Three shared mode tokens: `mode:manual` (default) asks at the skill's gate; `mode:auto` means pre-authorized, no review; `mode:return` reports and changes nothing. Some skills take their own modes instead: `sassy-goal`, `sassy-handoff` (`write`, `read`), `sassy-setup` (`init`, `check`), `sassy-overview` (`identify`), `sassy-worktree` (`list`, `create`, `remove`), and `sassy-skill` (`create`, `retune`, `verify`).
 
 - `sassy-ship` and `sassy-compound` accept `manual` and `auto`. Ship reviews the whole close-out in `mode:manual` and forwards `mode:auto` to compound once its own gate is answered.
 - `sassy-review`, `sassy-simplify`, and `sassy-validate` accept all three: `manual` asks which findings to fix, `auto` fixes them without asking, `return` hands the findings back to the caller.

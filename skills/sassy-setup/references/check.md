@@ -13,3 +13,26 @@ A check run never edits the config, never installs a skill or an agent, never re
 |------|-------------|
 | Check reports, init repairs | Every finding is reported with `mode:init` as its fix. Nothing is corrected in place, approved or not. |
 | No detection | A check compares the file to the tree; it never re-derives the config from the tree and calls the difference drift. |
+
+## What a worktree finding means
+
+`worktrees.create` and `worktrees.remove` are the project's own files, so a check
+never hashes them and never treats them as suite-owned. Five outcomes:
+
+- **Declared and executable** — a note naming the path. Nothing to do.
+- **Declared but missing or not executable** — a note, never drift:
+  `worktrees.create 'scripts/worktrees/create' is missing or not executable — the built-in .sassywares/worktree/create is used instead`. Report it so the user can restore the file or drop the key.
+- **A wrong shape** — whitespace, an absolute or `~/` path, `..`, a list, or a
+  block — is drift: `--check` names the key and the value, and the fix is one
+  relative path with no arguments.
+- **No `sassywares:scaffold` header** — a note naming the file: it carries no
+  header, so the run cannot tell whether it prints the `WT_*` block. Provenance,
+  never drift.
+- **A legacy key** — `up:`, `down:`, or `hooks.worktree` — a `drift:` line that
+  names the key, says the lifecycle moved into the project's create/remove
+  scripts, and gives the exact edit (delete the `up:`/`down:` line, or the
+  `worktree:` block under `hooks`). The fix is `mode:init` and only when the user
+  asks for it; a check never deletes the key itself.
+
+A scaffold header's `version=` is provenance, not a pin, so an old scaffold
+version is never drift — [`scaffold-header.md`](scaffold-header.md).

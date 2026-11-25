@@ -10,11 +10,18 @@
 // asset folder's: setup installs it by copying that folder flat, so no separate
 // state file records it and no second hash definition exists.
 //
+// The shipped set is four files — _lib.sh, create, list, remove. `prune` is
+// gone. A v12 install is therefore stale by construction, and its hash cannot
+// match: that is an upgrade, not tampering, so the version header earns its
+// one job here — an older header is reported as a note and the caller proceeds
+// to reinstall. An equal header whose hashes differ is still drift.
+//
 // Usage: worktree-check.mjs --installed DIR --shipped DIR
 // Prints "<drift|note>\t<message>" per finding and always exits 0: the caller
 // owns the verdict and the formatting. Read-only, offline.
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { hashFiles, skillFiles } from "./hash-skill.mjs";
 
@@ -46,6 +53,30 @@ if (!installed || !shipped) {
 // folder that happens to hash differently.
 if (!existsSync(installed)) {
   drift("missing .sassywares/worktree — re-run setup");
+  console.log(lines.join("\n"));
+  process.exit(0);
+}
+
+// headerVersion DIR — the number on `# worktree-version: N` in DIR/_lib.sh, or
+// null when there is no readable header. A header is never the verdict, but a
+// lower one names an install built for a contract this skill no longer ships.
+const headerVersion = (dir) => {
+  const file = join(dir, "_lib.sh");
+  if (!existsSync(file)) return null;
+  const match = readFileSync(file, "utf8").match(/^# worktree-version:\s*(\d+)\s*$/m);
+  return match ? Number(match[1]) : null;
+};
+
+const installedVersion = headerVersion(installed);
+const shippedVersion = headerVersion(shipped);
+if (
+  installedVersion !== null &&
+  shippedVersion !== null &&
+  installedVersion < shippedVersion
+) {
+  note(
+    `worktree tooling is v${installedVersion}; this skill ships v${shippedVersion} — an upgrade, not drift — re-run setup, then delete .sassywares/worktree/prune, which v${shippedVersion} no longer ships`,
+  );
   console.log(lines.join("\n"));
   process.exit(0);
 }

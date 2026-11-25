@@ -46,7 +46,7 @@ Everything is file inspection: no network, no executing the project's tooling (n
 | `env` | the env file in use | no env file |
 | `wired` | the suite is set up here | never — the answer is `yes` or `no` |
 
-`up` and `down` are the only keys a project might reasonably have and not declare, and this script reads only what a file declares: a `Makefile`/`justfile` target or a compose file. A project that states them in `.sassywares/config.yaml` (`up:`/`down:`, which `sassy-setup` initializes and the worktree mechanics read) is answering through the config — this script still reports `unknown` for them, because it never reads the suite's own config for a stack fact, and the config is the authority once it names one.
+`up` and `down` are the only keys a project might reasonably have and not declare, and this script reads only what a file declares: a `Makefile`/`justfile` target or a compose file. A project that prepares and stops a checkout in its `worktrees.create`/`worktrees.remove` scripts is answering in code, not in a manifest — this script still reports `unknown` for them, because it never reads the suite's config or executes those scripts for a stack fact.
 
 `wired` is the one key that always has an answer: `yes` with the nearest `.sassywares/config.yaml` as its source, otherwise `no` with `-`. The search walks up from `--root` the same way `sassy-setup`'s `detect.sh` resolves a config, so a repo nested inside a folder that owns one is `wired: yes`; the source is then that config's absolute path, since it sits outside the root.
 

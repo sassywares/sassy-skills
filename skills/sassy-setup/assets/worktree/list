@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Show every worktree of this repo: branch, path, whether its tree is dirty, and
-# the upstream it tracks.
+# Show every worktree of this repo: branch, path, whether its tree is dirty, the
+# upstream it tracks, and whether its work is merged there.
 #
-# Usage: .sassywares/worktree/list [--path <slug>] [--version]
+# Read-only: nothing here creates, edits, or deletes a checkout.
+#
+# Usage: .sassywares/worktree/list [--path <slug>] [--env <slug|branch>] [--version]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,25 +13,32 @@ source "$SCRIPT_DIR/_lib.sh"
 
 usage() {
   cat <<'EOF'
-Usage: .sassywares/worktree/list [--path <slug>]
+Usage: .sassywares/worktree/list [--path <slug>] [--env <slug|branch>]
 
-Print every worktree with its branch, path, dirty state, and upstream.
+Print every worktree with its branch, path, dirty state, upstream, and state
+(merged / gone / unmerged).
 
-  --path <slug>  print only the path of one worktree (for cd "$(...)")
+  --path <slug>          print only the path of one worktree (for cd "$(...)")
+  --env <slug|branch>    print only the four WT_* identity lines of one worktree
 EOF
 }
 
 want=""
+env_target=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     --version) printf '%s\n' "$WT_VERSION"; exit 0 ;;
-    --path) shift; want="${1:-}"; [ -n "$want" ] || die "path needs a slug" ;;
-    -*) die "unknown flag: $1 (try --help)" ;;
-    *) die "unexpected argument: $1 (try --help)" ;;
+    --path) shift; want="${1:-}"; [ -n "$want" ] || { usage >&2; exit 2; } ;;
+    --env) shift; env_target="${1:-}"; [ -n "$env_target" ] || { usage >&2; exit 2; } ;;
+    --env=*) env_target="${1#*=}"; [ -n "$env_target" ] || { usage >&2; exit 2; } ;;
+    -*) usage >&2; exit 2 ;;
+    *) usage >&2; exit 2 ;;
   esac
   shift
 done
+
+[ -z "$env_target" ] || [ -z "$want" ] || { usage >&2; exit 2; }
 
 need_git
 
@@ -41,7 +50,35 @@ if [ -n "$want" ]; then
   exit 0
 fi
 
-printf '  %-34s %-50s %-6s %s\n' "BRANCH" "WORKTREE" "DIRTY" "UPSTREAM"
+if [ -n "$env_target" ]; then
+  # An identity handed back, so it goes to exactly one checkout. Collect every
+  # match instead of taking the first: two branches can slug to the same name
+  # (`feat/x` and `feat-x`), and a silent first pick would hand a caller another
+  # branch's checkout.
+  count=0
+  found=""
+  names=""
+  while IFS=$'\t' read -r p b; do
+    [ -n "$p" ] || continue
+    if [ "$b" != "$env_target" ] && [ "$(wt_slug "$b")" != "$env_target" ]; then
+      continue
+    fi
+    count=$(( count + 1 ))
+    found="$p"$'\t'"$b"
+    names="${names:+$names, }$b"
+  done < <(wt_all)
+  [ "$count" -gt 0 ] || die "no worktree for '$env_target' (try: list)"
+  [ "$count" -eq 1 ] || die "'$env_target' matches $count worktrees ($names) — pass the branch name of exactly one"
+  p="${found%%$'\t'*}"
+  b="${found##*$'\t'}"
+  wt_is_main "$p" && die "the main checkout is not a worktree"
+  wt_managed "$p" \
+    || die "'$env_target' is not managed here — it is outside the worktree home, or it was cut before the wiring"
+  wt_print_env "$p" "$b" "$(wt_slug "$b")"
+  exit 0
+fi
+
+printf '  %-34s %-50s %-6s %-24s %s\n' "BRANCH" "WORKTREE" "DIRTY" "UPSTREAM" "STATE"
 count=0
 unmanaged=0
 while IFS=$'\t' read -r p b; do
@@ -49,16 +86,20 @@ while IFS=$'\t' read -r p b; do
   count=$(( count + 1 ))
   shown="${p/#$HOME/~}"
   label="$b"
+  state="—"
   if wt_is_main "$p"; then
     label="$b (main checkout)"
   elif ! wt_managed "$p"; then
     # No git calls for a checkout that is not ours: it is counted, never listed.
     unmanaged=$(( unmanaged + 1 ))
     continue
+  else
+    # Only a managed checkout is ever removable, so only one gets a state.
+    state="$(wt_upstream_state "$p")"
   fi
   if wt_dirty "$p"; then dirty="yes"; else dirty="no"; fi
   up="$(wt_upstream "$p")"
-  printf '  %-34s %-50s %-6s %s\n' "$(short_path "$label" 34)" "$(short_path "$shown" 50)" "$dirty" "${up:-—}"
+  printf '  %-34s %-50s %-6s %-24s %s\n' "$(short_path "$label" 34)" "$(short_path "$shown" 50)" "$dirty" "${up:-—}" "$state"
 done < <(wt_all)
 
 [ "$count" -gt 0 ] || log "  no checkouts found — is this a git repository?"

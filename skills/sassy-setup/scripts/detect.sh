@@ -11,6 +11,9 @@
 #   detect.sh --branch [--policy P]   resolve the branch decision for this run
 #   detect.sh [--root DIR] --check    compare the existing config, and the
 #                                    vendored pin, to reality
+#   detect.sh [--root DIR] --worktree-script MODE
+#                                    print the absolute path of the create or
+#                                    remove script a run executes
 #
 # --policy takes infer|current|new: the skill-level token. infer (the default)
 # defers to commit.branch in the config, and new is the fallback when the config
@@ -19,6 +22,11 @@
 # new name can match a base_map family (release/*) and retarget the PR.
 # --goal SLUG resolves the goal hooks for one goal slug, the same way --head does
 # for a branch; the slug keys hooks.goal, not a branch.
+# --worktree-script MODE asks one question: which path does a run execute? The
+# config's worktrees.create|remove when it names an executable file, else the
+# built-in .sassywares/worktree/<mode>. A declared path that is gone warns on
+# stderr and falls back; an absent key falls back silently. It never writes and
+# never creates a directory, so it answers even before setup has installed one.
 set -euo pipefail
 
 ROOT_ARG=""
@@ -26,6 +34,7 @@ HEAD_ARG=""
 GOAL_ARG=""
 POLICY_ARG=""
 NAME_ARG=""
+WT_SCRIPT=""
 CHECK=0
 BRANCH=0
 
@@ -41,9 +50,11 @@ while (( $# )); do
     --policy=*) POLICY_ARG="${1#*=}" ;;
     --name)   shift; [[ $# -ge 1 ]] || { echo "missing BRANCH after --name" >&2; exit 2; }; NAME_ARG="$1" ;;
     --name=*) NAME_ARG="${1#*=}" ;;
+    --worktree-script)   shift; [[ $# -ge 1 ]] || { echo "missing MODE after --worktree-script" >&2; exit 2; }; WT_SCRIPT="$1" ;;
+    --worktree-script=*) WT_SCRIPT="${1#*=}" ;;
     --branch) BRANCH=1 ;;
     --check)  CHECK=1 ;;
-    -h|--help) sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's|^# \{0,1\}||'; exit 0 ;;
+    -h|--help) sed -n '2,/^set -euo pipefail/p' "${BASH_SOURCE[0]}" | sed '$d' | sed 's|^# \{0,1\}||'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
   shift
@@ -60,6 +71,10 @@ START="${ROOT_ARG:-$PWD}"
 # --head is read by --check and by --branch; standalone it would print the
 # proposal and drop itself silently.
 (( CHECK || BRANCH )) || [[ -z "$HEAD_ARG" ]] || { echo "--head is read with --check or --branch; run them together" >&2; exit 2; }
+# --worktree-script prints one path and returns before either mode, so without
+# this guard `--check --worktree-script create` would silently skip the check.
+[[ -z "$WT_SCRIPT" ]] || (( ! CHECK && ! BRANCH )) \
+  || { echo "--worktree-script is a mode of its own; run it apart from --check and --branch" >&2; exit 2; }
 # Absolute, or the walk-up loop below re-reads "." forever.
 START="$(cd "$START" && pwd -P)"
 
@@ -316,7 +331,6 @@ hook_points() {
   case "$1" in
     pr) printf '%s' "before_create after_create before_merge after_merge" ;;
     push) printf '%s' "after_push" ;;
-    worktree) printf '%s' "after_create before_remove" ;;
     goal) printf '%s' "before_slice after_close" ;;
   esac
 }
@@ -397,6 +411,60 @@ pick_artifact() {
   local candidate="$1" fallback="$2"
   if path_exists "$candidate"; then printf '%s' "$candidate"; else printf '%s' "$fallback"; fi
 }
+
+# wt_script_reason VALUE — succeeds with the reason when a `worktrees.create|remove`
+# value has the wrong shape, fails when it is usable. One path, relative to the
+# project, no arguments: the script is the lifecycle, so a command line here would
+# define a second place it lives. `--check` and `--worktree-script` share this one
+# predicate, so a value cannot pass one mode and fail the other over the same
+# question.
+wt_script_reason() {
+  local v="$1"
+  case "$v" in
+    *[[:space:]]*) printf 'takes one path, no arguments — move the arguments into the script'; return 0 ;;
+    /*|~*)         printf 'is not a path relative to the project root'; return 0 ;;
+  esac
+  escapes_root "$v" && { printf 'walks outside the project'; return 0; }
+  return 1
+}
+
+# --- Worktree script path --------------------------------------------------
+# One question, one answer: which absolute path does a run execute for
+# `worktrees.create` or `worktrees.remove`? A declared path that is gone is a
+# degradation, not an error (D3): warn on stderr naming the key and the missing
+# file, then hand back the built-in. Never writes, never creates a directory, and
+# answers even when the built-in folder has not been installed yet.
+if [[ -n "$WT_SCRIPT" ]]; then
+  case "$WT_SCRIPT" in
+    create|remove) ;;
+    *) echo "unknown --worktree-script: $WT_SCRIPT (expected create or remove)" >&2; exit 2 ;;
+  esac
+  [[ -n "$CONFIG" ]] || { echo "no .sassywares/config.yaml found — run sassy-setup" >&2; exit 1; }
+  # The config's folder is the project root, not the .sassywares folder holding
+  # the file: declared paths are relative to the project, like every other key.
+  builtin="$ROOT/.sassywares/worktree/$WT_SCRIPT"
+  declared="$(yflat "worktrees${US}${WT_SCRIPT}" 2>/dev/null || true)"
+  if [[ -z "$declared" ]]; then
+    printf '%s\n' "$builtin"
+    exit 0
+  fi
+  # A wrong shape is the same degradation as a missing file: warn with the reason
+  # `--check` gives, then hand back the built-in.
+  if reason="$(wt_script_reason "$declared")"; then
+    echo "warning: worktrees.$WT_SCRIPT: '$declared' $reason — using the built-in .sassywares/worktree/$WT_SCRIPT" >&2
+    printf '%s\n' "$builtin"
+    exit 0
+  fi
+  declared_path="$ROOT/${declared#./}"
+  if [[ -f "$declared_path" && -x "$declared_path" ]]; then
+    # Physical path, so the identity a run inherits never disagrees over /tmp.
+    printf '%s\n' "$(cd "$(dirname "$declared_path")" && pwd -P)/$(basename "$declared_path")"
+    exit 0
+  fi
+  echo "warning: worktrees.$WT_SCRIPT names '$declared' but $declared_path is missing or not executable — using the built-in .sassywares/worktree/$WT_SCRIPT" >&2
+  printf '%s\n' "$builtin"
+  exit 0
+fi
 
 PLANS="$(pick_artifact docs/plans docs/plans)"
 SOLUTIONS="$(pick_artifact docs/solutions docs/solutions)"
@@ -483,6 +551,7 @@ if (( CHECK )); then
   # and the run silently falls back to a default the project never chose. The
   # whitelist is the schema in references/config.md; every key there has a
   # validator of its own below, so anything landing here is unknown.
+  lost_hooks_reported=0
   while IFS=$'\t' read -r kpath kvalue; do
     [[ -n "$kpath" ]] || continue
     key="${kpath//$US/.}"
@@ -497,13 +566,25 @@ if (( CHECK )); then
       pr.babysit|pr.merge|pr.delete_branch) ;;
       dogfood.enabled|dogfood.recipe|dogfood.reports|dogfood.timeout) ;;
       worktrees.enabled|worktrees.dir) ;;
-      up|down)
-        # Top-level stack life cycle; see references/config.md. A list or a block
-        # parses, but the scripts read one command word and its args.
+      worktrees.create|worktrees.remove)
+        # A single path, no arguments: the script is the lifecycle, so a command
+        # line here would define a second place it lives.
         case "$kvalue" in
-          \[*|\{*)
-            bad "$key is a list or block — write one line: $key: <script> <args…> or $key: <skill> <args…>" ;;
+          \[*|\{*) bad "$key is a list or block — write one path: $key: scripts/worktrees/${key##*.}" ;;
         esac ;;
+      up|down)
+        # Removed with the project-script lifecycle (D3/D11): a run stops and
+        # starts through the project's own create/remove, not a key. A soft
+        # warning would let a project believe its stack still stops.
+        bad "$key is gone — the lifecycle moved into worktrees.create and worktrees.remove. Delete the '$key:' line from .sassywares/config.yaml" ;;
+      hooks.worktree|hooks.worktree.*)
+        # Same migration: what a worktree needed to prepare or tear down is now
+        # inside the project's scripts, which the suite runs instead. One block
+        # is one fix, so report it once however many points it lists.
+        if (( ! lost_hooks_reported )); then
+          bad "hooks.worktree is gone — the lifecycle moved into worktrees.create and worktrees.remove, and those scripts replace it. Delete the 'worktree:' block under hooks in .sassywares/config.yaml"
+          lost_hooks_reported=1
+        fi ;;
       worktrees.ports)
         # Deleted from the schema. The one line that fixes it is the line itself.
         bad "worktrees.ports is gone — delete the 'ports:' line under worktrees in .sassywares/config.yaml" ;;
@@ -676,7 +757,7 @@ if (( CHECK )); then
   if [[ -n "$(yflat "hooks${US}pr${US}before_create")" ]]; then
     bad "hooks.pr.<point> is now nested by head branch — write hooks.pr.\"*\".<point>"
   fi
-  for kind in pr push worktree goal; do
+  for kind in pr push goal; do
     while IFS= read -r pat; do
       [[ -n "$pat" ]] || continue
       case "$pat" in
@@ -701,14 +782,15 @@ if (( CHECK )); then
   done
 
   # `hooks.<kind>.<head-or-slug>.<point>` is the only shape. hooks.pr has four
-  # points, hooks.push one, hooks.worktree two, hooks.goal two; any other point
-  # name is a step that never fires.
+  # points, hooks.push one, hooks.goal two; any other point name is a step that
+  # never fires. hooks.worktree is reported where the accepted keys are, once.
   while IFS=$'\t' read -r depth hpath; do
     [[ -n "$depth" ]] || continue
     kind="${hpath#hooks$US}"; kind="${kind%%$US*}"
     case "$kind" in
-      pr|push|worktree|goal) ;;
-      *) bad "hooks kind '$kind' is not one of pr|push|worktree|goal"; continue ;;
+      pr|push|goal) ;;
+      worktree) continue ;;
+      *) bad "hooks kind '$kind' is not one of pr|push|goal"; continue ;;
     esac
     if [[ "$depth" != "4" ]]; then
       bad "hooks entry '${hpath//$US/.}' is not key -> point -> list"
@@ -728,7 +810,7 @@ if (( CHECK )); then
     if [[ "$TOPOLOGY" == "repo" ]]; then
       note "  base for '$HEAD_ARG': $(base_for_head "$HEAD_ARG")"
     fi
-    for kind in pr push worktree; do
+    for kind in pr push; do
       for point in $(hook_points "$kind"); do
         resolved="$(hooks_for_head_point "$HEAD_ARG" "$point" "$kind")"
         note "  head '$HEAD_ARG' → $point: $( [[ -n "$resolved" ]] && printf '%s' "$resolved" || printf 'none' )"
@@ -815,20 +897,35 @@ if (( CHECK )); then
     esac
   fi
 
-  # An absent pair is a deliberate answer, not a missing setup step: say it so
-  # `check` and `init` agree, and never propose a command here.
-  if [[ -z "$(yflat up 2>/dev/null || true)" && -z "$(yflat down 2>/dev/null || true)" ]]; then
-    note "  no lifecycle — no top-level up/down keys"
-  fi
-
-  # Worktrees: a switch and one mechanical setting. Creating, addressing, and
-  # refusing all belong to the scripts, so this validates only what a run reads.
+  # Worktrees: a switch, one mechanical setting, and the project's own lifecycle
+  # scripts. Creating, addressing, and refusing all belong to the scripts, so this
+  # validates only what a run reads.
   wt_on="$(block_value worktrees enabled || true)"
   case "$wt_on" in
     "") ;;
     true|false) note "  worktrees.enabled: $wt_on" ;;
     *) bad "worktrees.enabled '$wt_on' must be true|false" ;;
   esac
+
+  # worktrees.create/remove name the project's own lifecycle scripts. A declared
+  # path that is missing or not executable degrades to the built-in with a
+  # warning at run time (D3), so it is a note here, never drift.
+  for mode in create remove; do
+    declared="$(yflat "worktrees${US}${mode}" 2>/dev/null || true)"
+    [[ -n "$declared" ]] || continue
+    if reason="$(wt_script_reason "$declared")"; then
+      bad "worktrees.$mode: '$declared' $reason"
+    elif [[ -f "$ROOT/${declared#./}" && -x "$ROOT/${declared#./}" ]]; then
+      note "  worktrees.$mode: ${declared#./}"
+      # A declared script is the project's file, so its contents are never drift.
+      # Without the header the run cannot tell whether it honors the WT_* contract.
+      if ! grep -q '^# sassywares:scaffold' "$ROOT/${declared#./}" 2>/dev/null; then
+        note "  worktrees.$mode: ${declared#./} carries no sassywares:scaffold header — the run cannot tell whether it prints the WT_* block"
+      fi
+    else
+      note "  worktrees.$mode '${declared#./}' is missing or not executable — the built-in .sassywares/worktree/$mode is used instead"
+    fi
+  done
 
   # The mechanics are suite-owned and read-only (D4/D5), so `--check` proves the
   # installed set byte for byte against the folder this skill ships, using the
@@ -842,7 +939,7 @@ if (( CHECK )); then
       "node not found — .sassywares/worktree is unverified (the skills CLI needs node)" \
       --installed "$ROOT/.sassywares/worktree" \
       --shipped "$ASSET_WORKTREE"
-    for helper in create list remove prune; do
+    for helper in create list remove; do
       [[ -x "$ROOT/.sassywares/worktree/$helper" ]] \
         || bad "missing or not executable: .sassywares/worktree/$helper"
     done
@@ -862,16 +959,6 @@ if (( CHECK )); then
       else
         bad "worktrees.enabled but .sassywares/worktree/_lib.sh is missing — re-run setup"
       fi
-
-      # A declared worktree hook is how a project prepares a checkout, so say
-      # that it resolved — silence reads as "nothing is configured".
-      for point in after_create before_remove; do
-        declared="$(yflat "hooks${US}worktree${US}*${US}${point}" 2>/dev/null || true)"
-        while IFS= read -r entry; do
-          [[ -n "$entry" ]] || continue
-          note "  hooks.worktree.\"*\".$point: ${entry%% *}"
-        done < <(list_items "$declared")
-      done
 
       # A checkout must live outside the working tree — inside it, `git clean
       # -xdf` deletes uncommitted work and every scanner that ignores .gitignore
@@ -1398,23 +1485,6 @@ cat <<'EOF'
   # push:                 # commit.branch: current only; keyed by the pushed branch
   #   "*":
   #     after_push: []
-  # worktree:             # worktrees only; keyed by the checkout's branch
-  #   "*":
-  #     after_create: []    # derive .env, seed the database, copy the session in
-  #     before_remove: []   # drop the database, shut the device
-
-# --- Lifecycle ------------------------------------------------------------
-# How this project's stack starts and stops. Top level, not under worktrees:
-# each key names exactly ONE thing, `<script> <args…>` or `<skill> <args…>`.
-# up: run in the foreground and stop it with SIGTERM, so it must reap its
-#   children — a detached or daemonizing up outlives the call and holds the
-#   checkout. down: terminate what up started, then exit.
-# A down: naming a skill makes `remove` print `require-hook <name>` and exit 3,
-# because a shell script cannot dispatch a skill. Absent means no lifecycle:
-# nothing is inferred and no command is invented. Ports are the project's — the
-# suite derives none, so two checkouts running the same app collide.
-# up:   bin/up       # or a declared command: just dev
-# down: bin/down     # or: just down
 EOF
 cat <<'EOF'
 
@@ -1423,8 +1493,10 @@ cat <<'EOF'
 # namespace, so two runs never fight over one working tree. enabled: true lets a
 # run offer one instead of working here — the run asks, and stays here unless the
 # answer is yes. It needs commit.branch: new, because `current` never cuts a
-# branch. The scripts in .sassywares/worktree/ own the mechanics; nothing else
-# reads these values.
+# branch. The built-in scripts in .sassywares/worktree/ own the git mechanics;
+# create: and remove: name this project's own scripts, which wrap them for
+# whatever a checkout needs and are what a run executes. Nothing else reads
+# these values.
 #
 # Repo topology only: a workspace root has no repo to cut a checkout from, and a
 # `none` folder has no git at all. A checkout is addressed by the project's own
@@ -1434,6 +1506,10 @@ worktrees:
 EOF
 kv enabled false 34 '# true = a run may offer its own checkout'
 kv dir '~/.sassywares/worktrees' 34 '# parent of the per-repo folder; ~ is allowed'
+cat <<'EOF'
+  # create: scripts/worktrees/create   # this project's own; runs before and after git
+  # remove: scripts/worktrees/remove   # this project's own; stop, then dispose
+EOF
 cat <<'EOF'
 
 # --- Dogfood --------------------------------------------------------------

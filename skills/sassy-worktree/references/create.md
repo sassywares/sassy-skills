@@ -3,9 +3,16 @@
 Read the shared sections in `SKILL.md` first. This file is the create path only.
 
 1. **Resolve the branch and its start point first**, through the `sassy-setup` skill's `references/branching.md`, exactly as `sassy-work` does. A run that reaches here has already decided; the branch is not created twice. When a human asks for one by hand with no branch named, ask for the branch name — never derive one.
-2. **Run `.sassywares/worktree/create <branch> --from <start-point>`** with the resolved start point. It is idempotent: an existing worktree for that branch is shown, a branch held by the main checkout is refused, and the same checkout comes back either way. On `--env` it prints the `WT_*` block alone.
-3. **Dispatch the declared hooks.** The script prints one line per `hooks.worktree.after_create` entry; it cannot dispatch a skill, so you do. One `worker` each, in declared order: *load the project skill at `.agents/skills/<name>/SKILL.md` and follow it*, briefed with the `WT_*` block and the fact that the checkout now exists. A missing skill or a `blocked` result stops here — the checkout is real but unprepared, and saying so is the answer.
-4. **Say** the path, branch, the namespace, the upstream it printed (`none` is normal), and the hooks that ran or that none are declared. If the caller is a run, tell it to work in `WT_PATH` from now on.
+2. **Resolve the project's create script**, then run it once:
+
+   ```bash
+   bash <sassy-setup skill>/scripts/detect.sh --root <project> --worktree-script create
+   <resolved-path> <branch> --from <start-point>
+   ```
+
+   An absent key uses the built-in silently; a declared value that is unusable — a missing or non-executable file, or a wrong-shape path — falls back to it with a warning naming the key and the file, and that is not an error. The script takes the same `--from` and the same refusals as the toolbox: `references/worktree.md`'s Refusals table is the list. It does all the project's prepare work around the git call.
+3. **Check the contract, not the narration.** stdout carries only the four `WT_*` lines; the human lines — including the upstream it found — are on stderr. A non-zero exit is a refusal or a failed prepare: report its message verbatim and stop. Exit `0` without a complete, four-line identity is the other failure: say **the checkout is real but unprepared**, show what was printed and the path the script named if any, and never invent the missing names or present the checkout as ready.
+4. **Say** the path, branch, the namespace, the upstream the script named (`none` is normal), and that the project's prepare step ran. If the caller is a run, tell it to work in `WT_PATH` from now on.
 
 | Rule | Requirement |
 |------|-------------|

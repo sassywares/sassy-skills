@@ -4,7 +4,11 @@
 # Idempotent: a branch already in a worktree of ours is shown, not recreated,
 # and nobody else's checkout holding it is a stop rather than a clobber.
 #
-# Usage: .sassywares/worktree/create <branch> [--from <start-point>] [--env]
+# Streams: stdout carries only the four WT_* identity lines, once, at the end of
+# a successful run; every human line goes to stderr. A caller can eval stdout
+# while a person still reads the narration.
+#
+# Usage: .sassywares/worktree/create <branch> [--from <start-point>]
 #        .sassywares/worktree/create --version
 set -euo pipefail
 
@@ -12,31 +16,33 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_lib.sh
 source "$SCRIPT_DIR/_lib.sh"
 
+# stdout belongs to the identity, so every human line here goes to stderr. The
+# shared `ok` is stdout-oriented; shadow it rather than fork the format.
+ok() { printf '  %-9s %s\n' "$1" "$2" >&2; }
+
 usage() {
   cat <<'EOF'
-Usage: .sassywares/worktree/create <branch> [--from <start-point>] [--env]
+Usage: .sassywares/worktree/create <branch> [--from <start-point>]
 
-Create (or find) the worktree for <branch> and print the namespace a run
-inherits: WT_PATH, WT_BRANCH, WT_SLUG, WT_NAMESPACE.
+Create (or find) the worktree for <branch>. stdout carries the identity a run
+inherits — WT_PATH, WT_BRANCH, WT_SLUG, WT_NAMESPACE, one per line — and nothing
+else; the narration goes to stderr.
 
   --from <ref>  where a new branch is cut from (default HEAD). A caller that has
                 already resolved the base passes it; this script never guesses.
-  --env         print only `WT_*=<value>` lines, for eval.
 EOF
 }
 
 branch=""
 from="HEAD"
-env_only=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     --version) printf '%s\n' "$WT_VERSION"; exit 0 ;;
-    --env) env_only=1 ;;
-    --from) shift; from="${1:-}"; [ -n "$from" ] || die "--from needs a start point" ;;
-    --from=*) from="${1#*=}" ;;
-    -*) die "unknown flag: $1 (try --help)" ;;
-    *)  [ -z "$branch" ] || die "one branch at a time"; branch="$1" ;;
+    --from) shift; from="${1:-}"; [ -n "$from" ] || { usage >&2; exit 2; } ;;
+    --from=*) from="${1#*=}"; [ -n "$from" ] || { usage >&2; exit 2; } ;;
+    -*) printf '  ✗ unknown flag: %s (try --help)\n' "$1" >&2; usage >&2; exit 2 ;;
+    *)  [ -z "$branch" ] || { usage >&2; exit 2; }; branch="$1" ;;
   esac
   shift
 done
@@ -51,10 +57,6 @@ path="$(wt_path "$slug")"
 show() { # $1 path
   local ns
   ns="$(wt_namespace "$slug")"
-  if [ "$env_only" -eq 1 ]; then
-    printf 'WT_PATH=%s\nWT_BRANCH=%s\nWT_SLUG=%s\nWT_NAMESPACE=%s\n' "$1" "$branch" "$slug" "$ns"
-    return 0
-  fi
   ok worktree "$1"
   ok branch "$branch"
   # Say the tracking out loud. A branch cut from a remote-tracking ref used to
@@ -68,19 +70,10 @@ show() { # $1 path
     || warn upstream "this branch tracks '$up', not '$branch' — a plain 'git push' lands there"
   ok namespace "$ns"
   # A branch cut from a ref that predates setup has no config and no tooling, so
-  # this checkout is not managed here: `list` skips it, `prune` leaves it alone.
+  # this checkout is not managed here: `list` skips it and never offers it.
   [ -f "$1/.sassywares/config.yaml" ] \
-    || ok unmanaged "this branch has no .sassywares/config.yaml — cut from a ref that predates setup; list and prune will skip it"
-  local hooks n
-  hooks="$(wt_hook after_create "$branch")"
-  if [ -z "$hooks" ]; then
-    ok hook "hooks.worktree.after_create — none declared"
-  else
-    while IFS= read -r n; do
-      [ -n "$n" ] || continue
-      ok hook "after_create → $n (dispatch it, with WT_* above)"
-    done <<<"$hooks"
-  fi
+    || ok unmanaged "this branch has no .sassywares/config.yaml — cut from a ref that predates setup; list will skip it"
+  wt_print_env "$1" "$branch" "$slug"
 }
 
 # Already in a worktree of ours: show it and stop. This is the second call in a
@@ -96,7 +89,7 @@ if [ -n "$existing" ]; then
 fi
 
 if [ -e "$path" ]; then
-  die "'$path' exists but no worktree is registered for '$branch' — inspect it, then prune"
+  die "'$path' exists but no worktree is registered for '$branch' — inspect it, then delete it"
 fi
 
 home="$(wt_home)"

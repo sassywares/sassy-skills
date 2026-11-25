@@ -18,9 +18,14 @@ The repo is wired with `sassy-setup`: `.sassywares/config.yaml` sets `commit.bra
 ```text
 sassy-skills/
 ├── skills/
-│   └── <skill-name>/
-│       ├── SKILL.md
-│       └── references/        # only when conditionally needed
+│   ├── <skill-name>/
+│   │   ├── SKILL.md
+│   │   └── references/        # only when conditionally needed
+│   └── sassy-setup/
+│       └── assets/          # partial: also workspace/, snapshot, dogfood-recipe.md, sassywares-readme.md
+│           ├── roster         # suite skill names, one per line
+│           ├── worktree/      # _lib.sh, create, list, remove (suite-owned git)
+│           └── templates/     # worktrees-create, worktrees-remove (project scaffolds)
 ├── .pi/
 │   └── settings.json          # dev only: loads ./skills while working here
 ├── .sassywares/
@@ -89,7 +94,7 @@ Three scripts, all offline and self-contained; skills are otherwise validated st
 
 - **Roster and pin.** `bash tests/sassy-setup-roster.sh` checks that `skills/sassy-setup/assets/roster` equals `ls skills/` and runs `detect.sh --check` in project scope, user scope (three real Sassywares repos), and with the roster missing. It also builds its locks from `skills/sassy-setup/scripts/hash-skill.mjs` (never a private copy of the hash) and holds golden vectors for both lock eras: a change in the CLI's folder hash must break that test, not silently report every skill as drift.
 - **Identify.** `bash tests/sassy-overview-identify.sh` builds one throwaway fixture per manifest row in `sassy-overview`'s identify table (plus the lockfile, `packageManager`, `requirements.txt`, plain-pubspec, make-vs-just, assignment-line, `wired` walk-up and `.env` precedence cases) and asserts the exact `key<TAB>value<TAB>source` output, the documented exit codes (`0`, `3`, `2`), and that identify writes no file. Each fixture owns exactly one manifest, so deleting a row from the script's table fails the test instead of silently returning `unknown`.
-- **Worktree checkout.** `bash tests/worktree-create.sh` builds a throwaway repo with a real `origin`, runs `create --from origin/main`, and asserts the new branch has **no** upstream, that a reused checkout is still untracked, and that a branch already tracking the base is called out. Git's DWIM gives a branch cut from a remote-tracking ref that ref as its upstream, so without `--no-track` the branch's own push aims at the base — invisible until someone ships. Deleting the flag must fail this test.
+- **Worktree checkout.** `bash tests/worktree-create.sh` builds a throwaway repo with a real `origin` and proves the toolbox contract: `create` puts only the four `WT_*` lines on stdout with narration on stderr, a reused branch stays untracked, `list --env` hands back byte-identical identity and refuses an ambiguous match, `list` classifies `merged`/`unmerged`/`gone`, `remove` guards dirty and unpushed work and leaves the branch, a missing configured script degrades to the built-in with a named warning, legacy lifecycle keys fail `--check` by name, usage errors exit `2`, and a hand-written project pair runs create → stop → delete → dispose in order. A mutation check proves `--no-track` is load-bearing: delete it and the branch inherits its base.
 
 - **Frontmatter.** Every `skills/*/SKILL.md` starts with `---` frontmatter holding `name` and `description` (`argument-hint` optional). `publish.yml` enforces `name` and `description` and fails the publish without them, so check locally first.
 - **Config tooling.** After changing `sassy-setup` or the config schema, run `bash skills/sassy-setup/scripts/detect.sh --root . --check` (config and vendored pin versus reality) and `bash skills/sassy-setup/scripts/detect.sh --root .` (proposed config) and confirm the output matches `references/config.md`.
@@ -137,6 +142,7 @@ Any change to user-visible behavior, install steps, commands or keys, configurat
 - **Lean first.** Skills are indexes and workflows, not documentation dumps. Move only conditionally read detail into `references/`.
 - **Model invocation.** No suite skill sets `disable-model-invocation`; the model may invoke any of them. Skills that write, commit, push, or open anything keep their own gates (e.g. `sassy-ship`'s `mode:manual`).
 - **Config is permission.** A switch such as `worktrees.enabled` says a run *may* do something; it never makes it automatic. The skill asks, and the safe default stands until the user says yes.
+- **Lifecycle is the project's.** The suite ships git mechanics only. Preparing and disposing a checkout lives in the project's `worktrees.create`/`worktrees.remove` scripts, scaffolded once and never rewritten; no suite config key names a stack command.
 - **Handing off is the user's.** No skill in the plan → work → ship pipeline writes or suggests a handoff; `sassy-work` and `sassy-lfg` end at their report, and `sassy-handoff` runs only when the user asks. `sassy-debug` may offer it at the fix gate, where picking it is the user's choice.
 - **Source of truth.** Do not store skill content outside this repo.
 - **Frontmatter ownership.** Every plan or goal key needs a named writer and a named reader (never restating in a key what a table column already owns), and because a filename is identity — `<type>-<slug>` for a plan or goal, `NN-<slug>` for a slice — dates live in `created`/`updated`, not in the name.

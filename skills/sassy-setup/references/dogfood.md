@@ -152,7 +152,7 @@ value it needs has to resolve in both places.
 | Project | Preview line |
 |---|---|
 | Web | `the page the app serves — open it in a browser` |
-| Mobile | `simulator "$WT_NAMESPACE"` — booted by the `after_create` hook |
+| Mobile | `simulator "$WT_NAMESPACE"` — booted by the project's `create` script |
 | Desktop | `the app window is already open` |
 | CLI | *(none — there is nothing to look at)* |
 
@@ -216,8 +216,8 @@ configured. Two things follow, and they are all this file says about it:
 
 A worktree gets a fresh, empty `session/`. When a project's provider registers a
 single callback URL, a second checkout usually cannot log in on its own, so the
-usual answer is to copy or link the main checkout's session in the
-`after_create` hook. Worth writing down, because a **cookie** is host-scoped and
+usual answer is to copy or link the main checkout's session in the create script's
+after-the-checkout slot. Worth writing down, because a **cookie** is host-scoped and
 crosses ports freely while a **`localStorage`** session is origin-scoped, port
 included, and has to be injected per origin — the difference looks like a broken
 transplant when it is only the wrong mechanism.

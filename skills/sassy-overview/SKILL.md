@@ -48,5 +48,5 @@ argument-hint: "[mode:identify] [key...]"
 
 Any skill that needs project facts names it and runs the script; nothing copies its table.
 
-- `sassy-setup` is the intended consumer: it probes with this script before offering a project's `up:`/`down:` keys, so a project that already declares a command is pointed at it instead of being handed a stub. Once `.sassywares/config.yaml` names `up`/`down`, the config is the authority for those two facts and the worktree mechanics read it; this script keeps reporting what a manifest declares, never the suite's config.
-- Nobody else reads it yet. `sassy-worktree` must not: its `up`/`down` pointers already carry the stack, so an overview there would re-create the seam this replaced.
+- `sassy-setup` is the intended consumer: it probes with this script before scaffolding a project's `worktrees.create`/`worktrees.remove` pair, so a project that already declares how it starts and stops is pointed at its own command instead of being handed a stub. This script keeps reporting what a manifest declares, never the suite's config.
+- Nobody else reads it yet. `sassy-worktree` must not: the project's create and remove scripts already carry whatever a checkout needs, so an overview there would re-create the seam this replaced.

@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# sassywares:scaffold v1 skill=sassy-setup version=<version> date=<YYYY-MM-DD>
+#
+# worktrees/remove — this project's own "tear a checkout down" step.
+#
+# Contract: called as `<home>/worktrees/remove <slug|branch> [--force]`, with the
+# same arguments the toolbox takes. It must exit 0 once the checkout is gone.
+#
+# This file now belongs to the project. Setup wrote it once and never rewrites it:
+# edit it freely. The two slots below are inert comments until you add to them.
+set -euo pipefail
+
+# The suite scripts resolve from the project root, whatever <home> is called.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# --help and --version belong to the toolbox, not to this wrapper: pass them
+# through before the identity capture below would treat their output as one.
+case "${1:-}" in
+  -h|--help|--version) exec "$ROOT/.sassywares/worktree/remove" "$@" ;;
+esac
+
+target="${1:-}"
+[ -n "$target" ] || { printf 'Usage: %s <slug|branch> [--force]\n' "${BASH_SOURCE[0]}" >&2; exit 2; }
+
+# The identity of the checkout this run is about to delete. Asking the toolbox —
+# rather than rebuilding a slug here — means these are the names `create` minted.
+# Capture only: nothing consumes remove's stdout, so this block is not echoed.
+# Capture before evaluating, so a failed lookup aborts under set -e instead of
+# deleting a tree with the variables unset.
+block="$("$ROOT/.sassywares/worktree/list" --env "$target")"
+eval "$block"
+
+# --- stop, while the checkout still exists ---------------------------------
+# Whatever the checkout is running has to stop before the tree goes: the folder is
+# about to be deleted, and a process holding it is what makes a removal half-fail.
+# Add only what this project starts per checkout.
+#
+#   - stop the stack in $WT_PATH (e.g. a compose down run in "$WT_PATH").
+#   - shut the simulator or device named from $WT_NAMESPACE.
+# ---------------------------------------------------------------------------
+
+"$ROOT/.sassywares/worktree/remove" "$@"
+
+# --- dispose, after the tree is gone ---------------------------------------
+# The checkout is deleted, the branch survives, and WT_NAMESPACE is still set — the
+# derived name is all that is needed to drop what was created for it.
+#
+#   - drop the database derived from $WT_NAMESPACE, e.g. dropdb "$WT_NAMESPACE".
+#   - delete the preview deployment named from $WT_NAMESPACE.
+#   - shut the simulator started for $WT_NAMESPACE.
+# ---------------------------------------------------------------------------
