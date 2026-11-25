@@ -4,6 +4,10 @@
 
 The repo's `skills/` directory is the only copy of the skills. Consumers install from it with `npx skills add sassywares/sassy-skills` — per project, which vendors the files and pins content hashes in `skills-lock.json`, or globally with `-g`, into `~/.agents/skills/`. See README.md's Installation section.
 
+## Consumer project
+
+A project that installs the suite per project, so it vendors its own copy in `.agents/skills/` and pins it in `skills-lock.json`. It does not get the maintainer's `~/.agents/skills` link, so a push to this repo reaches it only through the `sassy-skills-sync` hook, which mirrors exactly the suite's roster, repins those skills, commits, and pushes to the branch recorded in `.sassywares/consumers`. Its setup is never auto-updated: the sync reports that it is out of date, and which project.
+
 ## Skill
 
 A directory containing `SKILL.md`, discovered by a harness from a project skills directory, a user skills directory, or an installed package. Skills are explicit workflows, not always-on instructions. The model may invoke any of them, and the user can invoke one directly through their harness (the `sassy-setup` skill's `references/harness.md` lists each harness's command).

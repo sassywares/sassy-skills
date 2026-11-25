@@ -1,0 +1,339 @@
+#!/usr/bin/env bash
+# Refresh the projects that vendor this suite themselves.
+#
+# A project that installs per project (`npx skills add sassywares/sassy-skills`)
+# keeps its own committed copy in `.agents/skills/` and a pin in
+# `skills-lock.json`; it does not get the maintainer's `~/.agents/skills` symlink,
+# so a push here reaches it only through this run. Projects that use the global
+# link are not listed and are never touched.
+#
+# `.sassywares/consumers` is the record of who vendors: `<path> <branch>` per
+# line. For each consumer this cuts a checkout with THIS repo's worktree toolbox
+# (from origin/<branch>), mirrors exactly the roster's skills into
+# `.agents/skills/`, repins only those skills in `skills-lock.json`, commits,
+# pushes to `<branch>` without force, and removes the checkout. Every directory
+# the roster does not name — the project's own skills — is left untouched.
+#
+# A consumer's setup is never refreshed. This repo is the suite, not the
+# project's config: the run reports the consumer's setup verdict instead, so a
+# stale config is a named alert, not a silent rewrite.
+#
+# Usage: scripts/sync [--write]   (default: print the plan, change nothing)
+# Run from the skill directory: .agents/skills/sassy-skills-sync
+#
+# Exit: 0 = ran (or nothing to sync, or a consumer was skipped and reported),
+#       1 = a consumer is blocked (a rejected push kept its checkout),
+#       2 = the registry or this repo is malformed.
+#
+# Self-contained bash 3.2. No network beyond the consumer's own push and the
+# `git` refs it already has.
+set -euo pipefail
+
+log()  { printf '%s\n' "$*"; }
+warn() { printf '  ! %s\n' "$*" >&2; }
+die()  { printf '  ✗ %s\n' "$*" >&2; exit 1; }
+usage_err() { printf '  ✗ %s\n' "$*" >&2; exit 2; }
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/sync [--write]
+       (from .agents/skills/sassy-skills-sync)
+
+Refresh every project in .sassywares/consumers: mirror the roster's skills into
+its .agents/skills/, repin them in skills-lock.json, commit, and push to the
+consumer's branch without force.
+
+  --write   make the changes. Without it the run prints the plan and changes
+            nothing — no checkout, no commit, no marker.
+EOF
+}
+
+WRITE=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --write)   WRITE=1 ;;
+    *) usage_err "unknown argument: $1 (try --help)" ;;
+  esac
+  shift
+done
+
+# The source repo is this script's repo: walk up to the folder that holds both
+# `skills/` and `.sassywares/config.yaml`. Never the cwd — a consumer runs this
+# from its own working tree.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+SOURCE=""
+probe="$SCRIPT_DIR"
+while :; do
+  if [ -d "$probe/skills" ] && [ -f "$probe/.sassywares/config.yaml" ]; then
+    SOURCE="$probe"
+    break
+  fi
+  [ "$probe" = "/" ] && break
+  probe="$(dirname "$probe")"
+done
+[ -n "$SOURCE" ] || die "cannot find the suite's source repo above $SCRIPT_DIR"
+
+ROSTER_FILE="$SOURCE/skills/sassy-setup/assets/roster"
+CONSUMERS_FILE="$SOURCE/.sassywares/consumers"
+MARKER="$SOURCE/.sassywares/last-synced-head"
+CREATE="$SOURCE/skills/sassy-setup/assets/worktree/create"
+REMOVE="$SOURCE/skills/sassy-setup/assets/worktree/remove"
+DETECT="$SOURCE/skills/sassy-setup/scripts/detect.sh"
+LOCK_TOOL="$SCRIPT_DIR/lock.mjs"
+HASH_MODULE="$SOURCE/skills/sassy-setup/scripts/hash-skill.mjs"
+
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/sassy-consumer-sync.XXXXXX")"
+trap 'rm -rf "$TMP"' EXIT
+
+[ -f "$ROSTER_FILE" ] || die "roster not found: $ROSTER_FILE"
+[ -f "$CONSUMERS_FILE" ] || die "consumer registry not found: $CONSUMERS_FILE"
+command -v git >/dev/null 2>&1 || die "git not found"
+command -v node >/dev/null 2>&1 \
+  || die "node not found — the lock's computedHash needs skills/sassy-setup/scripts/hash-skill.mjs"
+for path in "$CREATE" "$REMOVE" "$DETECT" "$LOCK_TOOL" "$HASH_MODULE"; do
+  [ -f "$path" ] || die "missing: $path"
+done
+
+# --- registry -------------------------------------------------------------
+# Exactly two whitespace-separated fields per line. A line that is neither
+# blank, a comment, nor `<path> <branch>` is an error naming itself: silently
+# ignoring it would silently skip a consumer.
+parse_registry() {
+  local num=0 line body
+  : > "$TMP/consumers"
+  while IFS= read -r line || [ -n "$line" ]; do
+    num=$((num + 1))
+    line="${line%$'\r'}"
+    body="$line"
+    body="${body#"${body%%[![:space:]]*}"}"
+    case "$body" in
+      ''|'#'*) continue ;;
+    esac
+    if [[ ! "$body" =~ ^([^[:space:]]+)[[:space:]]+([^[:space:]]+)[[:space:]]*$ ]]; then
+      printf '  ✗ %s line %d is not "<path> <branch>": %s\n' \
+        ".sassywares/consumers" "$num" "$line" >&2
+      return 1
+    fi
+    printf '%s\t%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" >> "$TMP/consumers"
+  done < "$CONSUMERS_FILE"
+}
+parse_registry || exit 2
+
+resolve_path() {
+  case "$1" in
+    "~")   printf '%s' "$HOME" ;;
+    "~/"*) printf '%s/%s' "$HOME" "${1#\~/}" ;;
+    /*)    printf '%s' "$1" ;;
+    *)     printf '%s/%s' "$SOURCE" "$1" ;;
+  esac
+}
+
+in_roster() {
+  local name
+  while IFS= read -r name; do
+    [ "$name" = "$1" ] && return 0
+  done < "$ROSTER_FILE"
+  return 1
+}
+
+HEAD_SHA="$(git -C "$SOURCE" rev-parse --verify HEAD 2>/dev/null)" \
+  || die "the source repo has no commit — nothing to mirror"
+HEAD7="${HEAD_SHA:0:7}"
+VERSION="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SOURCE/package.json" 2>/dev/null | head -n 1)"
+[ -n "$VERSION" ] || VERSION="unknown"
+
+# Nothing to do when the commits since the last successful run did not touch
+# `skills/`: a push that only moved docs or tooling cannot change a consumer.
+if [ -f "$MARKER" ]; then
+  last="$(tr -d '[:space:]' < "$MARKER" 2>/dev/null || true)"
+  if [ -n "$last" ] && git -C "$SOURCE" cat-file -e "${last}^{commit}" 2>/dev/null; then
+    if [ -z "$(git -C "$SOURCE" diff --name-only "$last" "$HEAD_SHA" -- skills 2>/dev/null || true)" ]; then
+      log "nothing to sync — no commit since ${last:0:7} touched skills/."
+      exit 0
+    fi
+  else
+    warn "last-synced-head '$last' is not a commit here — running the full sync"
+  fi
+fi
+
+# --- reporting ------------------------------------------------------------
+: > "$TMP/rows"
+sanitize() { printf '%s' "$1" | tr '\n\t' '  ' | sed 's/|/\\|/g'; }
+row() { # name branch added updated deleted commit push setup
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" >> "$TMP/rows"
+}
+names_of() { # status lines on stdin -> "a, b" or "—"
+  awk -F'\t' -v want="$1" '$1 == want { out = out (out == "" ? "" : ", ") $2 } END { print (out == "" ? "—" : out) }'
+}
+setup_alert() { # consumer root -> one line: clean, or the named drift / note
+  local root="$1" out="" rc=0 found=""
+  out="$(bash "$DETECT" --root "$root" --check 2>&1)" || rc=$?
+  found="$(printf '%s\n' "$out" | awk '
+    /^  drift: /    { sub(/^  drift: /, "");    msg = msg (msg == "" ? "" : "; ") "drift: " $0;    next }
+    /^  template: / { sub(/^  template: /, ""); msg = msg (msg == "" ? "" : "; ") "template: " $0; next }
+    END { print msg }')"
+  if [ -n "$found" ]; then
+    printf 'out of date — %s' "$found"
+  elif [ "$rc" -ne 0 ]; then
+    printf 'out of date — the check failed (exit %s): %s' "$rc" "$(printf '%s\n' "$out" | head -n 1)"
+  else
+    printf 'clean'
+  fi
+}
+
+# --- the mirror -----------------------------------------------------------
+# What the roster says against a consumer's skills folder: `added|updated|deleted`
+# and the name, one per line. The lock is the record of which entries we
+# installed, so a name it owns that left the roster is what gets deleted.
+plan_status() { # $1 consumer skills dir, $2 consumer root
+  local dest="$1" name owned="$TMP/owned.$$"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    [ -d "$SOURCE/skills/$name" ] || continue
+    if [ ! -d "$dest/$name" ]; then
+      printf 'added\t%s\n' "$name"
+    elif ! diff -rq -x metadata.json "$SOURCE/skills/$name" "$dest/$name" >/dev/null 2>&1; then
+      printf 'updated\t%s\n' "$name"
+    fi
+  done < "$ROSTER_FILE"
+  if [ -f "$2/skills-lock.json" ]; then
+    node "$LOCK_TOOL" owned "$2/skills-lock.json" > "$owned" 2>/dev/null || : > "$owned"
+    while IFS= read -r name; do
+      [ -n "$name" ] || continue
+      in_roster "$name" && continue
+      printf 'deleted\t%s\n' "$name"
+    done < "$owned"
+  fi
+  rm -f "$owned"
+}
+
+mirror() { # $1 skills dir — replace the roster's copies, keep everything else
+  local dest="$1" name
+  mkdir -p "$dest"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    [ -d "$SOURCE/skills/$name" ] || continue
+    rm -rf "$dest/$name"
+    cp -R "$SOURCE/skills/$name" "$dest/$name"
+  done < "$ROSTER_FILE"
+}
+
+delete_retired() { # $1 skills dir, $2 consumer root — only what the lock owns
+  local dest="$1" name owned="$TMP/retired.$$"
+  [ -f "$2/skills-lock.json" ] || return 0
+  node "$LOCK_TOOL" owned "$2/skills-lock.json" > "$owned" 2>/dev/null || : > "$owned"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    in_roster "$name" || rm -rf "$dest/$name"
+  done < "$owned"
+  rm -f "$owned"
+}
+
+remove_checkout() { # $1 consumer root, $2 scratch branch
+  if ! ( cd "$1" && "$REMOVE" "$2" >/dev/null 2>"$TMP/remove.err" ); then
+    warn "could not remove the checkout '$2': $(tail -n 2 "$TMP/remove.err" | tr '\n' ' ')"
+    return 0
+  fi
+  git -C "$1" branch -D "$2" >/dev/null 2>&1 || true
+}
+
+# --- per consumer ---------------------------------------------------------
+blocked=0
+while IFS=$'\t' read -r raw_path cbranch; do
+  [ -n "$raw_path" ] || continue
+  root="$(resolve_path "$raw_path")"
+  name="$(basename "$root")"
+
+  skip=""
+  if [ ! -d "$root" ]; then
+    skip="path does not exist: $root"
+  elif ! git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
+    skip="not a git repository: $root"
+  elif [ ! -f "$root/.sassywares/config.yaml" ]; then
+    skip="no .sassywares/config.yaml: $root"
+  elif ! git -C "$root" rev-parse --verify --quiet "refs/remotes/origin/$cbranch" >/dev/null; then
+    skip="origin/$cbranch does not resolve in $root"
+  fi
+  if [ -n "$skip" ]; then
+    log "  skipped  $name — $skip"
+    row "$(sanitize "$name")" "$cbranch" "—" "—" "—" "—" "skipped" "$(sanitize "skipped — $skip")"
+    continue
+  fi
+
+  alert="$(setup_alert "$root")"
+  statuses="$(plan_status "$root/.agents/skills" "$root")"
+  added="$(printf '%s\n' "$statuses" | names_of added)"
+  updated="$(printf '%s\n' "$statuses" | names_of updated)"
+  deleted="$(printf '%s\n' "$statuses" | names_of deleted)"
+
+  if [ "$WRITE" -eq 0 ]; then
+    log "  plan     $name ($cbranch) — +$added ~$updated -$deleted"
+    row "$(sanitize "$name")" "$cbranch" "$(sanitize "$added")" "$(sanitize "$updated")" \
+      "$(sanitize "$deleted")" "—" "would push" "$(sanitize "$alert")"
+    continue
+  fi
+
+  scratch="skills-sync-$HEAD7"
+  if ! created="$( cd "$root" && "$CREATE" "$scratch" --from "origin/$cbranch" 2>"$TMP/create.err" )"; then
+    reason="$(tail -n 2 "$TMP/create.err" | tr '\n' ' ')"
+    log "  skipped  $name — worktree create failed: $reason"
+    row "$(sanitize "$name")" "$cbranch" "—" "—" "—" "—" "skipped" "$(sanitize "skipped — worktree create failed: $reason")"
+    continue
+  fi
+  eval "$created"
+
+  mirror "$WT_PATH/.agents/skills"
+  delete_retired "$WT_PATH/.agents/skills" "$root"
+  if [ -f "$WT_PATH/skills-lock.json" ]; then
+    node "$LOCK_TOOL" write "$WT_PATH/skills-lock.json" "$SOURCE" "$ROSTER_FILE" "$HEAD_SHA"
+  fi
+
+  commit="—"
+  if [ -z "$(git -C "$WT_PATH" status --porcelain)" ]; then
+    push="already current"
+    remove_checkout "$root" "$scratch"
+  else
+    if [ -f "$WT_PATH/skills-lock.json" ]; then
+      git -C "$WT_PATH" add .agents/skills skills-lock.json
+    else
+      git -C "$WT_PATH" add .agents/skills
+    fi
+    if ! git -C "$WT_PATH" commit -qm "chore: sync sassy skills to v$VERSION ($HEAD7)"; then
+      blocked=1
+      push="blocked — commit failed; kept at $WT_PATH"
+      warn "$name: commit failed — checkout kept at $WT_PATH"
+    else
+      commit="$(git -C "$WT_PATH" rev-parse --short HEAD)"
+      if git -C "$WT_PATH" push origin "HEAD:$cbranch" 2>"$TMP/push.err"; then
+        push="pushed"
+        remove_checkout "$root" "$scratch"
+      else
+        blocked=1
+        push="blocked — push rejected; kept at $WT_PATH"
+        warn "$name: push to origin/$cbranch was rejected — checkout kept at $WT_PATH"
+        warn "$(tail -n 2 "$TMP/push.err" | tr '\n' ' ')"
+      fi
+    fi
+  fi
+  log "  synced   $name ($cbranch) — +$added ~$updated -$deleted · $push"
+  row "$(sanitize "$name")" "$cbranch" "$(sanitize "$added")" "$(sanitize "$updated")" \
+    "$(sanitize "$deleted")" "$commit" "$(sanitize "$push")" "$(sanitize "$alert")"
+done < "$TMP/consumers"
+
+# --- report ---------------------------------------------------------------
+{
+  printf '\n| consumer | branch | added | updated | deleted | commit | push | setup |\n'
+  printf '|---|---|---|---|---|---|---|---|\n'
+  awk -F'\t' '{ printf "| %s | %s | %s | %s | %s | %s | %s | %s |\n", $1, $2, $3, $4, $5, $6, $7, $8 }' "$TMP/rows"
+} 
+
+if [ "$WRITE" -eq 1 ]; then
+  if [ "$blocked" -eq 0 ]; then
+    (umask 077; printf '%s\n' "$HEAD_SHA" > "$MARKER")
+  else
+    warn "a consumer is blocked — last-synced-head was not advanced, so the next run retries it"
+  fi
+fi
+
+[ "$blocked" -eq 0 ] || exit 1

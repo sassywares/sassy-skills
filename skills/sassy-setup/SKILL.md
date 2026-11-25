@@ -35,7 +35,12 @@ A check run never edits the config and never rewrites the tree. Its only possibl
 
 ## Steps 7–9 — shared by both modes
 
-7. **Verify.** Run `scripts/detect.sh --root <path> --check`. It validates the config against the tree — topology and remotes, `base_map` shape and cycles, `repos` against each nested repo, hooks, artifacts paths, `knowledge`, `pr.*` booleans, `commit.branch`, the `worktrees` block, the removed legacy keys `up`, `down`, and `hooks.worktree` (a named error each), the `dogfood` block, any unknown key, and in `workspace` mode the installed snapshot's version — plus, for a project-scope install, the pin: every suite-skill folder in `.agents/skills` (a name in the suite's roster, `assets/roster` in sassy-setup, not any `sassy-` prefix) hashed against `skills-lock.json`, the lock's coverage both ways, and whether git carries the lock. A user-scope install has no pin here; the check notes the scope it found. Report every `drift:` line verbatim, or that the config matches the tree. Drift blocks step 8.
+7. **Verify.** Run `scripts/detect.sh --root <path> --check`. It validates the config against the tree — topology and remotes, `base_map` shape and cycles, `repos` against each nested repo, hooks, artifacts paths, `knowledge`, `pr.*` booleans, `commit.branch`, the `worktrees` block, the removed legacy keys `up`, `down`, and `hooks.worktree` (a named error each), the `dogfood` block, any unknown key, and in `workspace` mode the installed snapshot's version — plus, for a project-scope install, the pin: every suite-skill folder in `.agents/skills` (a name in the suite's roster, `assets/roster` in sassy-setup, not any `sassy-` prefix) hashed against `skills-lock.json`, the lock's coverage both ways, and whether git carries the lock. A user-scope install has no pin here; the check notes the scope it found. Report every `drift:` line verbatim, or that the config matches the tree. A
+passing check can still print a `template:` note: the config matches the tree
+but is behind the shipped template — blocks, comment layers, or examples it
+lacks. Report it as a note, not drift, and name `--sync --write` as its fix: it
+merges the template onto the file and keeps every value the check accepts,
+comment and all. Drift blocks step 8.
 
    The `worktrees` half checks what a run would read: the switch, that the tooling is installed with the shipped bytes, that no checkout sits inside the working tree, and that none holds a branch `base_map` names as a base.
 
@@ -72,7 +77,7 @@ A check run never edits the config and never rewrites the tree. Its only possibl
 | Run output and sessions never ship | `.sassywares/.gitignore` holds `/session/` and `/dogfood/reports/`. Never remove a line, never add anything from either path to the commit, and never write a credential anywhere else. |
 | No secrets in setup's writes | Env var names only, in the config and in the skeleton. A credential never lands in a file setup commits. |
 | Version is reported | Setup names the snapshot and `workspace-git` versions it installed; `--check` flags an installed copy older than the skill's. |
-| Repair is `init` | `check` reports drift and never rewrites; closing it is `mode:init`, where every change is shown and approved first. |
+| Repair is `init` | `check` reports drift and never rewrites; closing it is `mode:init`, where every change is shown and approved first. Template drift is the one stated exception: the check names `--sync --write`, and only the operator runs it. |
 
 ## What setup is not
 

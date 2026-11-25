@@ -289,4 +289,95 @@ if [[ "$rc" -eq 0 ]] \
 else fail "(r) a Deno workspace repo gets the alias note for deno.json" "exit $rc
 $out"; fi
 
+# (s) --sync takes a whole missing block from the template, comments included:
+# the check reports it before and is silent after the write.
+CFG_SYNC='git:
+  repo: origin
+  base_map:
+    "*": staging           # confirmed: staging is the integration branch
+commit:
+  branch: current            # confirmed: main is the only release line
+hooks:
+  pr:
+    "*":
+      before_create: [tap2-version]
+  push:
+    "*":
+      after_push: [sassy-tmp-release]'
+mksync() { # mksync <dir> <config>
+  mkproject "$1" "$2"
+  # A merged template configures dogfood, and its reports folder must be
+  # gitignored: without the line the check would report the sync as new drift.
+  printf '.sassywares/dogfood/reports/\n' > "$1/.gitignore"
+}
+S="$TMP/s"; mksync "$S" "$CFG_SYNC"
+out="$(bash "$S/.agents/skills/sassy-setup/scripts/detect.sh" --root "$S" --check 2>&1)"
+before_ok=0
+printf '%s' "$out" | grep -q 'template: --sync --write would add' && before_ok=1
+bash "$S/.agents/skills/sassy-setup/scripts/detect.sh" --root "$S" --sync --write >/dev/null 2>&1
+out="$(bash "$S/.agents/skills/sassy-setup/scripts/detect.sh" --root "$S" --check 2>&1)"; rc=$?
+if [[ "$before_ok" -eq 1 ]] \
+   && grep -qxF 'worktrees:' "$S/.sassywares/config.yaml" \
+   && grep -qxF 'dogfood:' "$S/.sassywares/config.yaml" \
+   && grep -qxF '# --- Worktrees ------------------------------------------------------------' "$S/.sassywares/config.yaml" \
+   && grep -qxF '  dir: ~/.sassywares/worktrees    # parent of the per-repo folder; ~ is allowed' "$S/.sassywares/config.yaml" \
+   && [[ "$rc" -eq 0 ]] && ! printf '%s' "$out" | grep -q 'template:' \
+   && ! printf '%s' "$out" | grep -q 'drift:'; then
+  pass "(s) a missing block is added with its comments, and the note clears"
+else fail "(s) a missing block is added with its comments, and the note clears" "before_ok=$before_ok rc=$rc
+$out"; fi
+
+# (t) a valid non-default value and its trailing comment survive byte for byte.
+T="$TMP/t"; mksync "$T" "$CFG_SYNC"
+bash "$T/.agents/skills/sassy-setup/scripts/detect.sh" --root "$T" --sync --write >/dev/null 2>&1
+if grep -qxF '    "*": staging           # confirmed: staging is the integration branch' "$T/.sassywares/config.yaml" \
+   && grep -qxF '  branch: current            # confirmed: main is the only release line' "$T/.sassywares/config.yaml"; then
+  pass "(t) a confirmed non-default value and its comment survive byte for byte"
+else fail "(t) a confirmed non-default value and its comment survive byte for byte" "$(sed -n '1,40p' "$T/.sassywares/config.yaml")"; fi
+
+# (u) the second --sync is a no-op that says so and exits 0.
+T2="$TMP/t2"; mksync "$T2" "$CFG_SYNC"
+bash "$T2/.agents/skills/sassy-setup/scripts/detect.sh" --root "$T2" --sync --write >/dev/null 2>&1
+sum_before="$(shasum "$T2/.sassywares/config.yaml")"
+err="$(bash "$T2/.agents/skills/sassy-setup/scripts/detect.sh" --root "$T2" --sync --write 2>&1 >/dev/null)"; rc=$?
+sum_after="$(shasum "$T2/.sassywares/config.yaml")"
+if [[ "$rc" -eq 0 && "$sum_before" == "$sum_after" ]] \
+   && printf '%s' "$err" | grep -q 'is already current'; then
+  pass "(u) a second --sync changes nothing and says already current"
+else fail "(u) a second --sync changes nothing and says already current" "rc=$rc
+$err"; fi
+
+# (v) a malformed value is not "accepted": it comes from the proposal, comment
+# and all, exactly as --check judges it.
+V="$TMP/v"; mksync "$V" "$(printf '%s' "$CFG_SYNC" \
+  | sed 's/branch: current            # confirmed: main is the only release line/branch: mainline   # wishful thinking/')"
+bash "$V/.agents/skills/sassy-setup/scripts/detect.sh" --root "$V" --sync --write >/dev/null 2>&1
+if grep -qxE '  branch: new +# current \| new' "$V/.sassywares/config.yaml" \
+   && ! grep -q 'mainline' "$V/.sassywares/config.yaml"; then
+  pass "(v) a malformed value is replaced by the proposal's"
+else fail "(v) a malformed value is replaced by the proposal's" "$(sed -n '1,60p' "$V/.sassywares/config.yaml")"; fi
+
+# (w) --sync without --write is a dry run: it prints the merged file and leaves
+# the config untouched.
+W="$TMP/w"; mksync "$W" "$CFG_SYNC"
+sum_before="$(shasum "$W/.sassywares/config.yaml")"
+out="$(bash "$W/.agents/skills/sassy-setup/scripts/detect.sh" --root "$W" --sync 2>/dev/null)"; rc=$?
+sum_after="$(shasum "$W/.sassywares/config.yaml")"
+if [[ "$rc" -eq 0 && "$sum_before" == "$sum_after" ]] \
+   && printf '%s\n' "$out" | grep -qxF 'worktrees:'; then
+  pass "(w) --sync without --write writes nothing"
+else fail "(w) --sync without --write writes nothing" "rc=$rc"; fi
+
+# (x) the check's template note: a passing check names the sync that closes it.
+X="$TMP/x"; mksync "$X" "$CFG_SYNC"
+out="$(bash "$X/.agents/skills/sassy-setup/scripts/detect.sh" --root "$X" --check 2>&1)"; rc=$?
+if [[ "$rc" -eq 0 ]] \
+   && printf '%s' "$out" | grep -q 'template: --sync --write would add' \
+   && printf '%s' "$out" | grep -q -- '--sync --write' \
+   && ! printf '%s' "$out" | grep -q 'drift:' \
+   && printf '%s' "$out" | grep -q 'config matches the tree'; then
+  pass "(x) a check reports template drift as a note, exit 0"
+else fail "(x) a check reports template drift as a note, exit 0" "rc=$rc
+$out"; fi
+
 (( fails == 0 )) && echo "all passed" || { echo "$fails failed"; exit 1; }

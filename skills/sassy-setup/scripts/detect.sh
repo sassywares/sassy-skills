@@ -14,6 +14,9 @@
 #   detect.sh [--root DIR] --worktree-script MODE
 #                                    print the absolute path of the create or
 #                                    remove script a run executes
+#   detect.sh [--root DIR] --sync [--write]
+#                                    merge the existing config onto the template
+#                                    and print it (or write it with --write)
 #
 # --policy takes infer|current|new: the skill-level token. infer (the default)
 # defers to commit.branch in the config, and new is the fallback when the config
@@ -27,6 +30,13 @@
 # built-in .sassywares/worktree/<mode>. A declared path that is gone warns on
 # stderr and falls back; an absent key falls back silently. It never writes and
 # never creates a directory, so it answers even before setup has installed one.
+# --sync is the one mode that writes. It starts from the same proposal the
+# default mode prints, then keeps every line the current file declares and
+# --check accepts — value and same-line trailing comment, byte for byte — and
+# takes every block, key, comment layer, and example the file lacks from the
+# proposal. A malformed value is not accepted, so it comes from the proposal,
+# exactly as --check judges it. A dry run prints the merged file and writes
+# nothing.
 set -euo pipefail
 
 ROOT_ARG=""
@@ -37,6 +47,8 @@ NAME_ARG=""
 WT_SCRIPT=""
 CHECK=0
 BRANCH=0
+SYNC=0
+SINGLE=0
 
 while (( $# )); do
   case "$1" in
@@ -54,6 +66,8 @@ while (( $# )); do
     --worktree-script=*) WT_SCRIPT="${1#*=}" ;;
     --branch) BRANCH=1 ;;
     --check)  CHECK=1 ;;
+    --sync)   SYNC=1 ;;
+    --write)  SINGLE=1 ;;
     -h|--help) sed -n '2,/^set -euo pipefail/p' "${BASH_SOURCE[0]}" | sed '$d' | sed 's|^# \{0,1\}||'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -65,6 +79,13 @@ START="${ROOT_ARG:-$PWD}"
 # --branch prints a decision; --check validates a config. One at a time, or the
 # second is silently ignored.
 (( BRANCH && CHECK )) && { echo "--branch and --check are separate modes; run them one at a time" >&2; exit 2; }
+# --sync computes the proposal too, so the default print, --check, and --branch
+# would each silently drop it.
+(( ! SYNC )) || (( ! CHECK && ! BRANCH )) \
+  || { echo "--sync is a mode of its own; run it apart from --check and --branch" >&2; exit 2; }
+# --write is read by --sync. Alone it would print the proposal and drop itself.
+(( ! SINGLE )) || (( SYNC )) \
+  || { echo "--write is read with --sync; run them together" >&2; exit 2; }
 # --goal resolves hooks inside --check. Anywhere else the flag would print the
 # proposal and drop itself silently.
 (( CHECK )) || [[ -z "$GOAL_ARG" ]] || { echo "--goal is read with --check; run them together" >&2; exit 2; }
@@ -73,8 +94,8 @@ START="${ROOT_ARG:-$PWD}"
 (( CHECK || BRANCH )) || [[ -z "$HEAD_ARG" ]] || { echo "--head is read with --check or --branch; run them together" >&2; exit 2; }
 # --worktree-script prints one path and returns before either mode, so without
 # this guard `--check --worktree-script create` would silently skip the check.
-[[ -z "$WT_SCRIPT" ]] || (( ! CHECK && ! BRANCH )) \
-  || { echo "--worktree-script is a mode of its own; run it apart from --check and --branch" >&2; exit 2; }
+[[ -z "$WT_SCRIPT" ]] || (( ! CHECK && ! BRANCH && ! SYNC )) \
+  || { echo "--worktree-script is a mode of its own; run it apart from --check, --branch, and --sync" >&2; exit 2; }
 # Absolute, or the walk-up loop below re-reads "." forever.
 START="$(cd "$START" && pwd -P)"
 
@@ -480,8 +501,10 @@ case "$TOPOLOGY" in
   repo)
     REPO_NAME="$(remote_name "$ROOT")"
     REPO_NAME="${REPO_NAME:-origin}"
-    # A check run reads the base from the config; probing costs a network call.
-    (( CHECK )) || DEFAULT_BRANCH="$(detect_base "$ROOT")"
+    # A check or sync run reads the base from the config; probing costs a
+    # network call. A sync keeps the file's base when it has a valid one and
+    # leaves the placeholder when it does not, for a human to confirm.
+    (( CHECK || SYNC )) || DEFAULT_BRANCH="$(detect_base "$ROOT")"
     ;;
   workspace)
     MIRROR_REMOTE="$(config_value remote 2>/dev/null || true)"
@@ -489,6 +512,529 @@ case "$TOPOLOGY" in
     MIRROR_BRANCH="${MIRROR_BRANCH:-main}"
     ;;
 esac
+
+# --- Template merge -------------------------------------------------------
+# --sync starts from the proposal the default mode prints (emit_proposal) and
+# merges the existing file onto it: a leaf the file declares and this check
+# accepts keeps its line — value and same-line trailing comment — exactly as
+# written, and every block, key, comment layer, and example the file lacks comes
+# from the proposal. A value --check reports as drift is not accepted, so it is
+# replaced by the proposal's, the same judgement --check makes.
+#
+# "Value --check accepts" is one predicate, leaf_ok, over the schema in
+# references/config.md. It deliberately validates only the value, never its
+# context: a `worktrees.enabled: true` with no tooling installed is a valid value
+# in a wrong state, so the sync keeps it and the check keeps reporting it.
+leaf_ok() { # PATH VALUE — PATH joined with US, value comment- and quote-stripped
+  local path="$1" v="$2" key kind rest pat point entry name
+  key="${path//$US/.}"
+  case "$key" in
+    artifacts.plans|artifacts.solutions|artifacts.handbooks|artifacts.concepts)
+      case "$v" in ""|/*|~*|.|./) return 1 ;; esac
+      escapes_root "$v" && return 1
+      [[ "$key" == "artifacts.concepts" && "$v" == */ ]] && return 1
+      return 0 ;;
+    knowledge.read)
+      case "$v" in \[*\]) ;; *) return 1 ;; esac
+      while IFS= read -r entry; do
+        [[ -n "$entry" ]] || continue
+        case "$entry" in /*|~*) return 1 ;; esac
+        escapes_root "$entry" && return 1
+      done < <(list_items "$v")
+      return 0 ;;
+    knowledge.write|pr.babysit|pr.merge|pr.delete_branch|dogfood.enabled|worktrees.enabled)
+      [[ "$v" == "true" || "$v" == "false" ]] ;;
+    git.repo)
+      if [[ "$TOPOLOGY" == "repo" ]]; then
+        case "$v" in ""|workspace|none) return 1 ;; esac
+        git -C "$ROOT" remote 2>/dev/null | grep -qx "$v"
+      else
+        [[ "$v" == "workspace" || "$v" == "none" ]]
+      fi ;;
+    git.remote|git.mirror_branch)
+      [[ "$TOPOLOGY" != "repo" && -n "$v" ]] ;;
+    git.base_map.*)
+      pat="${key#git.base_map.}"
+      case "$pat" in
+        *"*") [[ "$pat" == "*" || ( -n "${pat%\*}" && "${pat%\*}" != *"*" ) ]] || return 1 ;;
+      esac
+      return 0 ;;
+    repos.*)
+      [[ "$TOPOLOGY" != "repo" ]] ;;
+    commit.branch)
+      [[ "$v" == "current" || "$v" == "new" ]] ;;
+    dogfood.timeout)
+      [[ "$v" =~ ^[1-9][0-9]*$ ]] ;;
+    dogfood.recipe|dogfood.reports)
+      case "$v" in ""|/*|~*|.|./) return 1 ;; esac
+      escapes_root "$v" && return 1
+      return 0 ;;
+    worktrees.dir)
+      [[ -n "$v" ]] ;;
+    worktrees.create|worktrees.remove)
+      ! wt_script_reason "$v" >/dev/null ;;
+    hooks.*)
+      kind="${key#hooks.}"; kind="${kind%%.*}"
+      case "$kind" in pr|push|goal) ;; *) return 1 ;; esac
+      rest="${key#hooks.}"; rest="${rest#*.}"
+      point="${rest##*.}"
+      pat="${rest%.*}"
+      case " $(hook_points "$kind") " in *" $point "*) ;; *) return 1 ;; esac
+      case "$pat" in
+        *"*") [[ "$pat" == "*" || ( -n "${pat%\*}" && "${pat%\*}" != *"*" ) ]] || return 1 ;;
+      esac
+      while IFS= read -r entry; do
+        [[ -n "$entry" ]] || continue
+        name="${entry%% *}"
+        is_suite_skill "$name" && return 1
+        hook_skill_path "$name" >/dev/null 2>&1 || return 1
+      done < <(list_items "$v")
+      return 0 ;;
+    *)
+      return 1 ;;
+  esac
+}
+
+# One parser, two readers: the flat path stack is the same shape yaml_flat
+# builds, so a line can be matched to the current file and to the proposal.
+LEAF_AWK='function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+function ind(s,   m) { m = match(s, /^ */); return m ? RLENGTH : 0 }
+{
+  raw = $0
+  body0 = trim(raw)
+  if (body0 == "" || substr(body0, 1, 1) == "#") next
+  line = raw; sub(/#.*$/, "", line)
+  d = ind(line); body = trim(line)
+  if (body ~ /:$/) {
+    k = body; sub(/:$/, "", k); gsub(/"/, "", k)
+    while (sp > 0 && sd[sp] >= d) sp--
+    sd[++sp] = d; sk[sp] = k
+    next
+  }
+  k = body; sub(/:.*/, "", k); gsub(/"/, "", k)
+  while (sp > 0 && sd[sp] >= d) sp--
+  p = ""
+  for (i = 1; i <= sp; i++) p = p (p == "" ? "" : us) sk[i]
+  print p (p == "" ? "" : us) k "\t" raw
+}'
+
+# The merge. Records are `kind <TAB> depth <TAB> path <TAB> raw`; a commented
+# example is a record too, with the depth its `#` markers would have if removed
+# (the hash characters themselves add no depth, the spaces after them do), so
+# `# push:` under `hooks:` is known to be the posited `hooks.push` block. When the
+# file declares a valid leaf under such an example, the example is replaced by
+# the file's own active block, verbatim — the one case where a commented example
+# in the proposal is not an example for this project.
+MERGE_AWK='function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+function ind(s,   m) { m = match(s, /^ */); return m ? RLENGTH : 0 }
+function joinall(   p, i) { p = ""; for (i = 1; i <= sp; i++) p = p (p == "" ? "" : us) sk[i]; return p }
+function dopop(d) { while (sp > 0 && sd[sp] >= d) sp-- }
+function outf(r,   p) { o++; oraw[o] = r; okind[o] = ""; opath[o] = p }
+function outfk(r, d, p) { o++; oraw[o] = r; okind[o] = "key"; odepth[o] = d; opath[o] = p }
+function outfl(r, d, p) { o++; oraw[o] = r; okind[o] = "leaf"; odepth[o] = d; opath[o] = p }
+function under_accepted(P,   a) {
+  for (a = 1; a <= na; a++) if (index(aorder[a], P us) == 1) return 1
+  return 0
+}
+function emit_acc(P, d) { o++; oraw[o] = acc[P]; okind[o] = "leaf"; odepth[o] = d; opath[o] = P; emitted[P] = 1 }
+function emit_block(P,   i, j, e, a) {
+  b0 = 0
+  for (i = 1; i <= cn; i++) if (ckind[i] == "key" && cpath[i] == P) { b0 = i; break }
+  if (b0 == 0) { warn[++nw] = P; return }
+  e = b0
+  for (j = b0 + 1; j <= cn; j++) {
+    if (ckind[j] == "blank") continue
+    if (cdepth[j] > cdepth[b0]) { e = j; continue }
+    break
+  }
+  for (j = b0; j <= e; j++) {
+    if (ckind[j] == "key") outfk(crawl[j], cdepth[j], cpath[j])
+    else if (ckind[j] == "leaf") outfl(crawl[j], cdepth[j], cpath[j])
+    else outf(crawl[j])
+  }
+  for (a = 1; a <= na; a++) if (index(aorder[a], P us) == 1) emitted[aorder[a]] = 1
+  emitted[P] = 1
+}
+BEGIN { cn = 0; pn = 0; na = 0; sp = 0; o = 0; nw = 0 }
+FILENAME == accf {
+  if ($2 != "") { acc[$1] = $2; aorder[++na] = $1 }
+  next
+}
+FILENAME == curf {
+  raw = $0
+  body0 = trim(raw)
+  if (body0 == "") { ckind[++cn] = "blank"; crawl[cn] = raw; next }
+  if (substr(body0, 1, 1) == "#") { ckind[++cn] = "comment"; crawl[cn] = raw; next }
+  line = raw; sub(/#.*$/, "", line)
+  d = ind(line); body = trim(line)
+  if (body ~ /:$/) {
+    k = body; sub(/:$/, "", k); gsub(/"/, "", k)
+    dopop(d); sd[++sp] = d; sk[sp] = k
+    ckind[++cn] = "key"; cdepth[cn] = d; cpath[cn] = joinall(); crawl[cn] = raw
+  } else {
+    k = body; sub(/:.*/, "", k); gsub(/"/, "", k)
+    dopop(d); p = joinall()
+    ckind[++cn] = "leaf"; cdepth[cn] = d; cpath[cn] = p (p == "" ? "" : us) k; crawl[cn] = raw
+  }
+  next
+}
+FILENAME == propf {
+  raw = $0
+  body0 = trim(raw)
+  if (body0 == "") { pkind[++pn] = "blank"; pdepth[pn] = 0; ppath[pn] = ""; praw[pn] = raw; next }
+  if (substr(body0, 1, 1) == "#") {
+    rest = body0
+    while (substr(rest, 1, 1) == "#") rest = substr(rest, 2)
+    m = match(rest, /^ */); spc = m ? RLENGTH : 0
+    rest = substr(rest, spc + 1)
+    # A commented example sits at its `#` column, and its content starts two
+    # columns later ("# "); the spaces after the marker encode the depth of a
+    # child, so subtracting the marker leaves the line the example stands for.
+    ed = ind(raw) + (spc > 0 ? spc - 1 : 0)
+    if (rest ~ /^[^ \t:]+:/) {
+      k = rest; sub(/:.*/, "", k); gsub(/"/, "", k)
+      v = rest; sub(/^[^:]*:/, "", v); sub(/#.*/, "", v); v = trim(v)
+      dopop(ed)
+      if (v == "") {
+        sd[++sp] = ed; sk[sp] = k
+        pkind[++pn] = "example_key"; pdepth[pn] = ed; ppath[pn] = joinall(); praw[pn] = raw
+      } else {
+        p = joinall()
+        pkind[++pn] = "example_leaf"; pdepth[pn] = ed
+        ppath[pn] = p (p == "" ? "" : us) k; praw[pn] = raw
+      }
+    } else {
+      pkind[++pn] = "comment"; pdepth[pn] = 0; ppath[pn] = ""; praw[pn] = raw
+    }
+    next
+  }
+  line = raw; sub(/#.*$/, "", line)
+  d = ind(line); body = trim(line)
+  if (body ~ /:$/) {
+    k = body; sub(/:$/, "", k); gsub(/"/, "", k)
+    dopop(d); sd[++sp] = d; sk[sp] = k
+    pkind[++pn] = "key"; pdepth[pn] = d; ppath[pn] = joinall(); praw[pn] = raw
+  } else {
+    k = body; sub(/:.*/, "", k); gsub(/"/, "", k)
+    dopop(d); p = joinall()
+    pkind[++pn] = "leaf"; pdepth[pn] = d
+    ppath[pn] = p (p == "" ? "" : us) k; praw[pn] = raw
+  }
+  next
+}
+END {
+  i = 1
+  while (i <= pn) {
+    if (pkind[i] == "blank" || pkind[i] == "comment") { outf(praw[i]); i++; continue }
+    if (pkind[i] == "example_key") {
+      j = i + 1
+      while (j <= pn && (pkind[j] == "example_key" || pkind[j] == "example_leaf") && pdepth[j] > pdepth[i]) j++
+      if (under_accepted(ppath[i])) {
+        emit_block(ppath[i])
+      } else {
+        for (m = i; m < j; m++) outf(praw[m])
+      }
+      i = j; continue
+    }
+    if (pkind[i] == "example_leaf") {
+      if (ppath[i] in acc) emit_acc(ppath[i], pdepth[i]); else outf(praw[i])
+      i++; continue
+    }
+    if (pkind[i] == "leaf") {
+      if (ppath[i] in acc) emit_acc(ppath[i], pdepth[i]); else outfl(praw[i], pdepth[i], ppath[i])
+      i++; continue
+    }
+    outfk(praw[i], pdepth[i], ppath[i])
+    i++
+  }
+  # An accepted leaf the proposal has no slot for — an extra base_map rung, a
+  # hand-written head — is inserted under its own block, after the last line
+  # of that block. Dropping it would be the one thing the sync must never do:
+  # change a value the check accepts.
+  for (a = 1; a <= na; a++) {
+    P = aorder[a]
+    if (P in emitted) continue
+    par = P; sub(us "[^" us "]*$", "", par)
+    if (par == P) { warn[++nw] = P; continue }
+    b0 = 0; bd = -1
+    for (m = 1; m <= o; m++) if (okind[m] == "key" && opath[m] == par) { b0 = m; bd = odepth[m] }
+    if (b0 == 0) { warn[++nw] = P; continue }
+    last = b0
+    for (m = b0 + 1; m <= o; m++) {
+      if (okind[m] == "blank") continue
+      if (odepth[m] <= bd) break
+      last = m
+    }
+    insn[last]++
+    insraw[last, insn[last]] = acc[P]
+  }
+  for (m = 1; m <= o; m++) {
+    print oraw[m]
+    for (q = 1; q <= insn[m]; q++) print insraw[m, q]
+  }
+  for (m = 1; m <= nw; m++) print "sync: no slot for " warn[m] > "/dev/stderr"
+}'
+
+leaf_lines() { # FILE -> `path<TAB>raw line` for every active leaf
+  awk -v us="$US" "$LEAF_AWK" "$1"
+}
+
+accepted_table() { # -> `path<TAB>raw line` for every leaf --check accepts today
+  local path raw value
+  leaf_lines "$CONFIG" | while IFS=$'\t' read -r path raw; do
+    [[ -n "$path" ]] || continue
+    value="$(printf '%s' "$raw" \
+      | sed -E 's/^[[:space:]]*[^:]*:[[:space:]]*//; s/[[:space:]]+#.*$//; s/[[:space:]]+$//')"
+    value="${value#\"}"; value="${value%\"}"
+    if leaf_ok "$path" "$value"; then printf '%s\t%s\n' "$path" "$raw"; fi
+  done
+}
+
+merged_config() { # the current file merged onto the proposal, on stdout
+  local prop acc
+  prop="$(mktemp "${TMPDIR:-/tmp}/sassy-sync-proposal.XXXXXX")"
+  acc="$(mktemp "${TMPDIR:-/tmp}/sassy-sync-accepted.XXXXXX")"
+  emit_proposal > "$prop"
+  accepted_table > "$acc"
+  awk -F'\t' -v us="$US" -v accf="$acc" -v curf="$CONFIG" -v propf="$prop" \
+    "$MERGE_AWK" "$acc" "$CONFIG" "$prop"
+  rm -f "$prop" "$acc"
+}
+
+sync_phrase() { # MERGED -> what --sync --write would do, for the check's note
+  local merged="$1" cur_paths merged_paths acc_paths added="" replaced="" p raw out
+  cur_paths="$(leaf_lines "$CONFIG" | cut -f1)"
+  merged_paths="$(printf '%s\n' "$merged" | leaf_lines /dev/stdin | cut -f1)"
+  acc_paths="$(accepted_table | cut -f1)"
+  added="$(comm -13 <(printf '%s\n' "$cur_paths" | sort -u) <(printf '%s\n' "$merged_paths" | sort -u) 2>/dev/null \
+    | cut -d"$US" -f1 | sort -u | grep -v '^$' | paste -sd, - | sed 's/,/, /g' || true)"
+  while IFS=$'\t' read -r p raw; do
+    [[ -n "$p" ]] || continue
+    grep -qxF "$p" <<< "$acc_paths" && continue
+    grep -qxF "$p" <<< "$merged_paths" || continue
+    replaced="${replaced:+$replaced, }${p//$US/.}"
+  done < <(leaf_lines "$CONFIG")
+  if [[ -z "$added" && -z "$replaced" ]]; then printf 'refresh the comments'; return; fi
+  out=""
+  [[ -n "$added" ]] && out="add $added"
+  [[ -n "$replaced" ]] && out="${out:+$out; }replace $replaced (not valid today)"
+  printf '%s and refresh the comments' "$out"
+}
+
+# --- Emit a proposal -------------------------------------------------------
+# One function, two callers: the default mode prints it, and --sync/--check
+# merge onto it. Everything it reads (PLANS, REPO_NAME, TOPOLOGY, DEFAULT_BRANCH,
+# MIRROR_*) is computed above, before either caller runs.
+emit_proposal() {
+# Every key carries its meaning and its allowed values. The file is the
+# documentation a teammate reads, so the comments are part of the output, not
+# decoration to be stripped.
+
+# kv KEY VALUE WIDTH COMMENT [INDENT] — prints "key: value" padded so comments
+# align. WIDTH 0 means no padding.
+kv() {
+  local indent="${5:-  }" line
+  line="$indent$1: $2"
+  if [[ -n "${4:-}" && "${3:-0}" != "0" ]]; then
+    printf '%-*s%s\n' "$3" "$line" "$4"
+  elif [[ -n "${4:-}" ]]; then
+    printf '%s  %s\n' "$line" "$4"
+  else
+    printf '%s\n' "$line"
+  fi
+}
+
+cat <<EOF
+# Sassy Skills project config — written by sassy-setup.
+# Every key is optional: delete a line to fall back to the documented default.
+# Guide: https://github.com/sassywares/sassy-skills/blob/main/skills/sassy-setup/references/config.md
+
+# --- Artifacts ------------------------------------------------------------
+# Where sassy writes its documents. Paths are relative to this file's folder.
+artifacts:
+EOF
+kv plans "$PLANS" 34 '# sassy-plan writes plans here'
+kv solutions "$SOLUTIONS" 34 '# sassy-compound writes learnings here'
+kv handbooks "$HANDBOOKS" 34 '# sassy-handbook writes handovers here'
+kv concepts "$CONCEPTS" 34 '# the glossary sassy-compound maintains (a file)'
+cat <<EOF
+
+# --- Knowledge ------------------------------------------------------------
+# read: folders and files searched for prior learnings before planning or
+#       debugging. Any paths; one that does not exist is skipped, not fatal.
+# write: true | false — false means this project takes no learnings.
+knowledge:
+EOF
+kv read "[$SOLUTIONS, $CONCEPTS]" 0
+kv write true 34 '# true | false'
+
+case "$TOPOLOGY" in
+  repo)
+    cat <<EOF
+
+# --- Git ------------------------------------------------------------------
+# repo: a remote name (this folder is the repo) | workspace (repos live below,
+#       this folder is not a repo) | none (no git anywhere here).
+# base_map: the base for a HEAD branch, so a PR targets the right rung.
+#   "*" is ordinary work; add a rung for a branch that releases elsewhere.
+git:
+EOF
+    kv repo "$REPO_NAME" 0
+    printf '  base_map:\n'
+    if [[ -n "$DEFAULT_BRANCH" ]]; then
+      printf '    "*": %s   # probed — confirm this is where ordinary work branches from\n' "$DEFAULT_BRANCH"
+    else
+      printf '    "*": %s   # base for ordinary work; never guessed\n' "<confirm by hand>"
+    fi
+    printf '    # staging: main    # uncomment when a branch releases somewhere else\n'
+    printf '    # release/*: main  # a family of heads, longest prefix wins\n'
+    cat <<'EOF'
+  # remote: owner/backup   # workspace only: the snapshot mirror
+  # mirror_branch: main    # workspace only: the mirror's branch
+
+# workspace only: each nested repo folder -> the base its PRs target
+# repos:
+#   fe: dev
+EOF
+    ;;
+  workspace)
+    cat <<EOF
+
+# --- Git ------------------------------------------------------------------
+# repo: workspace means repos live below and this folder is not a repo.
+# remote: the snapshot mirror (GitHub owner/name or URL), required here.
+# mirror_branch: the branch the mirror pushes to. Not a PR base — nested repos
+#   carry their own, and a workspace has no branches of its own.
+git:
+EOF
+    kv repo workspace 0
+    kv remote "${MIRROR_REMOTE:-<set the snapshot mirror, owner/name or URL>}" 0
+    kv mirror_branch "$MIRROR_BRANCH" 0
+    cat <<'EOF'
+
+# --- Repos ----------------------------------------------------------------
+# Every nested repo -> the base its PRs target. A touched repo missing here is
+# a question, never a default.
+repos:
+EOF
+    any=0
+    while IFS= read -r name; do
+      [[ -n "$name" ]] || continue
+      base="$(detect_base "$ROOT/$name")"
+      if [[ -n "$base" ]]; then
+        kv "$name" "$base" 34 '# probed — confirm the PR base'
+      else
+        kv "$name" "<confirm>" 34 '# base unknown; confirm by hand'
+      fi
+      any=1
+    done < <(nested_repos)
+    (( any )) || printf '  # no nested repos found\n'
+    ;;
+  *)
+    cat <<EOF
+
+# --- Git ------------------------------------------------------------------
+# repo: none means this folder is deliberately outside git: commit, PR, and
+#       babysit refuse here, and work still leaves its changes on disk.
+git:
+EOF
+    kv repo none 0
+    ;;
+esac
+
+cat <<'EOF'
+
+# --- Commit ---------------------------------------------------------------
+# current: commit on the checked-out branch, even on a base branch, then push
+#          it to its upstream. No PR: pr.* and hooks.pr are ignored; hooks.push runs.
+# new: never commit on a base branch — sassy-work, sassy-lfg, and sassy-debug
+#      cut a branch at the start of the run and stay on it.
+commit:
+EOF
+kv branch new 34 '# current | new'
+cat <<'EOF'
+
+# --- Pull requests --------------------------------------------------------
+pr:
+EOF
+kv babysit true 24 '# true | false — babysit the PR this run opened'
+kv merge false 24 '# true = merge every babysat PR here'
+kv delete_branch false 24 '# true | false — delete the head branch once merged'
+cat <<'EOF'
+
+# --- Hooks ----------------------------------------------------------------
+# Project steps injected into the PR pipeline, after a push under
+# commit.branch: current, across a worktree's life, or around a goal. Keyed by
+# the branch — the branch the PR comes from, never the one it targets — or by the
+# goal slug for hooks.goal. `"*"` is the default; a name overrides per point, and
+# `release/*` matches a family. Each entry is `<skill> <args…>`, resolved at
+# .agents/skills/<name>/SKILL.md; args are passed to the skill verbatim. Declared
+# order, one worker each, missing skill fails closed.
+hooks:
+  pr:
+    "*":
+EOF
+kv before_create '[]' 30 '# after the commit, before the PR opens' '      '
+kv after_create '[]' 30 '# the PR was just created' '      '
+kv before_merge '[]' 30 '# this run is about to merge' '      '
+kv after_merge '[]' 30 '# this run observed the merge' '      '
+cat <<'EOF'
+    # staging:            # per-point override for one head branch
+    #   before_create: []
+    # release/*:          # a family of heads
+    #   after_merge: [notify mode:auto]
+  goal:                 # keyed by the goal slug (the folder under artifacts.plans)
+    "*":
+EOF
+kv before_slice '[]' 30 '# sassy-goal mode:next: after the previous slice merges' '      '
+kv after_close '[]' 30 '# sassy-goal mode:close: after the status is persisted' '      '
+cat <<'EOF'
+    # migration-v2:       # one goal, by slug
+    #   before_slice: [db-migrate mode:auto]
+  # push:                 # commit.branch: current only; keyed by the pushed branch
+  #   "*":
+  #     after_push: []
+EOF
+cat <<'EOF'
+
+# --- Worktrees ------------------------------------------------------------
+# Parallel work in one repo: a checkout per branch, each with its own derived
+# namespace, so two runs never fight over one working tree. enabled: true lets a
+# run offer one instead of working here — the run asks, and stays here unless the
+# answer is yes. It needs commit.branch: new, because `current` never cuts a
+# branch. The built-in scripts in .sassywares/worktree/ own the git mechanics;
+# create: and remove: name this project's own scripts, which wrap them for
+# whatever a checkout needs and are what a run executes. Nothing else reads
+# these values.
+#
+# Repo topology only: a workspace root has no repo to cut a checkout from, and a
+# `none` folder has no git at all. A checkout is addressed by the project's own
+# stack, not by the suite: a port is the project's business, and this block
+# carries no range.
+worktrees:
+EOF
+kv enabled false 34 '# true = a run may offer its own checkout'
+kv dir '~/.sassywares/worktrees' 34 '# parent of the per-repo folder; ~ is allowed'
+cat <<'EOF'
+  # create: scripts/worktrees/create   # this project's own; runs before and after git
+  # remove: scripts/worktrees/remove   # this project's own; stop, then dispose
+EOF
+cat <<'EOF'
+
+# --- Dogfood --------------------------------------------------------------
+# Agent QA: a stored procedure that proves a change works in the running
+# product. This block only points at it — commands live in the recipe, because
+# a copy here would duplicate the manifest and could not express step order.
+# The recipe ends each section in a `Prove it:` step whose exit code is the
+# verdict. enabled: true lets a plan write Mode: Auto QA rows, but only for a
+# section that actually has one.
+dogfood:
+EOF
+kv enabled false 42 '# true = plan writes Auto QA rows; false = all Manual'
+kv recipe .sassywares/dogfood/recipe.md 42 '# the procedure; sassy-dogfood writes it'
+kv reports .sassywares/dogfood/reports 42 '# run output; must stay gitignored'
+kv timeout 900 42 '# seconds for the whole procedure'
+}
 
 if (( CHECK )); then
   drift=0
@@ -1115,6 +1661,18 @@ if (( CHECK )); then
     fi
   fi
 
+  # A config can match the tree and still be behind the template: whole blocks,
+  # comment layers, and examples a later version added are missing, so the next
+  # reader gets a thinner file than the one sassy-setup documents. It is a note,
+  # never drift — every value the file declares is valid — and the sync only adds
+  # what is missing, so this is the one passing check worth reading.
+  template=""
+  if template="$(merged_config)"; then
+    if [[ "$template" != "$(cat "$CONFIG")" ]]; then
+      note "  template: --sync --write would $(sync_phrase "$template") (values the check accepts stay) — run: bash ${BASH_SOURCE[0]} --root $ROOT --sync --write"
+    fi
+  fi
+
   if (( drift )); then exit 1; fi
   note "  config matches the tree"
   exit 0
@@ -1316,212 +1874,36 @@ if (( BRANCH )); then
   exit 0
 fi
 
-# --- Emit a proposal -------------------------------------------------------
-# Every key carries its meaning and its allowed values. The file is the
-# documentation a teammate reads, so the comments are part of the output, not
-# decoration to be stripped.
-
-# kv KEY VALUE WIDTH COMMENT [INDENT] — prints "key: value" padded so comments
-# align. WIDTH 0 means no padding.
-kv() {
-  local indent="${5:-  }" line
-  line="$indent$1: $2"
-  if [[ -n "${4:-}" && "${3:-0}" != "0" ]]; then
-    printf '%-*s%s\n' "$3" "$line" "$4"
-  elif [[ -n "${4:-}" ]]; then
-    printf '%s  %s\n' "$line" "$4"
-  else
-    printf '%s\n' "$line"
+# --- Template sync ---------------------------------------------------------
+# The one mode that writes. It computes the same proposal the default mode
+# prints, merges the current file onto it (see --sync at the top), and either
+# prints the result (dry run, the default) or writes it with --write. The file is
+# left untouched when the merge is identical, so a second run is a no-op that
+# says so.
+if (( SYNC )); then
+  [[ -n "$CONFIG" ]] || { echo "no .sassywares/config.yaml found — run sassy-setup" >&2; exit 1; }
+  merged="$(merged_config)"
+  current="$(cat "$CONFIG")"
+  if [[ "$merged" == "$current" ]]; then
+    (( SINGLE )) || printf '%s\n' "$merged"
+    echo "sync: $CONFIG is already current" >&2
+    exit 0
   fi
-}
+  before="$(mktemp "${TMPDIR:-/tmp}/sassy-sync-before.XXXXXX")"
+  after="$(mktemp "${TMPDIR:-/tmp}/sassy-sync-after.XXXXXX")"
+  printf '%s\n' "$current" > "$before"
+  printf '%s\n' "$merged" > "$after"
+  changed="$(diff -u "$before" "$after" 2>/dev/null | awk '/^\+[^+]|^-[^-]/{n++} END{print n+0}' || true)"
+  rm -f "$before" "$after"
+  if (( SINGLE )); then
+    printf '%s\n' "$merged" > "$CONFIG"
+    echo "sync: wrote $CONFIG ($changed line(s) changed)" >&2
+  else
+    printf '%s\n' "$merged"
+    echo "sync: $CONFIG would change ($changed line(s)) — nothing written; rerun with --sync --write" >&2
+  fi
+  exit 0
+fi
 
-cat <<EOF
-# Sassy Skills project config — written by sassy-setup.
-# Every key is optional: delete a line to fall back to the documented default.
-# Guide: https://github.com/sassywares/sassy-skills/blob/main/skills/sassy-setup/references/config.md
+emit_proposal
 
-# --- Artifacts ------------------------------------------------------------
-# Where sassy writes its documents. Paths are relative to this file's folder.
-artifacts:
-EOF
-kv plans "$PLANS" 34 '# sassy-plan writes plans here'
-kv solutions "$SOLUTIONS" 34 '# sassy-compound writes learnings here'
-kv handbooks "$HANDBOOKS" 34 '# sassy-handbook writes handovers here'
-kv concepts "$CONCEPTS" 34 '# the glossary sassy-compound maintains (a file)'
-cat <<EOF
-
-# --- Knowledge ------------------------------------------------------------
-# read: folders and files searched for prior learnings before planning or
-#       debugging. Any paths; one that does not exist is skipped, not fatal.
-# write: true | false — false means this project takes no learnings.
-knowledge:
-EOF
-kv read "[$SOLUTIONS, $CONCEPTS]" 0
-kv write true 34 '# true | false'
-
-case "$TOPOLOGY" in
-  repo)
-    cat <<EOF
-
-# --- Git ------------------------------------------------------------------
-# repo: a remote name (this folder is the repo) | workspace (repos live below,
-#       this folder is not a repo) | none (no git anywhere here).
-# base_map: the base for a HEAD branch, so a PR targets the right rung.
-#   "*" is ordinary work; add a rung for a branch that releases elsewhere.
-git:
-EOF
-    kv repo "$REPO_NAME" 0
-    printf '  base_map:\n'
-    if [[ -n "$DEFAULT_BRANCH" ]]; then
-      printf '    "*": %s   # probed — confirm this is where ordinary work branches from\n' "$DEFAULT_BRANCH"
-    else
-      printf '    "*": %s   # base for ordinary work; never guessed\n' "<confirm by hand>"
-    fi
-    printf '    # staging: main    # uncomment when a branch releases somewhere else\n'
-    printf '    # release/*: main  # a family of heads, longest prefix wins\n'
-    cat <<'EOF'
-  # remote: owner/backup   # workspace only: the snapshot mirror
-  # mirror_branch: main    # workspace only: the mirror's branch
-
-# workspace only: each nested repo folder -> the base its PRs target
-# repos:
-#   fe: dev
-EOF
-    ;;
-  workspace)
-    cat <<EOF
-
-# --- Git ------------------------------------------------------------------
-# repo: workspace means repos live below and this folder is not a repo.
-# remote: the snapshot mirror (GitHub owner/name or URL), required here.
-# mirror_branch: the branch the mirror pushes to. Not a PR base — nested repos
-#   carry their own, and a workspace has no branches of its own.
-git:
-EOF
-    kv repo workspace 0
-    kv remote "${MIRROR_REMOTE:-<set the snapshot mirror, owner/name or URL>}" 0
-    kv mirror_branch "$MIRROR_BRANCH" 0
-    cat <<'EOF'
-
-# --- Repos ----------------------------------------------------------------
-# Every nested repo -> the base its PRs target. A touched repo missing here is
-# a question, never a default.
-repos:
-EOF
-    any=0
-    while IFS= read -r name; do
-      [[ -n "$name" ]] || continue
-      base="$(detect_base "$ROOT/$name")"
-      if [[ -n "$base" ]]; then
-        kv "$name" "$base" 34 '# probed — confirm the PR base'
-      else
-        kv "$name" "<confirm>" 34 '# base unknown; confirm by hand'
-      fi
-      any=1
-    done < <(nested_repos)
-    (( any )) || printf '  # no nested repos found\n'
-    ;;
-  *)
-    cat <<EOF
-
-# --- Git ------------------------------------------------------------------
-# repo: none means this folder is deliberately outside git: commit, PR, and
-#       babysit refuse here, and work still leaves its changes on disk.
-git:
-EOF
-    kv repo none 0
-    ;;
-esac
-
-cat <<'EOF'
-
-# --- Commit ---------------------------------------------------------------
-# current: commit on the checked-out branch, even on a base branch, then push
-#          it to its upstream. No PR: pr.* and hooks.pr are ignored; hooks.push runs.
-# new: never commit on a base branch — sassy-work, sassy-lfg, and sassy-debug
-#      cut a branch at the start of the run and stay on it.
-commit:
-EOF
-kv branch new 34 '# current | new'
-cat <<'EOF'
-
-# --- Pull requests --------------------------------------------------------
-pr:
-EOF
-kv babysit true 24 '# true | false — babysit the PR this run opened'
-kv merge false 24 '# true = merge every babysat PR here'
-kv delete_branch false 24 '# true | false — delete the head branch once merged'
-cat <<'EOF'
-
-# --- Hooks ----------------------------------------------------------------
-# Project steps injected into the PR pipeline, after a push under
-# commit.branch: current, across a worktree's life, or around a goal. Keyed by
-# the branch — the branch the PR comes from, never the one it targets — or by the
-# goal slug for hooks.goal. `"*"` is the default; a name overrides per point, and
-# `release/*` matches a family. Each entry is `<skill> <args…>`, resolved at
-# .agents/skills/<name>/SKILL.md; args are passed to the skill verbatim. Declared
-# order, one worker each, missing skill fails closed.
-hooks:
-  pr:
-    "*":
-EOF
-kv before_create '[]' 30 '# after the commit, before the PR opens' '      '
-kv after_create '[]' 30 '# the PR was just created' '      '
-kv before_merge '[]' 30 '# this run is about to merge' '      '
-kv after_merge '[]' 30 '# this run observed the merge' '      '
-cat <<'EOF'
-    # staging:            # per-point override for one head branch
-    #   before_create: []
-    # release/*:          # a family of heads
-    #   after_merge: [notify mode:auto]
-  goal:                 # keyed by the goal slug (the folder under artifacts.plans)
-    "*":
-EOF
-kv before_slice '[]' 30 '# sassy-goal mode:next: after the previous slice merges' '      '
-kv after_close '[]' 30 '# sassy-goal mode:close: after the status is persisted' '      '
-cat <<'EOF'
-    # migration-v2:       # one goal, by slug
-    #   before_slice: [db-migrate mode:auto]
-  # push:                 # commit.branch: current only; keyed by the pushed branch
-  #   "*":
-  #     after_push: []
-EOF
-cat <<'EOF'
-
-# --- Worktrees ------------------------------------------------------------
-# Parallel work in one repo: a checkout per branch, each with its own derived
-# namespace, so two runs never fight over one working tree. enabled: true lets a
-# run offer one instead of working here — the run asks, and stays here unless the
-# answer is yes. It needs commit.branch: new, because `current` never cuts a
-# branch. The built-in scripts in .sassywares/worktree/ own the git mechanics;
-# create: and remove: name this project's own scripts, which wrap them for
-# whatever a checkout needs and are what a run executes. Nothing else reads
-# these values.
-#
-# Repo topology only: a workspace root has no repo to cut a checkout from, and a
-# `none` folder has no git at all. A checkout is addressed by the project's own
-# stack, not by the suite: a port is the project's business, and this block
-# carries no range.
-worktrees:
-EOF
-kv enabled false 34 '# true = a run may offer its own checkout'
-kv dir '~/.sassywares/worktrees' 34 '# parent of the per-repo folder; ~ is allowed'
-cat <<'EOF'
-  # create: scripts/worktrees/create   # this project's own; runs before and after git
-  # remove: scripts/worktrees/remove   # this project's own; stop, then dispose
-EOF
-cat <<'EOF'
-
-# --- Dogfood --------------------------------------------------------------
-# Agent QA: a stored procedure that proves a change works in the running
-# product. This block only points at it — commands live in the recipe, because
-# a copy here would duplicate the manifest and could not express step order.
-# The recipe ends each section in a `Prove it:` step whose exit code is the
-# verdict. enabled: true lets a plan write Mode: Auto QA rows, but only for a
-# section that actually has one.
-dogfood:
-EOF
-kv enabled false 42 '# true = plan writes Auto QA rows; false = all Manual'
-kv recipe .sassywares/dogfood/recipe.md 42 '# the procedure; sassy-dogfood writes it'
-kv reports .sassywares/dogfood/reports 42 '# run output; must stay gitignored'
-kv timeout 900 42 '# seconds for the whole procedure'

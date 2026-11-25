@@ -11,7 +11,7 @@ Consumers install it with `npx skills add sassywares/sassy-skills`, which reads 
 
 While editing, this repo's `.pi/settings.json` loads `./skills`, and the maintainer's global symlinks (below) expose the working copy to every project on this machine.
 
-The repo is wired with `sassy-setup`: `.sassywares/config.yaml` sets `commit.branch: current` (every change lands on `main`, the only release line) and `hooks.push."*".after_push: [sassy-skills-release]`.
+The repo is wired with `sassy-setup`: `.sassywares/config.yaml` sets `commit.branch: current` (every change lands on `main`, the only release line) and `hooks.push."*".after_push: [sassy-skills-release, sassy-skills-selfcheck, sassy-skills-sync]` — release first, then this repo's config sync, then the projects that vendor the suite.
 
 ## Layout
 
@@ -30,13 +30,18 @@ sassy-skills/
 │   └── settings.json          # dev only: loads ./skills while working here
 ├── .sassywares/
 │   ├── config.yaml            # sassy-setup config (commit.branch: current, hooks.push)
+│   ├── consumers              # projects that vendor the suite: <path> <branch>
+│   ├── last-synced-head       # gitignored: the commit the last consumer sync covered
 │   └── README.md              # what the folder is
 ├── bin/
 │   ├── release                # vendored release script (sassywares/sassy-release)
 │   └── release-ignore         # paths that never reach consumers
 ├── .agents/
 │   └── skills/
-│       └── sassy-skills-release/ # project skill that runs bin/release
+│       ├── sassy-skills-release/ # project skill that runs bin/release
+│       ├── sassy-skills-selfcheck/ # project skill that syncs this repo's config
+│       └── sassy-skills-sync/    # project skill that refreshes vendored consumers
+│           └── scripts/          # sync (the engine) and lock.mjs (lock repin)
 ├── .github/
 │   └── workflows/
 │       └── publish.yml        # publishes on v* tags
@@ -90,11 +95,12 @@ done
 
 ## Testing
 
-Three scripts, all offline and self-contained; skills are otherwise validated structurally.
+Four scripts, all offline and self-contained; skills are otherwise validated structurally.
 
 - **Roster and pin.** `bash tests/sassy-setup-roster.sh` checks that `skills/sassy-setup/assets/roster` equals `ls skills/` and runs `detect.sh --check` in project scope, user scope (three real Sassywares repos), and with the roster missing. It also builds its locks from `skills/sassy-setup/scripts/hash-skill.mjs` (never a private copy of the hash) and holds golden vectors for both lock eras: a change in the CLI's folder hash must break that test, not silently report every skill as drift.
 - **Identify.** `bash tests/sassy-overview-identify.sh` builds one throwaway fixture per manifest row in `sassy-overview`'s identify table (plus the lockfile, `packageManager`, `requirements.txt`, plain-pubspec, make-vs-just, assignment-line, `wired` walk-up and `.env` precedence cases) and asserts the exact `key<TAB>value<TAB>source` output, the documented exit codes (`0`, `3`, `2`), and that identify writes no file. Each fixture owns exactly one manifest, so deleting a row from the script's table fails the test instead of silently returning `unknown`.
 - **Worktree checkout.** `bash tests/worktree-create.sh` builds a throwaway repo with a real `origin` and proves the toolbox contract: `create` puts only the four `WT_*` lines on stdout with narration on stderr, a reused branch stays untracked, `list --env` hands back byte-identical identity and refuses an ambiguous match, `list` classifies `merged`/`unmerged`/`gone`, `remove` guards dirty and unpushed work and leaves the branch, a missing configured script degrades to the built-in with a named warning, legacy lifecycle keys fail `--check` by name, usage errors exit `2`, and a hand-written project pair runs create → stop → delete → dispose in order. A mutation check proves `--no-track` is load-bearing: delete it and the branch inherits its base.
+- **Consumer sync.** `bash tests/consumer-sync.sh` builds a throwaway source repo plus consumers with real `git init --bare` origins and proves the sync contract (the engine at `.agents/skills/sassy-skills-sync/scripts/sync`): a malformed registry line fails by name; a stale roster skill is replaced and a missing one added while a non-roster skill stays byte for byte; only our roster entries are repinned (hashes from `hash-skill.mjs`) and a foreign lock entry keeps its fields; the commit lands on the consumer's `origin/<branch>`; no checkout or scratch branch is left; a replay against an unchanged consumer commits nothing and reports `already current`; an unreachable consumer is skipped while another syncs; a rejected push keeps its checkout and fails the run; a dry run writes nothing; and a range that did not touch `skills/` touches no consumer.
 
 - **Frontmatter.** Every `skills/*/SKILL.md` starts with `---` frontmatter holding `name` and `description` (`argument-hint` optional). `publish.yml` enforces `name` and `description` and fails the publish without them, so check locally first.
 - **Config tooling.** After changing `sassy-setup` or the config schema, run `bash skills/sassy-setup/scripts/detect.sh --root . --check` (config and vendored pin versus reality) and `bash skills/sassy-setup/scripts/detect.sh --root .` (proposed config) and confirm the output matches `references/config.md`.
@@ -105,7 +111,7 @@ Three scripts, all offline and self-contained; skills are otherwise validated st
 
 Publishing is tag-driven. `publish.yml` validates every `skills/*/SKILL.md`, checks that the tag matches `package.json`, and publishes to npm. Never publish by hand. A release installs nothing on consumers' machines: `npx skills add` reads this repo directly.
 
-Releases go through `sassy-ship` (`commit.branch: current`): after the approved push, `hooks.push` `after_push` runs the `sassy-skills-release` project skill, which runs the vendored `bin/release`. That script comes from [sassywares/sassy-release](https://github.com/sassywares/sassy-release); refresh the vendored copy by comparing its `# sassy-release vN` header with the repo's latest tag.
+Releases go through `sassy-ship` (`commit.branch: current`): after the approved push, `hooks.push` `after_push` runs the `sassy-skills-release` project skill, which runs the vendored `bin/release`, then `sassy-skills-selfcheck`, which runs `detect.sh --check` and, on a `template:` note, `--sync --write`, committing and pushing only the config it changed (`detect.sh --sync` keeps every value the check accepts and only adds what the template has and the file lacks), then `sassy-skills-sync`, whose `scripts/sync` refreshes the projects listed in `.sassywares/consumers`. That script comes from [sassywares/sassy-release](https://github.com/sassywares/sassy-release); refresh the vendored copy by comparing its `# sassy-release vN` header with the repo's latest tag.
 
 - Patch bumps are automatic: when consumer-facing files changed since the highest `v*` tag on origin, the script bumps the patch version in `package.json`, commits `chore: release v<version>`, pushes `main`, and tags and pushes `v<version>`.
 - A version already above the highest tag (a hand-written minor or major bump, an interrupted run, the first release) is tagged as-is. Bump minor for a new skill or a new required config key: edit `package.json` by hand. A hand-written version must be >= the highest tag on origin, or the script stops.
@@ -116,6 +122,7 @@ Releases go through `sassy-ship` (`commit.branch: current`): after the approved 
 - The first publish of a new package may need a manual `npm publish` bootstrap before the workflow can use trusted publishing.
 - Recovery (a run that failed between the commit and the tag, or a push that failed): run `bin/release` from a clean `main`. It is idempotent and tags what is already bumped instead of bumping twice.
 - If any step fails, report the failure; never continue silently.
+- Vendored consumers: `.sassywares/consumers` lists them as `<path> <branch>`. After a push, `sassy-skills-sync/scripts/sync` runs only when a commit since `.sassywares/last-synced-head` touched `skills/`; per consumer it cuts a checkout with this repo's worktree toolbox from `origin/<branch>`, mirrors exactly the roster (a roster skill that left the suite is deleted, everything else is untouched), repins those skills in `skills-lock.json`, commits `chore: sync sassy skills to v<version> (<head>)`, pushes without force, and removes the checkout. A rejected push keeps the checkout and fails the close-out. A consumer's setup is alert-only: the run reports `detect.sh --check`'s drift or template note and never writes into the consumer's `.sassywares/`.
 - Never release with a README that describes old behavior — see [Docs upkeep](#docs-upkeep).
 
 ## Docs upkeep

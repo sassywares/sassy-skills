@@ -614,3 +614,11 @@ the lock is reported. Both lock eras count: the definition named by the lock's
 or half-installed suite is drift even when the config itself matches the tree. A
 user-scope install (`~/.agents/skills/`) has no pin to verify; the check notes
 it, and a suite found in neither scope is noted, not drift.
+
+A config that passes every rule can still be behind this template — a missing
+block, key, comment layer, or example — and the check says so in a `template:`
+note, never as drift; [`check.md`](check.md) has the outcomes. The merge that
+closes it is `detect.sh --root <path> --sync --write`: it keeps every leaf the
+check accepts, value and same-line trailing comment byte for byte, and takes the
+rest from the template, so a comment carries the project's confirmation forward
+and a malformed value is replaced.

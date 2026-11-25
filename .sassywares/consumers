@@ -1,0 +1,11 @@
+# Projects that vendor this suite themselves, refreshed by the
+# sassy-skills-sync hook after a push here. A project that uses the global
+# `~/.agents/skills` link needs no line: it picks changes up by itself.
+#
+# One consumer per line: <path> <branch>. `~` and relative paths (from this
+# repo) are allowed; blank lines and `#` lines are ignored. The branch is the
+# one the sync commits to, cut from origin/<branch>.
+#
+# Only the suite's roster skills are mirrored. A consumer's own setup is never
+# refreshed: the run reports that its setup is out of date, and which project.
+~/Documents/Workspace/Tap2/tap2-workspace staging

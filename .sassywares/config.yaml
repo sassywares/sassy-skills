@@ -29,6 +29,8 @@ git:
     "*": main           # confirmed: main is the only release line
     # staging: main    # uncomment when a branch releases somewhere else
     # release/*: main  # a family of heads, longest prefix wins
+  # remote: owner/backup   # workspace only: the snapshot mirror
+  # mirror_branch: main    # workspace only: the mirror's branch
 
 # workspace only: each nested repo folder -> the base its PRs target
 # repos:
@@ -50,12 +52,12 @@ pr:
 
 # --- Hooks ----------------------------------------------------------------
 # Project steps injected into the PR pipeline, after a push under
-# commit.branch: current, around a worktree, or around a goal. Keyed by the HEAD
-# branch — the branch the PR comes from, never the one it targets — except
-# hooks.goal, keyed by the goal slug. `"*"` is the default; a name overrides per
-# point, and `release/*` matches a family. Each entry is
-# `<skill> <args…>`, resolved at .agents/skills/<name>/SKILL.md; args are passed
-# to the skill verbatim. Declared order, one worker each, missing skill fails closed.
+# commit.branch: current, across a worktree's life, or around a goal. Keyed by
+# the branch — the branch the PR comes from, never the one it targets — or by the
+# goal slug for hooks.goal. `"*"` is the default; a name overrides per point, and
+# `release/*` matches a family. Each entry is `<skill> <args…>`, resolved at
+# .agents/skills/<name>/SKILL.md; args are passed to the skill verbatim. Declared
+# order, one worker each, missing skill fails closed.
 hooks:
   pr:
     "*":
@@ -67,12 +69,45 @@ hooks:
     #   before_create: []
     # release/*:          # a family of heads
     #   after_merge: [notify mode:auto]
+  goal:                 # keyed by the goal slug (the folder under artifacts.plans)
+    "*":
+      before_slice: []        # sassy-goal mode:next: after the previous slice merges
+      after_close: []         # sassy-goal mode:close: after the status is persisted
+    # migration-v2:       # one goal, by slug
+    #   before_slice: [db-migrate mode:auto]
   push:                 # commit.branch: current only; keyed by the pushed branch
     "*":
-      after_push: [sassy-skills-release]   # the push just succeeded: tag and publish
-  # goal:               # keyed by the goal slug (the folder under artifacts.plans)
-  #   "*":
-  #     before_slice: []   # sassy-goal mode:next: after the previous slice merges
-  #     after_close: []    # sassy-goal mode:close: after the status is persisted
-  #   migration-v2:       # one goal, by slug
-  #     before_slice: [db-migrate mode:auto]
+      after_push: [sassy-skills-release, sassy-skills-selfcheck, sassy-skills-sync]   # the push landed: tag and publish, sync this repo's own config, then refresh the projects that vendor the suite (never their setup)
+
+# --- Worktrees ------------------------------------------------------------
+# Parallel work in one repo: a checkout per branch, each with its own derived
+# namespace, so two runs never fight over one working tree. enabled: true lets a
+# run offer one instead of working here — the run asks, and stays here unless the
+# answer is yes. It needs commit.branch: new, because `current` never cuts a
+# branch. The built-in scripts in .sassywares/worktree/ own the git mechanics;
+# create: and remove: name this project's own scripts, which wrap them for
+# whatever a checkout needs and are what a run executes. Nothing else reads
+# these values.
+#
+# Repo topology only: a workspace root has no repo to cut a checkout from, and a
+# `none` folder has no git at all. A checkout is addressed by the project's own
+# stack, not by the suite: a port is the project's business, and this block
+# carries no range.
+worktrees:
+  enabled: false                  # true = a run may offer its own checkout
+  dir: ~/.sassywares/worktrees    # parent of the per-repo folder; ~ is allowed
+  # create: scripts/worktrees/create   # this project's own; runs before and after git
+  # remove: scripts/worktrees/remove   # this project's own; stop, then dispose
+
+# --- Dogfood --------------------------------------------------------------
+# Agent QA: a stored procedure that proves a change works in the running
+# product. This block only points at it — commands live in the recipe, because
+# a copy here would duplicate the manifest and could not express step order.
+# The recipe ends each section in a `Prove it:` step whose exit code is the
+# verdict. enabled: true lets a plan write Mode: Auto QA rows, but only for a
+# section that actually has one.
+dogfood:
+  enabled: false                          # true = plan writes Auto QA rows; false = all Manual
+  recipe: .sassywares/dogfood/recipe.md   # the procedure; sassy-dogfood writes it
+  reports: .sassywares/dogfood/reports    # run output; must stay gitignored
+  timeout: 900                            # seconds for the whole procedure

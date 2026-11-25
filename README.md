@@ -131,7 +131,7 @@ Each does one job and takes `mode:manual` (default: ask which to fix), `mode:aut
 | Skill | What it does |
 |---|---|
 | **`sassy-skill`** | Creates, retunes, or restructures Agent Skills. |
-| **`sassy-setup`** | Detects the project topology and writes `.sassywares/config.yaml`; installs the suite and the sassy-agents subagents, globally or per project, when missing; installs the snapshot tooling for a multi-repo workspace; commits the files it wrote. `mode:check` verifies an existing setup, including a project install's pin. |
+| **`sassy-setup`** | Detects the project topology and writes `.sassywares/config.yaml`; installs the suite and the sassy-agents subagents, globally or per project, when missing; installs the snapshot tooling for a multi-repo workspace; commits the files it wrote. `mode:check` verifies an existing setup, including a project install's pin, and reports a config that has fallen behind the shipped template with the `--sync --write` merge that closes it. |
 
 ## Project config
 
@@ -499,4 +499,4 @@ pi install npm:@sassywares/skills
 
 ## Repository maintenance
 
-Work here lands on `main` through `sassy-ship` (`commit.branch: current`). After the approved push, the project's `hooks.push` `after_push` step runs the release: on `main`, when files consumers receive changed, it bumps the patch version and tags it, and the tag publishes `@sassywares/skills` to npm. [`AGENTS.md`](AGENTS.md) is the full guide: layout, adding a skill, testing, and releasing.
+Work here lands on `main` through `sassy-ship` (`commit.branch: current`). After the approved push, the project's `hooks.push` `after_push` steps run in order: the release, which on `main`, when files consumers receive changed, bumps the patch version and tags it, and the tag publishes `@sassywares/skills` to npm; a self-check that syncs this repo's own config template; and a consumer sync that refreshes the projects listed in `.sassywares/consumers` — projects that vendor the suite themselves, committing and pushing to each one's recorded branch (the engine is `.agents/skills/sassy-skills-sync/scripts/sync`, with `scripts/lock.mjs` repinning the vendored skills). A consumer's setup is never rewritten: an out-of-date one is reported and nothing else. [`AGENTS.md`](AGENTS.md) is the full guide: layout, adding a skill, testing, and releasing.

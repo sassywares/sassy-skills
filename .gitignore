@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 *.tgz
 node_modules/
+.sassywares/last-synced-head
