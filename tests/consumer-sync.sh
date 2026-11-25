@@ -203,6 +203,42 @@ mkdir -p "$BARE3/hooks"
 printf '#!/bin/sh\nexit 1\n' > "$BARE3/hooks/pre-receive"
 chmod +x "$BARE3/hooks/pre-receive"
 
+# consumer-four: its remote-tracking ref is deliberately stale. A second clone
+# pushes to the origin, so the consumer's `origin/staging` still names the old
+# head and its local branch never moves. The engine must fetch before cutting.
+C4="$TMP/consumer-four"
+consumer_skeleton "$C4" staging
+vendor_consumer "$C4"
+BARE4="$TMP/consumer-four-origin.git"
+C4_HEAD="$(git -C "$C4" rev-parse HEAD)"
+git_q clone -q --branch staging "$BARE4" "$TMP/second-four"
+printf 'a commit another clone pushed\n' >> "$TMP/second-four/README.md"
+git_q -C "$TMP/second-four" commit -qam "feat: advance the remote"
+git_q -C "$TMP/second-four" push -q origin staging
+C4_REMOTE="$(git -C "$BARE4" rev-parse refs/heads/staging)"
+# Prove the fixture is the bug: the consumer's ref lags the origin.
+[ "$C4_HEAD" = "$(git -C "$C4" rev-parse origin/staging)" ]
+[ "$C4_HEAD" != "$C4_REMOTE" ] || { fail "the stale-ref fixture is stale"; }
+
+# consumer-five: the origin accepts the second push only. A marker file in the
+# hook makes the rejection happen exactly once.
+C5="$TMP/consumer-five"
+consumer_skeleton "$C5" staging
+vendor_consumer "$C5"
+BARE5="$TMP/consumer-five-origin.git"
+C5_HEAD="$(git -C "$C5" rev-parse HEAD)"
+mkdir -p "$BARE5/hooks"
+cat > "$BARE5/hooks/pre-receive" <<EOF
+#!/bin/sh
+if [ ! -f "$TMP/consumer-five-rejected-once" ]; then
+  : > "$TMP/consumer-five-rejected-once"
+  echo "rejecting the first push" >&2
+  exit 1
+fi
+exit 0
+EOF
+chmod +x "$BARE5/hooks/pre-receive"
+
 # 1. A malformed registry line is an error that names the line — never a silent
 #    skip of the consumer it was trying to declare.
 set_registry "only-one-field"
@@ -299,26 +335,33 @@ expect_contains "an unchanged consumer reports already current" "already current
 expect "an unchanged consumer gains no commit" "$(git -C "$BARE1" rev-parse refs/heads/staging)" \
   "$(git -C "$C1" rev-parse origin/staging)"
 
-# 5. A rejected push keeps the checkout, reports it, and never forces; the run
-#    fails so the close-out stops.
+# 5. A push rejected twice blocks: the first attempt is discarded, one checkout
+#    (the retry) is kept, the marker does not advance, and the run fails so the
+#    close-out stops.
 set_registry "$C3 staging"
 rm -f "$MARKER"
 out="$(run_sync --write 2>&1)"; rc=$?
 expect_rc "a rejected push fails the run" 1 "$rc"
 expect_contains "the rejected push is reported as blocked" "blocked" "$out"
-expect_contains "the rejected push names the kept checkout" "skills-sync-$HEAD7" "$out"
+expect_contains "the rejected push names the kept checkout" "skills-sync-$HEAD7-r2" "$out"
+expect_contains "a rejected push reports its one retry" "(1 retry)" "$out"
 expect "the rejected push moved nothing on origin" "$C3_HEAD" "$(git -C "$BARE3" rev-parse refs/heads/staging)"
-expect "a blocked consumer keeps its checkout registered" "2" \
+expect "a blocked consumer keeps exactly one checkout" "2" \
   "$(git -C "$C3" worktree list --porcelain | grep -c '^worktree ')"
-[ -d "$TMP/wt/consumer-three/skills-sync-$HEAD7" ] \
-  && pass "a blocked consumer keeps its checkout on disk" || fail "a blocked consumer keeps its checkout on disk"
-git -C "$C3" rev-parse --verify --quiet "refs/heads/skills-sync-$HEAD7" >/dev/null \
+expect "a blocked consumer leaves no discarded attempt on disk" "absent" \
+  "$([ -e "$TMP/wt/consumer-three/skills-sync-$HEAD7" ] && echo present || echo absent)"
+[ -d "$TMP/wt/consumer-three/skills-sync-$HEAD7-r2" ] \
+  && pass "a blocked consumer keeps its retry checkout on disk" || fail "a blocked consumer keeps its retry checkout on disk"
+git -C "$C3" rev-parse --verify --quiet "refs/heads/skills-sync-$HEAD7-r2" >/dev/null \
   && pass "a blocked consumer keeps its scratch branch" || fail "a blocked consumer keeps its scratch branch"
+git -C "$C3" rev-parse --verify --quiet "refs/heads/skills-sync-$HEAD7" >/dev/null \
+  && fail "the discarded attempt's branch is deleted" || pass "the discarded attempt's branch is deleted"
 [ ! -f "$MARKER" ] && pass "a blocked run does not advance the marker" || fail "a blocked run does not advance the marker"
 
 # 6. A range that did not touch skills/ does nothing at all.
 printf 'a doc change\n' >> "$SRC/README.md"
 git_q -C "$SRC" commit -qam "chore: docs only"
+SRC_CUR="$(git -C "$SRC" rev-parse HEAD)"
 printf '%s\n' "$SRC_HEAD" > "$MARKER"
 set_registry "$C1 staging"
 out="$(run_sync --write 2>&1)"; rc=$?
@@ -326,6 +369,44 @@ expect_rc "a range without skills/ exits 0" 0 "$rc"
 expect_contains "a range without skills/ reports nothing to sync" "nothing to sync" "$out"
 expect "a range without skills/ does not touch a consumer" "$C1_SYNCED" "$(git -C "$BARE1" rev-parse refs/heads/staging)"
 expect "a range without skills/ leaves the marker alone" "$SRC_HEAD" "$(tr -d '[:space:]' < "$MARKER")"
+
+# 7. A stale remote-tracking ref is refreshed before the cut: the sync commit
+#    lands on top of the origin's newer head, as a fast-forward, never a force.
+set_registry "$C4 staging"
+rm -f "$MARKER"
+out="$(run_sync --write 2>&1)"; rc=$?
+expect_rc "a stale remote-tracking ref still syncs" 0 "$rc"
+expect_contains "the stale-ref run pushes" "pushed" "$out"
+expect_not_contains "the stale-ref run does not retry" "retry" "$out"
+expect "the sync commit lands on the origin's newer head" "$C4_REMOTE" \
+  "$(git -C "$BARE4" rev-parse refs/heads/staging^)"
+expect_contains "the pushed commit is the sync commit" \
+  "chore: sync sassy skills to v9.9.9 (${SRC_CUR:0:7})" "$(git -C "$BARE4" log -1 --format=%s staging)"
+expect "the stale-ref push forced nothing" "$C4_REMOTE" \
+  "$(git -C "$BARE4" merge-base refs/heads/staging "$C4_REMOTE")"
+expect "the stale-ref consumer advanced its own ref" "$(git -C "$BARE4" rev-parse refs/heads/staging)" \
+  "$(git -C "$C4" rev-parse origin/staging)"
+expect "the stale-ref run advanced last-synced-head" "$SRC_CUR" "$(tr -d '[:space:]' < "$MARKER")"
+
+# 8. One bounded retry: the origin rejects the first push only. The attempt is
+#    replayed on a refreshed head under a distinct slug and succeeds.
+set_registry "$C5 staging"
+rm -f "$MARKER"
+out="$(run_sync --write 2>&1)"; rc=$?
+expect_rc "a once-rejected push is retried and succeeds" 0 "$rc"
+expect_contains "the retried run reports its retry" "(1 retry)" "$out"
+expect_contains "the retried run reports the push" "pushed" "$out"
+expect "the retried push lands on the origin" "$C5_HEAD" \
+  "$(git -C "$BARE5" rev-parse refs/heads/staging^)"
+expect_contains "the retried push is the sync commit" \
+  "chore: sync sassy skills to v9.9.9 (${SRC_CUR:0:7})" "$(git -C "$BARE5" log -1 --format=%s staging)"
+expect "the retried run leaves no checkout registered" "1" \
+  "$(git -C "$C5" worktree list --porcelain | grep -c '^worktree ')"
+git -C "$C5" rev-parse --verify --quiet "refs/heads/skills-sync-$HEAD7" >/dev/null \
+  && fail "the retried run deletes its first scratch branch" || pass "the retried run deletes its first scratch branch"
+git -C "$C5" rev-parse --verify --quiet "refs/heads/skills-sync-$HEAD7-r2" >/dev/null \
+  && fail "the retried run deletes its retry scratch branch" || pass "the retried run deletes its retry scratch branch"
+expect "the retried run advanced last-synced-head" "$SRC_CUR" "$(tr -d '[:space:]' < "$MARKER")"
 
 printf '\n%s\n' "fails: $fails"
 [ "$fails" -eq 0 ]

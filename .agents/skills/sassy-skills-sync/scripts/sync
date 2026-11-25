@@ -8,11 +8,12 @@
 # link are not listed and are never touched.
 #
 # `.sassywares/consumers` is the record of who vendors: `<path> <branch>` per
-# line. For each consumer this cuts a checkout with THIS repo's worktree toolbox
-# (from origin/<branch>), mirrors exactly the roster's skills into
-# `.agents/skills/`, repins only those skills in `skills-lock.json`, commits,
-# pushes to `<branch>` without force, and removes the checkout. Every directory
-# the roster does not name — the project's own skills — is left untouched.
+# line. For each consumer this fetches `origin/<branch>`, cuts a checkout with
+# THIS repo's worktree toolbox from the refreshed ref, mirrors exactly the
+# roster's skills into `.agents/skills/`, repins only those skills in
+# `skills-lock.json`, commits, pushes to `<branch>` without force, and removes
+# the checkout. Every directory the roster does not name — the project's own
+# skills — is left untouched.
 #
 # A consumer's setup is never refreshed. This repo is the suite, not the
 # project's config: the run reports the consumer's setup verdict instead, so a
@@ -25,8 +26,7 @@
 #       1 = a consumer is blocked (a rejected push kept its checkout),
 #       2 = the registry or this repo is malformed.
 #
-# Self-contained bash 3.2. No network beyond the consumer's own push and the
-# `git` refs it already has.
+# Self-contained bash 3.2. No network beyond the consumer's own fetch and push.
 set -euo pipefail
 
 log()  { printf '%s\n' "$*"; }
@@ -230,12 +230,21 @@ delete_retired() { # $1 skills dir, $2 consumer root — only what the lock owns
   rm -f "$owned"
 }
 
-remove_checkout() { # $1 consumer root, $2 scratch branch
-  if ! ( cd "$1" && "$REMOVE" "$2" >/dev/null 2>"$TMP/remove.err" ); then
+remove_checkout() { # $1 consumer root, $2 scratch branch, [$3 = --force]
+  if ! ( cd "$1" && "$REMOVE" "$2" ${3:-} >/dev/null 2>"$TMP/remove.err" ); then
     warn "could not remove the checkout '$2': $(tail -n 2 "$TMP/remove.err" | tr '\n' ' ')"
     return 0
   fi
   git -C "$1" branch -D "$2" >/dev/null 2>&1 || true
+}
+
+# The toolbox never fetches by design, so fetching is this engine's job: without
+# it a stale `origin/<branch>` becomes the base of the sync commit and the push
+# can only be rejected. A failed fetch skips the consumer with its reason rather
+# than letting it ride a ref we cannot vouch for.
+fetch_branch() { # $1 consumer root, $2 branch
+  git -C "$1" fetch --prune origin "$2" 2>"$TMP/fetch.err" \
+    && git -C "$1" rev-parse --verify --quiet "refs/remotes/origin/$2" >/dev/null
 }
 
 # --- per consumer ---------------------------------------------------------
@@ -274,26 +283,50 @@ while IFS=$'\t' read -r raw_path cbranch; do
     continue
   fi
 
-  scratch="skills-sync-$HEAD7"
-  if ! created="$( cd "$root" && "$CREATE" "$scratch" --from "origin/$cbranch" 2>"$TMP/create.err" )"; then
-    reason="$(tail -n 2 "$TMP/create.err" | tr '\n' ' ')"
-    log "  skipped  $name — worktree create failed: $reason"
-    row "$(sanitize "$name")" "$cbranch" "—" "—" "—" "—" "skipped" "$(sanitize "skipped — worktree create failed: $reason")"
+  if ! fetch_branch "$root" "$cbranch"; then
+    reason="git fetch origin $cbranch failed or left no ref: $(tail -n 2 "$TMP/fetch.err" | tr '\n' ' ')"
+    log "  skipped  $name — $reason"
+    row "$(sanitize "$name")" "$cbranch" "—" "—" "—" "—" "skipped" "$(sanitize "skipped — $reason")"
     continue
   fi
-  eval "$created"
 
-  mirror "$WT_PATH/.agents/skills"
-  delete_retired "$WT_PATH/.agents/skills" "$root"
-  if [ -f "$WT_PATH/skills-lock.json" ]; then
-    node "$LOCK_TOOL" write "$WT_PATH/skills-lock.json" "$SOURCE" "$ROSTER_FILE" "$HEAD_SHA"
-  fi
-
+  attempt=0
+  retries=0
   commit="—"
-  if [ -z "$(git -C "$WT_PATH" status --porcelain)" ]; then
-    push="already current"
-    remove_checkout "$root" "$scratch"
-  else
+  push=""
+  # One bounded retry: a remote can advance between the cut and the push. The
+  # sync content does not depend on the base, so discarding the attempt and
+  # replaying it on the refreshed head is deterministic — never a force, never a
+  # hand rebase. A second rejection blocks exactly as before.
+  while :; do
+    attempt=$((attempt + 1))
+    scratch="skills-sync-$HEAD7"
+    [ "$attempt" -eq 1 ] || scratch="$scratch-r$attempt"
+    if ! created="$( cd "$root" && "$CREATE" "$scratch" --from "origin/$cbranch" 2>"$TMP/create.err" )"; then
+      reason="$(tail -n 2 "$TMP/create.err" | tr '\n' ' ')"
+      if [ "$attempt" -eq 1 ]; then
+        log "  skipped  $name — worktree create failed: $reason"
+        push="skipped — worktree create failed: $reason"
+      else
+        blocked=1
+        push="blocked — worktree create failed on retry: $reason"
+        warn "$name: worktree create failed on retry — $reason"
+      fi
+      break
+    fi
+    eval "$created"
+
+    mirror "$WT_PATH/.agents/skills"
+    delete_retired "$WT_PATH/.agents/skills" "$root"
+    if [ -f "$WT_PATH/skills-lock.json" ]; then
+      node "$LOCK_TOOL" write "$WT_PATH/skills-lock.json" "$SOURCE" "$ROSTER_FILE" "$HEAD_SHA"
+    fi
+
+    if [ -z "$(git -C "$WT_PATH" status --porcelain)" ]; then
+      push="already current"
+      remove_checkout "$root" "$scratch"
+      break
+    fi
     if [ -f "$WT_PATH/skills-lock.json" ]; then
       git -C "$WT_PATH" add .agents/skills skills-lock.json
     else
@@ -303,19 +336,35 @@ while IFS=$'\t' read -r raw_path cbranch; do
       blocked=1
       push="blocked — commit failed; kept at $WT_PATH"
       warn "$name: commit failed — checkout kept at $WT_PATH"
-    else
-      commit="$(git -C "$WT_PATH" rev-parse --short HEAD)"
-      if git -C "$WT_PATH" push origin "HEAD:$cbranch" 2>"$TMP/push.err"; then
-        push="pushed"
-        remove_checkout "$root" "$scratch"
-      else
-        blocked=1
-        push="blocked — push rejected; kept at $WT_PATH"
-        warn "$name: push to origin/$cbranch was rejected — checkout kept at $WT_PATH"
-        warn "$(tail -n 2 "$TMP/push.err" | tr '\n' ' ')"
-      fi
+      break
     fi
-  fi
+    commit="$(git -C "$WT_PATH" rev-parse --short HEAD)"
+    if git -C "$WT_PATH" push origin "HEAD:$cbranch" 2>"$TMP/push.err"; then
+      push="pushed"
+      remove_checkout "$root" "$scratch"
+      break
+    fi
+
+    if [ "$attempt" -ge 2 ]; then
+      blocked=1
+      push="blocked — push rejected again; kept at $WT_PATH"
+      warn "$name: push to origin/$cbranch was rejected again — checkout kept at $WT_PATH"
+      warn "$(tail -n 2 "$TMP/push.err" | tr '\n' ' ')"
+      break
+    fi
+
+    warn "$name: push to origin/$cbranch was rejected — retrying once from a fresh origin/$cbranch"
+    warn "$(tail -n 2 "$TMP/push.err" | tr '\n' ' ')"
+    retries=1
+    remove_checkout "$root" "$scratch" --force
+    if ! fetch_branch "$root" "$cbranch"; then
+      blocked=1
+      push="blocked — push rejected and the refetch failed: $(tail -n 2 "$TMP/fetch.err" | tr '\n' ' ')"
+      warn "$name: $push"
+      break
+    fi
+  done
+  [ "$retries" -eq 0 ] || push="$push ($retries retry)"
   log "  synced   $name ($cbranch) — +$added ~$updated -$deleted · $push"
   row "$(sanitize "$name")" "$cbranch" "$(sanitize "$added")" "$(sanitize "$updated")" \
     "$(sanitize "$deleted")" "$commit" "$(sanitize "$push")" "$(sanitize "$alert")"

@@ -17,8 +17,9 @@ repinned folder is one the CLI calls clean.
 
 **Hard rules:**
 
-- **Never force a push.** A rejected push is reported as blocked with its kept
-  checkout path, and the run stops there. The next run retries.
+- **Never force a push.** A push rejected twice is reported as blocked with its
+  kept checkout path, and the run stops there; a single rejection is retried
+  once from a freshly fetched base, never by forcing.
 - **Never write into a consumer's `.sassywares/`.** Setup belongs to the project.
   The run reports a setup that is out of date and which project; it never fixes
   it.
@@ -39,7 +40,7 @@ repinned folder is one the CLI calls clean.
 2. Relay the table: consumer, branch, skills added/updated/deleted, commit, push
    result, and the setup alert (clean, or the named drift or template note).
 3. Exit 0 is success, including skipped consumers and `already current`.
-   Exit 1 is a **blocked** consumer — a rejected push kept its checkout at the
-   path the table names. Report it as a failure so the close-out stops; never
-   force, never retry inside the same run.
+   Exit 1 is a **blocked** consumer — a push rejected twice kept its checkout at
+   the path the table names. Report it as a failure so the close-out stops;
+   never force.
 4. Exit 2 is a malformed registry or repo — relay the message verbatim and stop.
