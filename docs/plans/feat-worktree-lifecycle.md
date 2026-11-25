@@ -48,9 +48,9 @@ Move every per-worktree project step out of the suite and into two scripts the p
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| P1 | The toolbox gains the new contract, loses `prune`, `up`/`down`, and hooks | In progress |
-| P2 | Setup scaffolds and interviews; the references describe the new surface | In progress |
-| P3 | The suite's skill, README, concepts, and tests describe only the new world | In progress |
+| P1 | The toolbox gains the new contract, loses `prune`, `up`/`down`, and hooks | Done |
+| P2 | Setup scaffolds and interviews; the references describe the new surface | Done |
+| P3 | The suite's skill, README, concepts, and tests describe only the new world | Done |
 
 Status values: `Pending` | `In progress` | `Blocked` | `Done`
 
