@@ -51,8 +51,8 @@ Only when the read-back is confirmed with zero open items — and no `out:` was 
 ```text
 Settled. Pick one:
 1. Write the plan — <artifacts.plans>/<slug>.md
-2. Start working via /sassy-work
-3. Implement and ship it via /sassy-lfg
+2. Start working via sassy-work
+3. Implement and ship it via sassy-lfg
 ```
 
 The user must pick explicitly. There is no default and no auto-selection. If no human is present to answer (rare, e.g. a scripted invocation), take option 2 and say so; every branch you resolved without the user is recorded as an assumption, never as a decision.
@@ -63,8 +63,8 @@ Read `references/plan-format.md` and write the plan, including the per-phase QA 
 
 ```text
 Plan written to <absolute path>. Pick one, or stop here:
-1. Start working via /sassy-work
-2. Implement and ship it via /sassy-lfg
+1. Start working via sassy-work
+2. Implement and ship it via sassy-lfg
 ```
 
 Wait for the user. A pick loads that skill with the plan path as its argument — `sassy-work` runs the next phase, `sassy-lfg` runs every phase and ships. Anything else, or no human present, ends here with the plan written. Do not recommend one, and do not implement or commit before a pick.

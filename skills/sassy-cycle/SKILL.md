@@ -46,18 +46,19 @@ Every worker brief this cycle dispatches — implement and fix — carries:
 - Tests only for the files the worker changed and the existing tests that directly regress them. The full suite runs once at the final gate.
 - A hard timeout around long-running commands, for example `timeout 300 bunx vitest run path/to/file.test.ts`; a hung command is killed and reported.
 - Stop and report a blocker to the orchestrator after one failed retry, with the exact command and error, instead of looping on the same failure.
-- Report the files it changed and state `Runtime behavior: yes` or `Runtime behavior: no` — whether the change alters what the product does.
+- Report the files it changed and state `Runtime behavior: yes` or `Runtime behavior: no` — whether the change alters what the product does for a user. Running the product in a test or tooling does not count.
 - For a **simplification**: behavior stays identical — same output for every input, same errors, same side effects and ordering. Never remove validation, error handling that prevents data loss, authorization, escaping, or accessibility code to make something simpler, and never weaken a test to make it pass. A simplification that cannot meet that is skipped and reported with the reason.
 
 ## Steps
 
 1. **Recon (optional).** If the work is large or its location is unclear, run `sassy-scout` first and pass the grounding brief path into the work brief. Skip when the brief is already precise.
 2. **Implement.** Dispatch a `worker` with the work brief, the intent reference, and the plan path if there is one, carrying the worker brief constraints above. For independent chunks, batch them as **parallel** `worker` tasks in one call (max 8). The worker reads whatever it needs itself.
-3. **Resolve the tier.** An explicit tier from Inputs wins, unless the work contradicts it: a `surface` or `none` unit whose files include core code, or whose worker reported `Runtime behavior: yes`, is promoted to `logic`. Never demote. Without an explicit tier, classify from the worker's file report:
-   - any core-code path, or `Runtime behavior: yes` → `logic`
-   - only human-authored docs, copy, comments, tests, or fixtures → `surface`
+3. **Resolve the tier.** An explicit tier from Inputs wins, unless the work contradicts it: a `surface` or `none` unit whose files include a core-code path is promoted to `logic`. Never demote. The worker's `Runtime behavior: yes` is not a promotion on its own — tests, fixtures, and tooling often exercise runtime behavior without changing it. Without an explicit tier, classify from the worker's file report:
+   - any core-code path → `logic`
+   - only human-authored docs, copy, comments, tests, fixtures, or tooling → `surface`
    - only generated, vendored, lock, or formatting files → `none`
-   - mixed surface and generated files → `surface`; the human-authored part decides.
+   - mixed surface and generated files → `surface`; the human-authored part decides
+   - anything else → `logic` if the worker reported `Runtime behavior: yes`, otherwise `surface`.
 
    Core code is what ships and runs: product source, UI and styles, schemas and migrations, public contracts, and behavior-changing config. Report the resolved tier as `declared`, `detected`, or `promoted` in the result.
 4. **Quality (by tier).** Dispatch in one **parallel** call where the tier has more than one agent:
@@ -98,7 +99,7 @@ Notes: <anything the caller needs>
 | Orchestrator only | Never edit code or read source in the main context. Delegate. |
 | Tier decides agents | `logic` → simplifier + reviewer + validator (validator only with an intent reference); `surface` → reviewer; `none` → none. |
 | One fix pass, no verify | At most one work pass after the quality agents. Never re-review the fix. |
-| Never demote | A declared `surface` or `none` promotes to `logic` when the work touches core code or reports changed runtime behavior. |
+| Never demote | A declared `surface` or `none` promotes to `logic` only when the changed files include core code. |
 | Parallel where independent | Independent work chunks → parallel workers. The tier's quality agents run in one parallel call. |
 | Only fixes block | Simplifications are applied or reported but never make a run `blocked`; reviewer suggestions go to the caller's gate for the user to pick and are never applied automatically. |
 | Simplifier runs once | Only at the `logic` tier. It never runs on rework. |

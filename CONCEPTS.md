@@ -22,7 +22,7 @@ A skill that mostly coordinates. It reads compact results, writes briefs, and av
 
 ## Change tier
 
-The depth of quality work a unit needs: declared per plan phase with `**Review:**`, passed as a `review:` token, or detected by `sassy-cycle` from the work. `logic` is core code and anything that can change runtime behavior; `surface` is everything that is not core code — docs, Markdown, comments, copy/i18n, tests, fixtures, formatting; `none` is machine-generated or mechanical churn. A declared `surface` or `none` is promoted to `logic` when the work touches core code; never the reverse.
+The depth of quality work a unit needs: declared per plan phase with `**Review:**`, passed as a `review:` token, or detected by `sassy-cycle` from the work. `logic` is core code and anything that can change runtime behavior; `surface` is everything that is not core code — docs, Markdown, comments, copy/i18n, tests, fixtures, formatting; `none` is machine-generated or mechanical churn. A declared `surface` or `none` is promoted to `logic` when the changed files include core code; never the reverse, and a worker's `Runtime behavior: yes` does not promote on its own, because tests and tooling can exercise behavior without changing it.
 
 ## Dogfood
 
