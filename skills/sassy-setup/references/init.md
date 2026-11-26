@@ -56,15 +56,16 @@ Both install the same way: report the scope if the pieces are present, otherwise
   |---|---|---|---|
   | pi | `pi/` | `~/.pi/agent/agents/` | `.pi/agents/` |
   | Claude Code | `claude/` | `~/.claude/agents/` | `.claude/agents/` |
+  | Hermes Agent | `hermes/` | `~/.hermes/agents/` | — (user scope only) |
 
-  A harness with no row has no folder in sassy-agents: say so, skip the agents, and name it in the report. Never translate another harness's folder by hand.
+  A harness with no row has no folder in sassy-agents: say so, skip the agents, and name it in the report. Never translate another harness's folder by hand. Hermes Agent has no project-scope agent directory, so its row has none: install user scope, or set `HERMES_AGENTS_DIR` when the roster lives somewhere else.
 
-  **Installed** means all five `<name>.md` files exist in the user scope or the project scope.
+  **Installed** means all five `<name>.md` files exist in the user scope or the project scope — user scope alone where the harness has no project scope.
 
   - **User scope** — every project on this machine, updated by `git pull`. Reuse the user's sassy-agents checkout if they have one; otherwise ask where to clone it (`git clone https://github.com/sassywares/sassy-agents.git <dir>`). Then run `<dir>/scripts/install.sh <folder>`, which symlinks the folder into the user scope and never overwrites a differing file.
-  - **Project scope** — only this project, pinned with it. Shallow-clone into its own `mktemp -d` under `/tmp/sassywares/scratch/` (two runs share that folder now, per `references/harness.md`), copy `<folder>/*.md` into the project scope directory, delete the clone. Never overwrite an existing agent file that differs: show it and ask. The copies join step 8's commit list.
+  - **Project scope** — only this project, pinned with it. Shallow-clone into its own `mktemp -d` under `/tmp/sassywares/scratch/` (two runs share that folder now, per `references/harness.md`), copy `<folder>/*.md` into the project scope directory, delete the clone. Never overwrite an existing agent file that differs: show it and ask. The copies join step 8's commit list. A harness with no project scope (Hermes Agent) gets no project install: user scope or nothing, said plainly in the report.
 
-- **Tell the user to `/reload`** (or restart the harness). The skills and agents are invisible to the harness until it rescans.
+- **Tell the user the harness's reload step** — `/reload` in pi, a new session in Claude Code and Hermes Agent. A harness that has not rescanned does not see new or changed skills and agents.
 
 ## 6. Install the git tooling
 
