@@ -12,10 +12,10 @@ A missing sibling means the suite is incomplete: stop and point at `sassy-setup`
 
 ## Dispatching an agent
 
-"Dispatch a `worker`" (or `scout`, `reviewer`, `simplifier`, `validator`) means: start that [sassy-agents](https://github.com/sassywares/sassy-agents) subagent by name through the harness's own mechanism — the `subagent` tool in pi, the Agent tool with that agent type in Claude Code. "In parallel" means several dispatches in one turn.
+"Dispatch a `worker`" (or `scout`, `reviewer`, `simplifier`, `validator`) means: start that [sassy-agents](https://github.com/sassywares/sassy-agents) subagent by name through the harness's own mechanism — the `subagent` tool in pi, the Agent tool with that agent type in Claude Code, `delegate_task` in Hermes Agent with `~/.hermes/agents/<name>.md`'s body, frontmatter stripped, as the child's context. "In parallel" means several dispatches in one turn.
 
 - **Agent not installed** — stop and point at `sassy-setup`, which installs the roster for the running harness. Never substitute a generic agent silently.
-- **Cannot dispatch** — you are yourself a subagent and the harness does not let subagents dispatch (Claude Code), or the harness has no subagents at all. Do that step inline with the same brief and constraints, and say in your result that it ran inline. Never skip it.
+- **Cannot dispatch** — you are yourself a subagent and the harness does not let subagents dispatch (Claude Code; in Hermes Agent a child cannot call `delegate_task`), or the harness has no subagents at all. Do that step inline with the same brief and constraints, and say in your result that it ran inline. Never skip it.
 
 ## Commands the user types
 
@@ -25,6 +25,7 @@ Skills tell the user what to run next. Write the command for the harness you are
 |---|---|---|
 | pi | `/skill:<name> <args>` | `/reload` |
 | Claude Code | `/<name> <args>` | restart the session |
+| Hermes Agent | `/sassy-plan <args>` | a new session for the `/` menu; a skill is read from disk on every load, so a changed file takes effect immediately |
 
 For any other harness, give the skill name and its arguments and let the user invoke it their way.
 

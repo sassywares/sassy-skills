@@ -21,17 +21,17 @@ npx skills experimental_install              # restore exactly what the project 
 Refreshing the suite is your decision — nothing here updates itself. With both
 scopes installed, Claude Code runs the user-scope copy.
 
-`.agents/skills/` is read by pi and Cursor; Claude Code reads `.claude/skills/` only, which is why those links exist. After any change, reload your harness (`/reload` in pi, a new session in Claude Code).
+`.agents/skills/` is read by pi and Cursor; Claude Code reads `.claude/skills/` only, which is why those links exist. After any change, reload your harness (`/reload` in pi, a new session in Claude Code and Hermes Agent).
 
 ## Agents
 
 The skills dispatch five subagents by name — `scout`, `worker`, `reviewer`,
 `simplifier`, `validator` — from [sassy-agents](https://github.com/sassywares/sassy-agents),
-one folder per harness (`pi/`, `claude/`). They live either in the harness's
-user directory (`~/.pi/agent/agents/`, `~/.claude/agents/`, linked by
-`sassy-agents/scripts/install.sh <harness>`) or in this project's
-`.pi/agents/` / `.claude/agents/`. `sassy-setup` checks for them and offers to
-install them when missing.
+one folder per harness (`pi/`, `claude/`, `hermes/`). They live either in the
+harness's user directory (`~/.pi/agent/agents/`, `~/.claude/agents/`,
+`~/.hermes/agents/`, linked by `sassy-agents/scripts/install.sh <harness>`) or
+in this project's `.pi/agents/` / `.claude/agents/` — Hermes has user scope
+only. `sassy-setup` checks for them and offers to install them when missing.
 
 ## Missing skills
 

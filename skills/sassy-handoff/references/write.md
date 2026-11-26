@@ -22,7 +22,7 @@
 4. **Hand it to the user.** Report the absolute path, then one fenced, copyable command in the running harness's syntax (per `references/harness.md`):
 
    ```text
-   /sassy-handoff mode:read <absolute path>          # Claude Code
+   /sassy-handoff mode:read <absolute path>          # Claude Code, Hermes Agent
    /skill:sassy-handoff mode:read <absolute path>    # pi
    ```
 
