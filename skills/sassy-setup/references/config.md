@@ -586,8 +586,13 @@ report layout, the verdict classes, and the lint are in
   exact line to delete, and the lifecycle now lives in the two script keys.
 - `worktrees.enabled` is `true` or `false`. A checkout must resolve outside the
   working tree and must not hold a branch `base_map` names as a base. An
-  `enabled: true` with no tooling installed, or with the wrong tooling version,
-  is drift.
+  `enabled: true` with no tooling installed is drift, and so is an older tooling
+  set than the one this skill ships: a stale set lacks the flags and helpers the
+  project's own create/remove scripts were written against, so a run stops
+  mid-operation. `--check` names it stale and then lists every file that differs
+  or is no longer shipped; the fix is re-running setup. A set carrying a *newer*
+  header is drift too, reported file by file without the stale wording — it
+  works, it is simply not the set this skill ships.
 - `commit.branch` is `current` or `new`; `pr.*` are `true` or `false`. Write
   booleans as `true`/`false`, never `on`/`off` — bare `on`/`off` are YAML 1.1
   booleans and parse inconsistently.

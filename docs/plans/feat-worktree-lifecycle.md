@@ -73,7 +73,7 @@ Status values: `Pending` | `In progress` | `Blocked` | `Done`
 - `assets/worktree/remove`: delete `--hook-ok` and the `down:` execution; guards → git removal, branch survives.
 - Delete `assets/worktree/prune` and `assets/lifecycle/{up,down}`.
 - `scripts/detect.sh`: accept `worktrees.create`/`worktrees.remove`/`worktrees.enabled`/`worktrees.dir`; drop `up`, `down`, `hooks.worktree`; legacy-specific message on each; add the read-only `--worktree-script create|remove` resolver — the declared path when it is executable and well-shaped, else the built-in with a warning naming the key and the file; keep the `--check` output shape.
-- `scripts/worktree-check.mjs`: hash four files instead of five; treat a 12 → 13 version as an upgrade, not drift.
+- `scripts/worktree-check.mjs`: hash four files instead of five. ~~treat a 12 → 13 version as an upgrade, not drift~~ — **reversed in the v13 aftermath:** that short-circuit exited 0 before hashing, so a v8 set under v13 wrappers passed every check while `remove` died on `list --env`. A lower header is now drift.
 - `tests/worktree-create.sh`: assert the stream split, `list --env` parity, the state column, the missing-script warning, and a remove that runs with `WT_*` set and no hooks.
 
 **Done when:** on a scratch repo, a hand-written pair of project scripts creates a prepared checkout and tears it down in order — stop while the tree exists, delete, dispose after — with no `up`, `down`, `prune`, or hook anywhere in the path.

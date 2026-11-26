@@ -11,10 +11,12 @@
 // state file records it and no second hash definition exists.
 //
 // The shipped set is four files — _lib.sh, create, list, remove. `prune` is
-// gone. A v12 install is therefore stale by construction, and its hash cannot
-// match: that is an upgrade, not tampering, so the version header earns its
-// one job here — an older header is reported as a note and the caller proceeds
-// to reinstall. An equal header whose hashes differ is still drift.
+// gone, so an older install is stale by construction and its hash cannot match.
+// That is not tampering, but it is not harmless either: the project's own
+// create/remove scripts are written against the set this skill ships, and an
+// older one lacks the flags and helpers they call, so a run stops mid-operation
+// where no check is watching. A stale set is therefore drift, never a shrugged
+// "upgrade": named once as stale, then by file.
 //
 // Usage: worktree-check.mjs --installed DIR --shipped DIR
 // Prints "<drift|note>\t<message>" per finding and always exits 0: the caller
@@ -69,17 +71,16 @@ const headerVersion = (dir) => {
 
 const installedVersion = headerVersion(installed);
 const shippedVersion = headerVersion(shipped);
-if (
+
+// A lower header than the shipped one is the stale case: the set installed is
+// not the set the project's scripts were written against, so they stop mid-run
+// on a flag it never had. A higher header is not stale — a newer set works, it
+// is simply not the one this skill ships — so it reports through the file walk
+// alone and never borrows the "falls over" wording.
+const stale =
   installedVersion !== null &&
   shippedVersion !== null &&
-  installedVersion < shippedVersion
-) {
-  note(
-    `worktree tooling is v${installedVersion}; this skill ships v${shippedVersion} — an upgrade, not drift — re-run setup, then delete .sassywares/worktree/prune, which v${shippedVersion} no longer ships`,
-  );
-  console.log(lines.join("\n"));
-  process.exit(0);
-}
+  installedVersion < shippedVersion;
 
 // Walk each side once: the hash is the verdict and the same arrays name which
 // bytes moved, so the per-file report cannot contradict the folder hash.
@@ -97,6 +98,12 @@ if (got === want) {
   process.exit(0);
 }
 
+// Verdict first, evidence after: the stale line says what it costs, and the walk
+// below names the files so the report cannot be read as vague.
+if (stale) {
+  drift("worktree setup is stale — it goes off mid-run, not here; re-run setup");
+}
+
 const byPath = (files) => new Map(files.map((file) => [file.path, file.body]));
 const installedByPath = byPath(installedFiles);
 const shippedByPath = byPath(shippedFiles);
@@ -108,9 +115,12 @@ for (const [path, body] of shippedByPath) {
     drift(`.sassywares/worktree/${path} differs from the shipped copy — re-run setup`);
   }
 }
+// A file this skill no longer ships is left over from an older set, and the
+// `_lib.sh` helpers it calls went with it — so it is not merely untidy, it is a
+// command that cannot work.
 for (const path of installedByPath.keys()) {
   if (!shippedByPath.has(path)) {
-    drift(`.sassywares/worktree/${path} is not shipped by this skill — remove it, or re-run setup`);
+    drift(`${path} is retired and its helpers went with it — it cannot run; re-run setup`);
   }
 }
 

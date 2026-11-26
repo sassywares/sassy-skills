@@ -93,6 +93,11 @@ owns the workflow; the scripts in `.sassywares/worktree/` own the git.
   `# sassywares:scaffold v1 skill=<name> version=<version> date=<YYYY-MM-DD>`.
   The `sassy-setup` skill's `references/scaffold-header.md` owns its bytes and the
   offer-only upgrade rule.
+- **Toolbox** — the installed `.sassywares/worktree/` set of git-mechanics
+  scripts, versioned by an integer *contract* header that the project's own
+  wrappers are written against. That number is not the suite release a scaffold
+  header records, so the two are not comparable; a toolbox older than the shipped
+  one is drift, not an upgrade, because the wrappers call flags it never had.
 - **Managed checkout** — one under `worktrees.dir` that also carries
   `.sassywares/config.yaml`. The tooling lists and removes only those; anything
   else belongs to another tool or predates the wiring.
